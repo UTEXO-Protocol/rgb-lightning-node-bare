@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Build artefacts (large; distributed via GitHub Releases like rgb-lib-bare)
+lib/
+prebuilds/
+
+# CMake build dirs
+build/
+build-prebuild-*/
+
+# Cargo target dirs (in the rgb-lightning-node submodule when used)
+target/
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Temp / canary outputs
+*.log

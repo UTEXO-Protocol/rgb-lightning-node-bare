@@ -1,0 +1,33 @@
+{
+  "name": "@utexo/rgb-lightning-node-bare",
+  "version": "0.1.0-canary.1",
+  "description": "Bare native addon wrapping rgb-lightning-node C FFI for use in bare worklets (canary build)",
+  "main": "index.js",
+  "addon": true,
+  "files": [
+    "binding.js",
+    "binding.cc",
+    "rln.h",
+    "CMakeLists.txt",
+    "index.js",
+    "prebuilds/",
+    "lib/",
+    "scripts/"
+  ],
+  "scripts": {
+    "build": "cmake-bare-rebuild",
+    "build-cffi": "bash scripts/build-ios.sh",
+    "build-prebuilds": "bash scripts/build-prebuilds.sh",
+    "test": "node test.js"
+  },
+  "dependencies": {
+    "bare-fs": "^4.7.1",
+    "bare-os": "^3.9.0",
+    "bare-path": "^3.0.0",
+    "require-addon": "^1.2.0"
+  },
+  "devDependencies": {
+    "cmake-bare": "^1.7.6",
+    "cmake-npm": "^1.1.0"
+  }
+}
