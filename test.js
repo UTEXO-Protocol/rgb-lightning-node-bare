@@ -5,16 +5,22 @@
  *    extern "C" boundary without standing up a node.
  * 2. Creates an SdkNode against a temp dir and shuts it down — exercises
  *    NodeHandle::new + the tokio runtime + clean shutdown.
- *
- * Step 2 is the load-bearing canary: it proves LDK initialisation +
- * the static tokio runtime work inside a bare runtime.
+ * 3. Builds a NativeExternalSigner, reads its bootstrap, initialises a
+ *    fresh SdkNode against it, then shuts the node down — proves the
+ *    external-signer boundary (VLS in-process signer + Arc handoff)
+ *    works through the C-FFI on bare.
  */
 
 const fs = require('bare-fs')
 const os = require('bare-os')
 const path = require('bare-path')
 
-const { uniffiHealthcheck, uniffiIsInitialized, SdkNode } = require('./index')
+const {
+  uniffiHealthcheck,
+  uniffiIsInitialized,
+  SdkNode,
+  NativeExternalSigner
+} = require('./index')
 
 function fail (msg) {
   console.error('✗', msg)
@@ -58,4 +64,63 @@ try {
   fail(`shutdown threw: ${e.message}`)
 }
 
-console.log('\n✅ Canary 1 PASSED — bare ↔ C-FFI ↔ tokio ↔ LDK boot OK')
+// ─── Step 3: external-signer boundary ─────────────────────────────────────
+// A throwaway 32-byte seed (all-zero is rejected by some VLS validators, so
+// use a deterministic non-zero pattern instead).
+const SEED_HEX = '01'.repeat(32)
+let signer
+try {
+  signer = NativeExternalSigner.create(SEED_HEX, 'regtest')
+  console.log('✓ NativeExternalSigner created')
+} catch (e) {
+  fail(`NativeExternalSigner.create threw: ${e.message}`)
+}
+
+let bootstrap
+try {
+  bootstrap = signer.bootstrap()
+  console.log('✓ bootstrap()',
+    `node_id=${bootstrap.node_id.slice(0, 16)}…`,
+    `xpub_van=${bootstrap.account_xpub_vanilla.slice(0, 16)}…`,
+    `api_level=${bootstrap.api_level}`)
+  for (const key of [
+    'node_id', 'account_xpub_vanilla', 'account_xpub_colored',
+    'master_fingerprint', 'protocol_version', 'api_level'
+  ]) {
+    if (bootstrap[key] === undefined) fail(`bootstrap missing field: ${key}`)
+  }
+} catch (e) {
+  fail(`bootstrap() threw: ${e.message}`)
+}
+
+const dataDir2 = fs.mkdtempSync(path.join(os.tmpdir(), 'rln-canary-signer-'))
+let node2
+try {
+  node2 = SdkNode.create({
+    storage_dir_path: dataDir2,
+    daemon_listening_port: 0,
+    ldk_peer_listening_port: 0,
+    network: 'regtest',
+    max_media_upload_size_mb: 5,
+    enable_virtual_channels_v0: false
+  })
+  console.log('✓ SdkNode created for signer canary')
+} catch (e) {
+  fail(`SdkNode.create (signer canary) threw: ${e.message}`)
+}
+
+try {
+  node2.initWithNativeExternalSigner(signer)
+  console.log('✓ initWithNativeExternalSigner — key source written to disk')
+} catch (e) {
+  fail(`initWithNativeExternalSigner threw: ${e.message}`)
+}
+
+try {
+  node2.shutdown()
+  console.log('✓ signer canary SdkNode shutdown clean')
+} catch (e) {
+  fail(`signer canary shutdown threw: ${e.message}`)
+}
+
+console.log('\n✅ Canary 1 PASSED — bare ↔ C-FFI ↔ tokio ↔ LDK boot + external signer OK')

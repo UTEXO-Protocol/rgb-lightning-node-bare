@@ -1,7 +1,7 @@
 {
   "name": "@utexo/rgb-lightning-node-bare",
-  "version": "0.1.0-canary.1",
-  "description": "Bare native addon wrapping rgb-lightning-node C FFI for use in bare worklets (canary build)",
+  "version": "0.1.0-beta.1",
+  "description": "Bare native addon wrapping rgb-lightning-node C FFI for use in bare worklets",
   "main": "index.js",
   "addon": true,
   "files": [
