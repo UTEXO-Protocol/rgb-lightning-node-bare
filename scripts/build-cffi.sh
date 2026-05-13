@@ -80,6 +80,43 @@ if [ "$MODE" = "ios" ] || [ "$MODE" = "all" ]; then
   build_target "x86_64-apple-ios"      "ios-x64-simulator"   "export SDKROOT='$IOS_SIM_SDK'"
 fi
 
+# Android — uses cargo-ndk to set NDK linker / sysroot env vars.
+# Prereqs: rustup targets installed, cargo-ndk installed
+# (`cargo install cargo-ndk`), ANDROID_NDK_HOME exported.
+build_android_target() {
+  local NDK_ABI="$1"        # e.g. arm64-v8a, armeabi-v7a, x86_64
+  local RUST_TARGET="$2"    # cargo rustc target triple
+  local DIR_NAME="$3"       # lib/<DIR_NAME>/
+
+  echo ""
+  echo "--- Building for $RUST_TARGET → $DIR_NAME (Android NDK ABI $NDK_ABI) ---"
+
+  cd "$CFFI_DIR"
+  cargo ndk -t "$NDK_ABI" rustc --release --lib --crate-type staticlib 2>&1 | tail -3
+  mkdir -p "$OUT_DIR/$DIR_NAME"
+  cp "target/$RUST_TARGET/release/librlncffi.a" "$OUT_DIR/$DIR_NAME/"
+
+  strip -S "$OUT_DIR/$DIR_NAME/librlncffi.a" 2>/dev/null || true
+  SIZE=$(ls -lh "$OUT_DIR/$DIR_NAME/librlncffi.a" | awk '{print $5}')
+  echo "✅ $DIR_NAME: $SIZE"
+}
+
+if [ "$MODE" = "android" ] || [ "$MODE" = "all" ]; then
+  if [ -z "${ANDROID_NDK_HOME:-}" ]; then
+    echo "ERROR: ANDROID_NDK_HOME not set"
+    echo "  e.g. export ANDROID_NDK_HOME=\$HOME/Library/Android/sdk/ndk/<version>"
+    exit 1
+  fi
+  if ! command -v cargo-ndk >/dev/null 2>&1; then
+    echo "ERROR: cargo-ndk not installed. Run: cargo install cargo-ndk"
+    exit 1
+  fi
+
+  build_android_target "arm64-v8a"   "aarch64-linux-android"     "android-arm64"
+  build_android_target "armeabi-v7a" "armv7-linux-androideabi"   "android-arm"
+  build_android_target "x86_64"      "x86_64-linux-android"      "android-x64"
+fi
+
 echo ""
 echo "=== Build complete ==="
 ls -lhR "$OUT_DIR"
