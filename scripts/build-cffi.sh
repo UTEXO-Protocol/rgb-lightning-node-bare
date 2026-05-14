@@ -96,7 +96,10 @@ build_android_target() {
   mkdir -p "$OUT_DIR/$DIR_NAME"
   cp "target/$RUST_TARGET/release/librlncffi.a" "$OUT_DIR/$DIR_NAME/"
 
-  strip -S "$OUT_DIR/$DIR_NAME/librlncffi.a" 2>/dev/null || true
+  # Use llvm-strip from the NDK; macOS `strip` corrupts ELF archives with a
+  # "truncated or malformed archive" error at ld.lld link time.
+  LLVM_STRIP="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-strip"
+  [ -x "$LLVM_STRIP" ] && "$LLVM_STRIP" --strip-debug "$OUT_DIR/$DIR_NAME/librlncffi.a" 2>/dev/null || true
   SIZE=$(ls -lh "$OUT_DIR/$DIR_NAME/librlncffi.a" | awk '{print $5}')
   echo "✅ $DIR_NAME: $SIZE"
 }

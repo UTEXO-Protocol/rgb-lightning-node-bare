@@ -1,6 +1,6 @@
 {
   "name": "@utexo/rgb-lightning-node-bare",
-  "version": "0.1.0-beta.3",
+  "version": "0.1.0-beta.4",
   "description": "Bare native addon wrapping rgb-lightning-node C FFI for use in bare worklets",
   "main": "index.js",
   "addon": true,
@@ -15,8 +15,9 @@
     "scripts/"
   ],
   "scripts": {
+    "postinstall": "bash scripts/download-libs.sh",
     "build": "cmake-bare-rebuild",
-    "build-cffi": "bash scripts/build-ios.sh",
+    "build-cffi": "bash scripts/build-cffi.sh",
     "build-prebuilds": "bash scripts/build-prebuilds.sh",
     "test": "node test.js"
   },
