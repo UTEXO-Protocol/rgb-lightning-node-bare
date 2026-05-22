@@ -26,12 +26,8 @@ typedef struct CResult {
 } CResult;
 
 /**
- * Drop a `NativeExternalSigner` handle previously returned by
- * `rln_native_external_signer_new`. The underlying VLS signer state stays
- * alive as long as RLN holds its own `Arc` clone (after attach/init); the
- * caller is therefore safe to free their handle immediately after
- * `rln_sdk_node_attach_native_external_signer` / `..._init_with_...` /
- * `..._unlock_with_...` succeeds, even while the node is still running.
+ * Drop a `NativeExternalSigner` handle. Safe to call immediately after
+ * attach / init / unlock succeeds: RLN holds its own `Arc` clone.
  */
 void free_native_external_signer(struct COpaqueStruct obj);
 
