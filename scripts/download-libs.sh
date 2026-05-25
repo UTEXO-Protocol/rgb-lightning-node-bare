@@ -5,10 +5,16 @@ set -euo pipefail
 # GitHub Releases. Runs automatically via npm postinstall. Mirrors the
 # pattern from @utexo/rgb-lib-bare.
 
-REPO="UTEXO-Protocol/rgb-lightning-node-bare"
-VERSION="v0.1.0-beta.4"
+REPO="${RLN_BARE_RELEASE_REPO:-UTEXO-Protocol/rgb-lightning-node-bare}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PKG_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Derive version from package.json so a publish bump alone is enough to
+# pull fresh prebuilds. Previously this was hardcoded and silently
+# stayed on beta.4 across beta.5+ tags, which left every consumer
+# running stale native code against a newer JS wrapper. Allow an
+# override via RLN_BARE_RELEASE_VERSION for testing.
+VERSION="${RLN_BARE_RELEASE_VERSION:-v$(node -p 'require("'"$PKG_DIR"'/package.json").version')}"
 
 # Platform assets to download
 # Format: "github_asset_name:local_path"
