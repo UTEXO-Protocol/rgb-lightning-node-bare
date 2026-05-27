@@ -73,6 +73,18 @@ class SdkNode {
     this._closed = true
   }
 
+  /**
+   * Forces takeover of a stale VSS ownership fence after the previous
+   * node died holding it. Throws `Rln(FailedVssInit)` if VSS isn't
+   * configured. Pointing two live nodes at the same VSS store corrupts
+   * state — call only when certain the previous owner is gone.
+   *
+   * @param {{ password: string }} request
+   */
+  vssClearFence (request) {
+    binding.sdkNodeVssClearFence(this._handle, JSON.stringify(request))
+  }
+
   // -------- External-signer lifecycle --------
 
   /**
