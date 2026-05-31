@@ -85,6 +85,19 @@ class SdkNode {
     binding.sdkNodeVssClearFence(this._handle, JSON.stringify(request))
   }
 
+  /**
+   * APay receiver-side registration with an LSP. Pass the LSP's
+   * node_id (hex). Returns the parsed AsyncOrderNewResponse —
+   * `{ request_id, host_node_id, protocol_version, order_id, status,
+   *    accepted_through_index, next_index_expected, unused_hashes,
+   *    refill_batch_size, first_hash_index }`. Upstream PR #51.
+   *
+   * @param {string} hostNodeId
+   */
+  apayNew (hostNodeId) {
+    return JSON.parse(binding.sdkNodeApayNew(this._handle, hostNodeId))
+  }
+
   // -------- External-signer lifecycle --------
 
   /**

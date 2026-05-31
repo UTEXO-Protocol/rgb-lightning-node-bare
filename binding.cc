@@ -272,6 +272,7 @@ static js_value_t *fn_sdk_node_init(js_env_t *env, js_callback_info_t *info) {
 FN_NODE_JSON(sdk_node_unlock, rln_sdk_node_unlock)
 FN_NODE(sdk_node_shutdown, rln_sdk_node_shutdown)
 FN_NODE_JSON(sdk_node_vss_clear_fence, rln_sdk_node_vss_clear_fence)
+FN_NODE_STR(sdk_node_apay_new, rln_sdk_node_apay_new)
 
 // ============================================================================
 // External-signer surface
@@ -492,6 +493,7 @@ rgb_lightning_node_bare_exports(js_env_t *env, js_value_t *exports) {
   EXPORT("sdkNodeUnlock", sdk_node_unlock);
   EXPORT("sdkNodeShutdown", sdk_node_shutdown);
   EXPORT("sdkNodeVssClearFence", sdk_node_vss_clear_fence);
+  EXPORT("sdkNodeApayNew", sdk_node_apay_new);
 
   // External signer (native — recommended)
   EXPORT("nativeExternalSignerNew", native_external_signer_new);
