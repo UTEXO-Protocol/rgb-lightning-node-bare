@@ -86,6 +86,24 @@ class SdkNode {
   }
 
   /**
+   * Force an immediate VSS backup flush. Returns `{ version }` where
+   * version is the snapshot index just persisted. Throws if VSS isn't
+   * configured (no `vssUrl` at init) or the flush fails (server
+   * unreachable, auth rejected). Useful for app-controlled
+   * checkpoints (e.g. "save state before app suspend") rather than
+   * relying on the implicit on-write flush.
+   *
+   * Backed by upstream `vss_backup()` UniFFI method (PR #50). Requires
+   * the C-FFI patch series at `rgb-lightning-node-bare/patches/` to be
+   * applied before the static lib is built.
+   *
+   * @returns {{version: number}}
+   */
+  vssBackup () {
+    return JSON.parse(binding.sdkNodeVssBackup(this._handle))
+  }
+
+  /**
    * APay receiver-side registration with an LSP. Pass the LSP's
    * node_id (hex). Returns the parsed AsyncOrderNewResponse —
    * `{ request_id, host_node_id, protocol_version, order_id, status,
