@@ -25,6 +25,23 @@ while pre-`1.0`.
   wrappers — not yet upstream). See `patches/README.md` for the
   rationale and apply instructions.
 
+## [0.1.0-beta.12] — 2026-06-01
+
+### Added
+- `sdkNodeVssBackup` wrapper — exposes upstream `vss_backup()`
+  UniFFI method (uniffi_api/mod.rs:346). Returns `{ version }`
+  of the snapshot just persisted; for app-controlled VSS flush
+  checkpoints. Built against `rgb-lightning-node` v0.5.0-beta.1 +
+  the refreshed C-FFI patch series at `patches/`.
+
+### Fixed
+- iOS cross-build: set `IPHONEOS_DEPLOYMENT_TARGET=16.0` in
+  `scripts/build-cffi.sh`. v0.5.0-beta.1's rustls integration
+  pulled in `aws_lc_sys` whose prebuilt object files target iOS
+  26.5; Rust's `aarch64-apple-ios` defaults to iOS 10.0 and the
+  linker refused to mix. 16.0 matches upstream RLN's Swift
+  Package floor and unblocks all 3 iOS targets.
+
 ## [0.1.0-beta.11] — 2026-05-31
 
 ### Added
