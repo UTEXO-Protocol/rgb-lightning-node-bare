@@ -75,9 +75,18 @@ if [ "$MODE" = "ios" ] || [ "$MODE" = "all" ]; then
   IOS_SDK=$(xcrun --sdk iphoneos --show-sdk-path)
   IOS_SIM_SDK=$(xcrun --sdk iphonesimulator --show-sdk-path)
 
-  build_target "aarch64-apple-ios"     "ios-arm64"           "export SDKROOT='$IOS_SDK'"
-  build_target "aarch64-apple-ios-sim" "ios-arm64-simulator" "export SDKROOT='$IOS_SIM_SDK'"
-  build_target "x86_64-apple-ios"      "ios-x64-simulator"   "export SDKROOT='$IOS_SIM_SDK'"
+  # iOS deployment floor. v0.5.0-beta.1's dep tree pulls in
+  # aws_lc_sys (via rustls's aws_lc_rs crypto provider, PR #53) whose
+  # prebuilt objects target iOS 26.5; Rust's `aarch64-apple-ios`
+  # target defaults to iOS 10.0, and the linker refuses to mix. We
+  # bump to 16.0 — matches the upstream RLN's Swift Package target,
+  # well above aws_lc_sys's floor, and broad enough to cover every
+  # device the demo runs on. Override via env if you need older.
+  IOS_DEPLOYMENT_TARGET="${IPHONEOS_DEPLOYMENT_TARGET:-16.0}"
+
+  build_target "aarch64-apple-ios"     "ios-arm64"           "export SDKROOT='$IOS_SDK' IPHONEOS_DEPLOYMENT_TARGET='$IOS_DEPLOYMENT_TARGET'"
+  build_target "aarch64-apple-ios-sim" "ios-arm64-simulator" "export SDKROOT='$IOS_SIM_SDK' IPHONEOS_DEPLOYMENT_TARGET='$IOS_DEPLOYMENT_TARGET'"
+  build_target "x86_64-apple-ios"      "ios-x64-simulator"   "export SDKROOT='$IOS_SIM_SDK' IPHONEOS_DEPLOYMENT_TARGET='$IOS_DEPLOYMENT_TARGET'"
 fi
 
 # Android — uses cargo-ndk to set NDK linker / sysroot env vars.
