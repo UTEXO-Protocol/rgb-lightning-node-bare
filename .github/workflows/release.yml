@@ -1,0 +1,374 @@
+name: Build and Release (Bare)
+
+# Matrix CI for @utexo/rgb-lightning-node-bare. Mirrors the shape of
+# UTEXO-Protocol/rgb-lib-bare/.github/workflows/release.yml, adapted for
+# rgb-lightning-node (RLN):
+#
+#   1. build-rust-libs      — cross-compile librlncffi.a for all 7 targets
+#   2. build-bare-prebuilds — cmake-bare → utexo__rgb-lightning-node-bare.bare
+#   3. release              — attach static libs + prebuilds to a GH Release
+#                             and publish the JS wrapper to npm
+#
+# Unlike rgb-lib-bare (which carries rgb-lib as a submodule), RLN is pulled
+# in as a fresh clone pinned to `rln_version`, then our local C-FFI patch
+# series (patches/c-ffi-utexo-patches-<rln_version>.patch) is applied before
+# the static lib is built. The patch adds the apay_new / vss_clear_fence
+# extern "C" wrappers that upstream hasn't merged yet.
+
+on:
+  # Triggered by rgb-lightning-node after a new SDK release is tagged.
+  repository_dispatch:
+    types: [rln-release]
+
+  # Manual trigger — pin RLN to an explicit tag.
+  workflow_dispatch:
+    inputs:
+      rln_version:
+        description: 'rgb-lightning-node tag to pin (e.g. v0.5.0-beta.1)'
+        required: true
+        default: 'v0.5.0-beta.1'
+        type: string
+
+env:
+  # Pinned to the C-FFI crate's rust-version (bindings/c-ffi/Cargo.toml).
+  RUST_TOOLCHAIN: '1.88.0'
+
+jobs:
+  # ==========================================================================
+  # Job 1: Build librlncffi.a (Rust static lib) for all 7 targets
+  # ==========================================================================
+  build-rust-libs:
+    name: Build static lib (${{ matrix.platform }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Apple targets — must build on macOS.
+          - runner: macos-latest
+            os: apple
+            target: aarch64-apple-darwin
+            platform: darwin-arm64
+            sdk: ''
+          - runner: macos-latest
+            os: apple
+            target: aarch64-apple-ios
+            platform: ios-arm64
+            sdk: iphoneos
+          - runner: macos-latest
+            os: apple
+            target: aarch64-apple-ios-sim
+            platform: ios-arm64-simulator
+            sdk: iphonesimulator
+          - runner: macos-latest
+            os: apple
+            target: x86_64-apple-ios
+            platform: ios-x64-simulator
+            sdk: iphonesimulator
+          # Android targets — built on macOS with the NDK.
+          - runner: macos-latest
+            os: android
+            target: aarch64-linux-android
+            platform: android-arm64
+            ndk_linker: aarch64-linux-android24-clang
+          - runner: macos-latest
+            os: android
+            target: armv7-linux-androideabi
+            platform: android-arm
+            ndk_linker: armv7a-linux-androideabi24-clang
+          - runner: macos-latest
+            os: android
+            target: x86_64-linux-android
+            platform: android-x64
+            ndk_linker: x86_64-linux-android24-clang
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Resolve RLN version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "repository_dispatch" ]; then
+            echo "rln=${{ github.event.client_payload.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "rln=${{ inputs.rln_version }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Clone and patch rgb-lightning-node
+        id: rln
+        env:
+          RLN_VERSION: ${{ steps.version.outputs.rln }}
+        run: |
+          set -euo pipefail
+          RLN_DIR="$RUNNER_TEMP/rgb-lightning-node"
+          git clone --recurse-submodules --shallow-submodules --depth 1 \
+            --branch "$RLN_VERSION" \
+            "https://github.com/UTEXO-Protocol/rgb-lightning-node.git" "$RLN_DIR"
+
+          PATCH="$GITHUB_WORKSPACE/patches/c-ffi-utexo-patches-${RLN_VERSION}.patch"
+          if [ ! -f "$PATCH" ]; then
+            echo "::error::No patch found for $RLN_VERSION at $PATCH"
+            echo "Available patches:"; ls -1 "$GITHUB_WORKSPACE/patches/" || true
+            exit 1
+          fi
+
+          echo "Applying $PATCH (fail fast on conflict)"
+          git -C "$RLN_DIR" apply --verbose --check "$PATCH"
+          git -C "$RLN_DIR" apply --verbose "$PATCH"
+
+          echo "rln_dir=$RLN_DIR" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          target: ${{ matrix.target }}
+          rustflags: ''
+
+      - name: Install bindgen-cli (aws-lc-sys on non-arm64 Android)
+        if: matrix.os == 'android'
+        run: cargo install --force --locked bindgen-cli --version 0.72.1
+
+      - name: Setup Android NDK
+        if: matrix.os == 'android'
+        uses: nttld/setup-ndk@v1
+        id: setup_ndk
+        with:
+          ndk-version: r27c
+
+      - name: Build static lib (Apple)
+        if: matrix.os == 'apple'
+        env:
+          RLN_DIR: ${{ steps.rln.outputs.rln_dir }}
+        run: |
+          set -euo pipefail
+          cd "$RLN_DIR/bindings/c-ffi"
+          if [ -n "${{ matrix.sdk }}" ]; then
+            export SDKROOT="$(xcrun --sdk ${{ matrix.sdk }} --show-sdk-path)"
+            # iOS deployment floor — aws_lc_sys prebuilt objects target a
+            # recent iOS; bump the min so the linker won't refuse to mix.
+            export IPHONEOS_DEPLOYMENT_TARGET="16.0"
+          fi
+          cargo rustc --release --target ${{ matrix.target }} --crate-type staticlib
+          strip -S "target/${{ matrix.target }}/release/librlncffi.a" || true
+
+      - name: Build static lib (Android)
+        if: matrix.os == 'android'
+        env:
+          RLN_DIR: ${{ steps.rln.outputs.rln_dir }}
+          ANDROID_NDK_HOME: ${{ steps.setup_ndk.outputs.ndk-path }}
+          ANDROID_NDK_ROOT: ${{ steps.setup_ndk.outputs.ndk-path }}
+          AWS_LC_SYS_CMAKE_BUILDER: '1'
+        run: |
+          set -euo pipefail
+          cd "$RLN_DIR/bindings/c-ffi"
+          TOOLCHAIN="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/darwin-x86_64"
+          export PATH="$TOOLCHAIN/bin:$PATH"
+
+          TARGET="${{ matrix.target }}"
+          # Target-prefixed symlinks so the various -sys crates find NDK tools.
+          for tool in ranlib ar nm strip objcopy objdump readelf; do
+            ln -sf "$TOOLCHAIN/bin/llvm-$tool" "$TOOLCHAIN/bin/${TARGET}-$tool"
+          done
+
+          TARGET_UPPER=$(echo "$TARGET" | tr 'a-z-' 'A-Z_')
+          export CARGO_TARGET_${TARGET_UPPER}_LINKER="$TOOLCHAIN/bin/${{ matrix.ndk_linker }}"
+
+          TARGET_UNDERSCORE=$(echo "$TARGET" | tr '-' '_')
+          export CC_${TARGET_UNDERSCORE}="$TOOLCHAIN/bin/${{ matrix.ndk_linker }}"
+          export CXX_${TARGET_UNDERSCORE}="$TOOLCHAIN/bin/${{ matrix.ndk_linker }}++"
+          export AR_${TARGET_UNDERSCORE}="$TOOLCHAIN/bin/llvm-ar"
+          export RANLIB_${TARGET_UNDERSCORE}="$TOOLCHAIN/bin/llvm-ranlib"
+
+          # bindgen needs the Android sysroot for non-arm64 targets.
+          export BINDGEN_EXTRA_CLANG_ARGS="--sysroot=$TOOLCHAIN/sysroot -target ${TARGET}24"
+
+          cargo rustc --release --target ${{ matrix.target }} --crate-type staticlib
+          "$TOOLCHAIN/bin/llvm-strip" --strip-debug "target/${{ matrix.target }}/release/librlncffi.a" || true
+
+      - name: Upload static lib artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: librlncffi-${{ matrix.platform }}
+          path: ${{ steps.rln.outputs.rln_dir }}/bindings/c-ffi/target/${{ matrix.target }}/release/librlncffi.a
+          retention-days: 1
+
+  # ==========================================================================
+  # Job 2: Build .bare prebuilds (cmake-bare) for all 7 targets — needs macOS
+  # ==========================================================================
+  build-bare-prebuilds:
+    name: Build bare prebuild (${{ matrix.platform }})
+    needs: build-rust-libs
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: darwin-arm64
+            cmake_args: '-DCMAKE_OSX_ARCHITECTURES=arm64'
+          - platform: ios-arm64
+            cmake_args: '-DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_SYSROOT=iphoneos'
+          - platform: ios-arm64-simulator
+            cmake_args: '-DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_SYSROOT=iphonesimulator'
+          - platform: ios-x64-simulator
+            cmake_args: '-DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES=x86_64 -DCMAKE_OSX_SYSROOT=iphonesimulator'
+          - platform: android-arm64
+            android_abi: arm64-v8a
+          - platform: android-arm
+            android_abi: armeabi-v7a
+          - platform: android-x64
+            android_abi: x86_64
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js (for cmake-bare)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install --ignore-scripts
+
+      - name: Download rust static lib artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: librlncffi-${{ matrix.platform }}
+          path: lib/${{ matrix.platform }}
+
+      - name: Setup Android NDK
+        if: startsWith(matrix.platform, 'android-')
+        uses: nttld/setup-ndk@v1
+        id: setup_ndk
+        with:
+          ndk-version: r27c
+
+      - name: Build prebuild (Apple)
+        if: ${{ !startsWith(matrix.platform, 'android-') }}
+        run: |
+          set -euo pipefail
+          rm -rf build-tmp && mkdir -p build-tmp
+          cmake -B build-tmp -S . \
+            -Dcmake-bare_DIR="$PWD/node_modules/cmake-bare" \
+            -Dcmake-npm_DIR="$PWD/node_modules/cmake-npm" \
+            ${{ matrix.cmake_args }}
+          cmake --build build-tmp
+          BARE=$(find build-tmp -name "*.bare" -type f | head -1)
+          mkdir -p prebuilds/${{ matrix.platform }}
+          cp "$BARE" prebuilds/${{ matrix.platform }}/utexo__rgb-lightning-node-bare.bare
+
+      - name: Build prebuild (Android)
+        if: startsWith(matrix.platform, 'android-')
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup_ndk.outputs.ndk-path }}
+        run: |
+          set -euo pipefail
+          rm -rf build-tmp && mkdir -p build-tmp
+          cmake -B build-tmp -S . \
+            -Dcmake-bare_DIR="$PWD/node_modules/cmake-bare" \
+            -Dcmake-npm_DIR="$PWD/node_modules/cmake-npm" \
+            -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=${{ matrix.android_abi }} \
+            -DANDROID_PLATFORM=android-24 \
+            -DANDROID_ALLOW_UNDEFINED_SYMBOLS=TRUE
+          cmake --build build-tmp
+          BARE=$(find build-tmp -name "*.bare" -type f | head -1)
+          mkdir -p prebuilds/${{ matrix.platform }}
+          cp "$BARE" prebuilds/${{ matrix.platform }}/utexo__rgb-lightning-node-bare.bare
+
+      - name: Upload prebuild artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: prebuild-${{ matrix.platform }}
+          path: prebuilds/${{ matrix.platform }}/utexo__rgb-lightning-node-bare.bare
+          retention-days: 1
+
+  # ==========================================================================
+  # Job 3: Release — attach assets to a GH Release + publish to npm
+  # ==========================================================================
+  release:
+    name: Release and Publish
+    needs: [build-rust-libs, build-bare-prebuilds]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve RLN version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "repository_dispatch" ]; then
+            echo "rln=${{ github.event.client_payload.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "rln=${{ inputs.rln_version }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Bump package prerelease version
+        run: npm version prerelease --preid=beta --no-git-tag-version
+
+      - name: Read package version
+        id: pkg
+        run: echo "version=v$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Commit and push version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add package.json
+          git commit -m "chore: release ${{ steps.pkg.outputs.version }} (RLN ${{ steps.version.outputs.rln }})"
+          git push
+
+      - name: Download all static libs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: librlncffi-*
+          path: artifacts/static-libs
+
+      - name: Download all prebuilds
+        uses: actions/download-artifact@v4
+        with:
+          pattern: prebuild-*
+          path: artifacts/prebuilds
+
+      - name: Prepare release assets
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          # Static libs → librlncffi-<platform>.a (matches scripts/download-libs.sh)
+          for dir in artifacts/static-libs/librlncffi-*; do
+            platform=$(basename "$dir" | sed 's/librlncffi-//')
+            cp "$dir/librlncffi.a" "release-assets/librlncffi-${platform}.a"
+          done
+          # Prebuilds → utexo__rgb-lightning-node-bare-<platform>.bare
+          for dir in artifacts/prebuilds/prebuild-*; do
+            platform=$(basename "$dir" | sed 's/prebuild-//')
+            cp "$dir/utexo__rgb-lightning-node-bare.bare" "release-assets/utexo__rgb-lightning-node-bare-${platform}.bare"
+          done
+          ls -lh release-assets/
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.pkg.outputs.version }}"
+          gh release create "$VERSION" \
+            --title "Release $VERSION" \
+            --notes "Automated release. Built against rgb-lightning-node ${{ steps.version.outputs.rln }}. Contains librlncffi.a and .bare prebuilds for darwin-arm64, iOS (arm64, arm64-sim, x64-sim) and Android (arm64, arm, x64)." \
+            --prerelease --latest || echo "Release may already exist, updating assets..."
+          gh release upload "$VERSION" release-assets/* --clobber
+
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public
