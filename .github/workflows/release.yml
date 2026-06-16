@@ -129,6 +129,14 @@ jobs:
           target: ${{ matrix.target }}
           rustflags: ''
 
+      - name: Ensure Rust std for target
+        # setup-rust-toolchain caches the toolchain across the Apple/Android
+        # matrix jobs; a cache populated by the first job (darwin-arm64) is
+        # restored without the other jobs' target std, so the action skips
+        # re-adding it and the cross build fails with "can't find crate for
+        # core". Add the target explicitly — idempotent, runs every job.
+        run: rustup target add ${{ matrix.target }}
+
       - name: Install bindgen-cli (aws-lc-sys on non-arm64 Android)
         if: matrix.os == 'android'
         run: cargo install --force --locked bindgen-cli --version 0.72.1
