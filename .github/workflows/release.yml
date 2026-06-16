@@ -112,9 +112,13 @@ jobs:
             exit 1
           fi
 
-          echo "Applying $PATCH (fail fast on conflict)"
-          git -C "$RLN_DIR" apply --verbose --check "$PATCH"
-          git -C "$RLN_DIR" apply --verbose "$PATCH"
+          if [ -s "$PATCH" ]; then
+            echo "Applying $PATCH (fail fast on conflict)"
+            git -C "$RLN_DIR" apply --verbose --check "$PATCH"
+            git -C "$RLN_DIR" apply --verbose "$PATCH"
+          else
+            echo "Patch $PATCH is empty — c-ffi already merged upstream at $RLN_VERSION; nothing to apply."
+          fi
 
           echo "rln_dir=$RLN_DIR" >> "$GITHUB_OUTPUT"
 

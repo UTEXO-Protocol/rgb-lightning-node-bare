@@ -42,3 +42,10 @@ If a future `rgb-lightning-node` release exposes both wrappers natively in `bind
 3. Document the removal in `CHANGELOG.md` (note: "C-FFI wrappers now provided by upstream").
 
 [rln]: https://github.com/UTEXO-Protocol/rgb-lightning-node
+
+## c-ffi-utexo-patches-v0.6.0-beta.1.patch
+
+Intentionally empty. The apay_new / vss_clear_fence / vss_backup / hodl
+c-ffi wrappers this series used to add were merged upstream into
+rgb-lightning-node (PRs #62/#63/#66) and ship in tag v0.6.0-beta.1, so no
+overlay is needed. The release workflow skips applying an empty patch.
