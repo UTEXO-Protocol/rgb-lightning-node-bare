@@ -35,6 +35,17 @@ echo "Source: $CFFI_DIR"
 echo "Output: $OUT_DIR"
 echo "Mode:   $MODE"
 
+# rln-external-signer's `branch = main` dep drifted past the
+# NodeRequest::SignMessageRaw -> SignMessage rename. RLN v0.6.0-beta.1 source
+# still uses SignMessageRaw, but the c-ffi/Cargo.lock shipped in that tag pins
+# the post-rename commit (1efe6a61), so a clean build fails with E0599. Pin
+# back to 168faab (the commit RLN's root lock / tag source compile against).
+# Only acts when the known-bad pin is present.
+if grep -q 'rln-external-signer.git?branch=main#1efe6a61' "$CFFI_DIR/Cargo.lock" 2>/dev/null; then
+  echo "--- Pinning signer-external -> 168faab (RLN v0.6.0-beta.1 pre-rename API) ---"
+  ( cd "$CFFI_DIR" && cargo update -p signer-external --precise 168faab43779f944d1b7e9ed85b47d463cf44ab0 )
+fi
+
 build_target() {
   local RUST_TARGET="$1"
   local DIR_NAME="$2"
