@@ -130,12 +130,13 @@ jobs:
           rustflags: ''
 
       - name: Ensure Rust std for target
-        # setup-rust-toolchain caches the toolchain across the Apple/Android
-        # matrix jobs; a cache populated by the first job (darwin-arm64) is
-        # restored without the other jobs' target std, so the action skips
-        # re-adding it and the cross build fails with "can't find crate for
-        # core". Add the target explicitly — idempotent, runs every job.
-        run: rustup target add ${{ matrix.target }}
+        # setup-rust-toolchain installs 1.88.0 as a *directory override* for the
+        # binding workspace, but the build runs in the cloned $RLN_DIR (a sibling
+        # dir) where that override does not apply — so cargo there falls back to a
+        # toolchain without the cross target's std and fails with "can't find
+        # crate for core". Install the target std into 1.88.0 explicitly; the
+        # build steps then force RUSTUP_TOOLCHAIN=1.88.0 (CWD-independent).
+        run: rustup target add --toolchain "${RUST_TOOLCHAIN}" ${{ matrix.target }}
 
       - name: Install bindgen-cli (aws-lc-sys on non-arm64 Android)
         if: matrix.os == 'android'
@@ -168,6 +169,7 @@ jobs:
         if: matrix.os == 'apple'
         env:
           RLN_DIR: ${{ steps.rln.outputs.rln_dir }}
+          RUSTUP_TOOLCHAIN: ${{ env.RUST_TOOLCHAIN }}
         run: |
           set -euo pipefail
           cd "$RLN_DIR/bindings/c-ffi"
@@ -184,6 +186,7 @@ jobs:
         if: matrix.os == 'android'
         env:
           RLN_DIR: ${{ steps.rln.outputs.rln_dir }}
+          RUSTUP_TOOLCHAIN: ${{ env.RUST_TOOLCHAIN }}
           ANDROID_NDK_HOME: ${{ steps.setup_ndk.outputs.ndk-path }}
           ANDROID_NDK_ROOT: ${{ steps.setup_ndk.outputs.ndk-path }}
           AWS_LC_SYS_CMAKE_BUILDER: '1'
