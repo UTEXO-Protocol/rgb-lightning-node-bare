@@ -10,10 +10,9 @@ name: Build and Release (Bare)
 #                             and publish the JS wrapper to npm
 #
 # Unlike rgb-lib-bare (which carries rgb-lib as a submodule), RLN is pulled
-# in as a fresh clone pinned to `rln_version`, then our local C-FFI patch
-# series (patches/c-ffi-utexo-patches-<rln_version>.patch) is applied before
-# the static lib is built. The patch adds the apay_new / vss_clear_fence
-# extern "C" wrappers that upstream hasn't merged yet.
+# in as a fresh clone pinned to `rln_version`. If a tag-specific C-FFI
+# overlay exists under patches/, it is applied before the static lib is
+# built. Current RLN tags need no overlay because those wrappers are upstream.
 
 on:
   # Triggered by rgb-lightning-node after a new SDK release is tagged.
@@ -24,9 +23,8 @@ on:
   workflow_dispatch:
     inputs:
       rln_version:
-        description: 'rgb-lightning-node tag to pin (e.g. v0.5.0-beta.1)'
+        description: 'rgb-lightning-node tag containing the required C-FFI surface'
         required: true
-        default: 'v0.5.0-beta.1'
         type: string
 
 env:
@@ -106,18 +104,14 @@ jobs:
             "https://github.com/UTEXO-Protocol/rgb-lightning-node.git" "$RLN_DIR"
 
           PATCH="$GITHUB_WORKSPACE/patches/c-ffi-utexo-patches-${RLN_VERSION}.patch"
-          if [ ! -f "$PATCH" ]; then
-            echo "::error::No patch found for $RLN_VERSION at $PATCH"
-            echo "Available patches:"; ls -1 "$GITHUB_WORKSPACE/patches/" || true
-            exit 1
-          fi
-
           if [ -s "$PATCH" ]; then
             echo "Applying $PATCH (fail fast on conflict)"
             git -C "$RLN_DIR" apply --verbose --check "$PATCH"
             git -C "$RLN_DIR" apply --verbose "$PATCH"
+          elif [ -f "$PATCH" ]; then
+            echo "Patch $PATCH is empty; nothing to apply."
           else
-            echo "Patch $PATCH is empty — c-ffi already merged upstream at $RLN_VERSION; nothing to apply."
+            echo "No tag-specific C-FFI overlay for $RLN_VERSION; building upstream source directly."
           fi
 
           echo "rln_dir=$RLN_DIR" >> "$GITHUB_OUTPUT"
@@ -259,7 +253,7 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        run: npm install --ignore-scripts
+        run: npm ci --ignore-scripts
 
       - name: Download rust static lib artifact
         uses: actions/download-artifact@v4
@@ -287,6 +281,10 @@ jobs:
           BARE=$(find build-tmp -name "*.bare" -type f | head -1)
           mkdir -p prebuilds/${{ matrix.platform }}
           cp "$BARE" prebuilds/${{ matrix.platform }}/utexo__rgb-lightning-node-bare.bare
+
+      - name: Smoke test darwin prebuild
+        if: matrix.platform == 'darwin-arm64'
+        run: npm test
 
       - name: Build prebuild (Android)
         if: startsWith(matrix.platform, 'android-')
@@ -355,7 +353,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add package.json
+          git add package.json package-lock.json
           git commit -m "chore: release ${{ steps.pkg.outputs.version }} (RLN ${{ steps.version.outputs.rln }})"
           git push
 

@@ -22,10 +22,10 @@
   ],
   "scripts": {
     "postinstall": "bash scripts/download-libs.sh",
-    "build": "cmake-bare-rebuild",
+    "build": "bash scripts/build-prebuilds.sh",
     "build-cffi": "bash scripts/build-cffi.sh",
     "build-prebuilds": "bash scripts/build-prebuilds.sh",
-    "test": "node test.js"
+    "test": "bare test.js"
   },
   "dependencies": {
     "bare-fs": "^4.7.1",
@@ -34,6 +34,7 @@
     "require-addon": "^1.2.0"
   },
   "devDependencies": {
+    "bare-runtime": "1.30.3",
     "cmake-bare": "^1.7.6",
     "cmake-npm": "^1.1.0"
   }

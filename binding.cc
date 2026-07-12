@@ -343,6 +343,7 @@ FN_NODE(node_info, rln_node_info)
 FN_NODE(network_info, rln_network_info)
 FN_NODE(sync, rln_sync)
 FN_NODE(address, rln_address)
+FN_NODE(rotate_address, rln_rotate_address)
 
 // ============================================================================
 // Channels
@@ -429,6 +430,7 @@ FN_NODE_STR(asset_balance, rln_asset_balance)
 FN_NODE_STR(asset_metadata, rln_asset_metadata)
 
 FN_NODE_STR(list_transfers, rln_list_transfers)
+FN_NODE_STR(list_transfers_by_txid, rln_list_transfers_by_txid)
 FN_NODE_JSON(refresh_transfers, rln_refresh_transfers)
 FN_NODE_JSON(fail_transfers, rln_fail_transfers)
 
@@ -446,6 +448,18 @@ FN_NODE_JSON(post_asset_media, rln_post_asset_media)
 FN_NODE_BOOL(btc_balance, rln_btc_balance)
 FN_NODE_JSON(send_btc, rln_send_btc)
 FN_NODE_BOOL(list_transactions, rln_list_transactions)
+
+static js_value_t *fn_list_transactions_by_txid(js_env_t *env, js_callback_info_t *info) {
+  js_value_t *args[3];
+  get_args(env, info, args, 3);
+  const struct COpaqueStruct *node = unwrap_sdk_node(env, args[0]);
+  char *txid = js_to_cstring(env, args[1]);
+  bool skip_sync = js_to_bool(env, args[2]);
+  struct CResultString res = rln_list_transactions_by_txid(node, txid, skip_sync);
+  free(txid);
+  return handle_result_string(env, res);
+}
+
 FN_NODE_BOOL(list_unspents, rln_list_unspents)
 FN_NODE_JSON(create_utxos, rln_create_utxos)
 
@@ -464,6 +478,19 @@ static js_value_t *fn_estimate_fee(js_env_t *env, js_callback_info_t *info) {
 
 FN_NODE_JSON(send_onion_message, rln_send_onion_message)
 FN_NODE_STR(sign_message, rln_sign_message)
+
+static js_value_t *fn_verify_message(js_env_t *env, js_callback_info_t *info) {
+  js_value_t *args[3];
+  get_args(env, info, args, 3);
+  const struct COpaqueStruct *node = unwrap_sdk_node(env, args[0]);
+  char *message = js_to_cstring(env, args[1]);
+  char *signature = js_to_cstring(env, args[2]);
+  struct CResultString res = rln_verify_message(node, message, signature);
+  free(message);
+  free(signature);
+  return handle_result_string(env, res);
+}
+
 FN_NODE_STR(check_indexer_url, rln_check_indexer_url)
 FN_NODE_STR(check_proxy_endpoint, rln_check_proxy_endpoint)
 
@@ -519,6 +546,7 @@ rgb_lightning_node_bare_exports(js_env_t *env, js_value_t *exports) {
   EXPORT("networkInfo", network_info);
   EXPORT("sync", sync);
   EXPORT("address", address);
+  EXPORT("rotateAddress", rotate_address);
 
   // Channels
   EXPORT("openChannel", open_channel);
@@ -562,6 +590,7 @@ rgb_lightning_node_bare_exports(js_env_t *env, js_value_t *exports) {
   EXPORT("assetBalance", asset_balance);
   EXPORT("assetMetadata", asset_metadata);
   EXPORT("listTransfers", list_transfers);
+  EXPORT("listTransfersByTxid", list_transfers_by_txid);
   EXPORT("refreshTransfers", refresh_transfers);
   EXPORT("failTransfers", fail_transfers);
   EXPORT("sendRgb", send_rgb);
@@ -573,6 +602,7 @@ rgb_lightning_node_bare_exports(js_env_t *env, js_value_t *exports) {
   EXPORT("btcBalance", btc_balance);
   EXPORT("sendBtc", send_btc);
   EXPORT("listTransactions", list_transactions);
+  EXPORT("listTransactionsByTxid", list_transactions_by_txid);
   EXPORT("listUnspents", list_unspents);
   EXPORT("createUtxos", create_utxos);
   EXPORT("estimateFee", estimate_fee);
@@ -580,6 +610,7 @@ rgb_lightning_node_bare_exports(js_env_t *env, js_value_t *exports) {
   // Onion / signing / diagnostics
   EXPORT("sendOnionMessage", send_onion_message);
   EXPORT("signMessage", sign_message);
+  EXPORT("verifyMessage", verify_message);
   EXPORT("checkIndexerUrl", check_indexer_url);
   EXPORT("checkProxyEndpoint", check_proxy_endpoint);
 

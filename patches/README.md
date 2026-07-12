@@ -1,6 +1,6 @@
 # UTEXO local patches over `rgb-lightning-node` upstream
 
-This directory holds patches we apply to the upstream
+This directory holds optional patches we apply to the upstream
 [`rgb-lightning-node`][rln] source tree **before** building the C-FFI
 static lib (`librlncffi.a`). Both `@utexo/rgb-lightning-node-bare`
 and `@utexo/rgb-lightning-node-nodejs` consume the same `rgb-lightning-node/bindings/c-ffi`
@@ -38,7 +38,7 @@ Then build the C-FFI static lib via `scripts/build-cffi.sh` from this package, w
 If a future `rgb-lightning-node` release exposes both wrappers natively in `bindings/c-ffi/`:
 
 1. Delete this patch.
-2. Remove the `git apply` step from `scripts/build-cffi.sh` (if it was added).
+2. Keep the release workflow's optional overlay handling for older tags.
 3. Document the removal in `CHANGELOG.md` (note: "C-FFI wrappers now provided by upstream").
 
 [rln]: https://github.com/UTEXO-Protocol/rgb-lightning-node
@@ -49,3 +49,6 @@ Intentionally empty. The apay_new / vss_clear_fence / vss_backup / hodl
 c-ffi wrappers this series used to add were merged upstream into
 rgb-lightning-node (PRs #62/#63/#66) and ship in tag v0.6.0-beta.1, so no
 overlay is needed. The release workflow skips applying an empty patch.
+
+Tags without a matching file are built directly from upstream. A patch file
+is required only when that specific RLN tag needs a binding-local overlay.

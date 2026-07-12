@@ -50,8 +50,17 @@ try {
     ldk_peer_listening_port: 0,
     network: 'regtest',
     max_media_upload_size_mb: 5,
-    enable_virtual_channels_v0: false
+    enable_virtual_channels_v0: false,
+    reuse_addresses: true
   })
+  for (const method of [
+    'rotateAddress',
+    'listTransactionsByTxid',
+    'listTransfersByTxid',
+    'verifyMessage'
+  ]) {
+    if (typeof node[method] !== 'function') fail(`SdkNode.${method} is missing`)
+  }
   console.log('✓ SdkNode created')
 } catch (e) {
   fail(`SdkNode.create threw: ${e.message}`)
@@ -102,7 +111,8 @@ try {
     ldk_peer_listening_port: 0,
     network: 'regtest',
     max_media_upload_size_mb: 5,
-    enable_virtual_channels_v0: false
+    enable_virtual_channels_v0: false,
+    reuse_addresses: true
   })
   console.log('✓ SdkNode created for signer canary')
 } catch (e) {
@@ -114,6 +124,37 @@ try {
   console.log('✓ initWithNativeExternalSigner — key source written to disk')
 } catch (e) {
   fail(`initWithNativeExternalSigner threw: ${e.message}`)
+}
+
+try {
+  const wrongSigner = NativeExternalSigner.create('02'.repeat(32), 'regtest')
+  let mismatch
+  try {
+    node2.unlockWithNativeExternalSigner(wrongSigner, {})
+  } catch (error) {
+    mismatch = error
+  } finally {
+    wrongSigner.destroy()
+  }
+  if (!String(mismatch && mismatch.message ? mismatch.message : mismatch).includes('Rln(ExternalSignerMismatch)')) {
+    fail(`unexpected signer mismatch error: ${mismatch}`)
+  }
+  console.log('✓ signer mismatch retains the typed C-FFI error tag')
+} catch (e) {
+  fail(`signer mismatch check threw: ${e.message}`)
+}
+
+try {
+  const result = node2.verifyMessage(
+    'is this compatible?',
+    'rbgfioj114mh48d8egqx8o9qxqw4fmhe8jbeeabdioxnjk8z3t1ma1hu1fiswpakgucwwzwo6ofycffbsqusqdimugbh41n1g698hr9t'
+  )
+  if (!result || typeof result.valid !== 'boolean') {
+    fail('verifyMessage should return { valid: boolean }')
+  }
+  console.log('✓ verifyMessage works while the external-signer node is locked')
+} catch (e) {
+  fail(`verifyMessage threw: ${e.message}`)
 }
 
 try {

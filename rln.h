@@ -120,7 +120,13 @@ struct CResultString rln_list_swaps(const struct COpaqueStruct *node);
 
 struct CResultString rln_list_transactions(const struct COpaqueStruct *node, bool skip_sync);
 
+struct CResultString rln_list_transactions_by_txid(const struct COpaqueStruct *node,
+                                                   const char *txid,
+                                                   bool skip_sync);
+
 struct CResultString rln_list_transfers(const struct COpaqueStruct *node, const char *asset_id);
+
+struct CResultString rln_list_transfers_by_txid(const struct COpaqueStruct *node, const char *txid);
 
 struct CResultString rln_list_unspents(const struct COpaqueStruct *node, bool skip_sync);
 
@@ -149,6 +155,8 @@ struct CResultString rln_refresh_transfers(const struct COpaqueStruct *node,
                                            const char *request_json);
 
 struct CResultString rln_rgb_invoice(const struct COpaqueStruct *node, const char *request_json);
+
+struct CResultString rln_rotate_address(const struct COpaqueStruct *node);
 
 struct CResultString rln_sdk_initialize(const char *request_json);
 
@@ -234,3 +242,7 @@ struct CResultString rln_taker(const struct COpaqueStruct *node, const char *req
 struct CResultString rln_uniffi_healthcheck(void);
 
 struct CResultString rln_uniffi_is_initialized(void);
+
+struct CResultString rln_verify_message(const struct COpaqueStruct *node,
+                                        const char *message,
+                                        const char *signature);
