@@ -148,15 +148,18 @@ jobs:
           RLN_DIR: ${{ steps.rln.outputs.rln_dir }}
         run: |
           set -euo pipefail
-          # rln-external-signer's `branch = main` dep drifted past the
-          # NodeRequest::SignMessageRaw -> SignMessage rename. RLN v0.6.0-beta.1
-          # source still uses SignMessageRaw, but the c-ffi/Cargo.lock shipped in
-          # that tag pins the post-rename commit (1efe6a61), so a clean build
-          # fails with E0599. Pin back to 168faab (the commit RLN's root lock /
-          # tag source compile against). Only acts on the known-bad pin.
-          if grep -q 'rln-external-signer.git?branch=main#1efe6a61' "$RLN_DIR/bindings/c-ffi/Cargo.lock" 2>/dev/null; then
+          LOCK="$RLN_DIR/bindings/c-ffi/Cargo.lock"
+          if grep -q 'rln-external-signer.git?branch=main#1efe6a61' "$LOCK" 2>/dev/null; then
+            # RLN v0.6.0-beta.1 source still uses SignMessageRaw, but its
+            # c-ffi lock drifted to the post-rename signer. Pin back to the
+            # signer revision that matches that native tag.
             echo "Pinning signer-external -> 168faab"
             ( cd "$RLN_DIR/bindings/c-ffi" && cargo update -p signer-external --precise 168faab43779f944d1b7e9ed85b47d463cf44ab0 )
+          elif grep -q 'rln-external-signer.git?branch=main#594d8c08' "$LOCK" 2>/dev/null; then
+            # RLN v0.9.0-beta.3 source expects RealVlsClient restart-safe dbid
+            # allocation, which was added after 594d8c08.
+            echo "Pinning signer-external -> 59e2932"
+            ( cd "$RLN_DIR/bindings/c-ffi" && cargo update -p signer-external --precise 59e2932eb5d3d40ac5ded2b8951a43ecdb7ad865 )
           fi
 
       - name: Build static lib (Apple)
