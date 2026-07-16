@@ -171,18 +171,18 @@ creating any node.
 |-------|---------|
 | Lifecycle | `create`, `init`, `unlock`, `shutdown` |
 | External signer | `initWithNativeExternalSigner`, `attachNativeExternalSigner`, `unlockWithNativeExternalSigner`, `initWithExternalSigner`, `unlockWithAttachedExternalSigner`, `detachExternalSigner` |
-| Info / sync | `nodeInfo`, `networkInfo`, `sync`, `address` |
+| Info / sync | `nodeInfo`, `networkInfo`, `sync`, `address`, `rotateAddress` |
 | Peers | `connectPeer`, `disconnectPeer`, `listPeers` |
 | Channels | `openChannel`, `closeChannel`, `listChannels`, `getChannelId` |
 | Invoices | `lnInvoice`, `decodeLnInvoice`, `invoiceStatus`, `rgbInvoice`, `decodeRgbInvoice`, `cancelHodlInvoice`, `claimHodlInvoice` |
 | Payments | `sendPayment`, `keysend`, `listPayments`, `getPayment` |
 | Swaps | `makerInit`, `makerExecute`, `taker`, `listSwaps`, `getSwap` |
 | RGB issuance | `issueAssetNia`, `issueAssetUda`, `issueAssetCfa`, `issueAssetIfa` |
-| RGB assets | `listAssets`, `assetBalance`, `assetMetadata`, `sendRgb`, `inflate`, `listTransfers`, `refreshTransfers`, `failTransfers`, `getAssetMedia`, `postAssetMedia` |
-| BTC | `btcBalance`, `sendBtc`, `listTransactions`, `listUnspents`, `createUtxos`, `estimateFee` |
+| RGB assets | `listAssets`, `assetBalance`, `assetMetadata`, `sendRgb`, `inflate`, `listTransfers`, `listTransfersByTxid`, `refreshTransfers`, `failTransfers`, `getAssetMedia`, `postAssetMedia` |
+| BTC | `btcBalance`, `sendBtc`, `listTransactions`, `listTransactionsByTxid`, `listUnspents`, `createUtxos`, `estimateFee` |
 | VSS | `vssClearFence`, `vssBackup` |
 | APay | `apayNew` |
-| Signing / onion / diagnostics | `signMessage`, `sendOnionMessage`, `checkIndexerUrl`, `checkProxyEndpoint` |
+| Signing / onion / diagnostics | `signMessage`, `verifyMessage`, `sendOnionMessage`, `checkIndexerUrl`, `checkProxyEndpoint` |
 
 The C-FFI symbols backing these are declared in [`rln.h`](./rln.h) and
 wrapped in [`binding.cc`](./binding.cc); see [`index.js`](./index.js) for

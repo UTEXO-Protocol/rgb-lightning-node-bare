@@ -9,21 +9,24 @@ while pre-`1.0`.
 
 ## [Unreleased]
 
-### Changed
-- Upstream `rgb-lightning-node` reference moved from SHA `0824529`
-  (rmn-boiko fork tip) to the official tag
-  [`v0.5.0-beta.1`](https://github.com/UTEXO-Protocol/rgb-lightning-node/releases/tag/v0.5.0-beta.1).
-  The two trees are byte-identical
-  (`2a31b8a97c64334aa5e30385e079b18a08f805a1`) — pre-built beta.11
-  artifacts from the SHA pin are functionally equivalent to a fresh
-  build from the tag. The next bare cut should record the tag as the
-  upstream reference.
-
 ### Added
-- `patches/` directory containing the C-FFI wrapper patches we apply
-  on top of `rgb-lightning-node` (`apay_new` + `vss_clear_fence`
-  wrappers — not yet upstream). See `patches/README.md` for the
-  rationale and apply instructions.
+- `SdkNode.verifyMessage(message, signature)` with canonical Lightning
+  zbase32 verification, including locked external-signer nodes.
+- `rotateAddress()`, `listTransactionsByTxid()`, and
+  `listTransfersByTxid()` wrappers required by WDK's read-only account.
+- A release smoke test that loads the built Darwin addon and exercises node
+  creation, external-signer initialization, and locked-state verification.
+
+### Changed
+- Tag-specific C-FFI overlays are optional; current RLN tags build directly
+  from upstream when no overlay exists.
+- CI and local package tests use the Bare runtime explicitly and reproducible
+  `npm ci` installs.
+
+### Fixed
+- Replaced the nonexistent `cmake-bare-rebuild` package script with the
+  repository's supported prebuild script.
+- Release version commits now include `package-lock.json`.
 
 ## [0.1.0-beta.12] — 2026-06-01
 

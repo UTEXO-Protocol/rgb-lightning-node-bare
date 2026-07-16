@@ -191,6 +191,7 @@ class SdkNode {
   networkInfo () { return JSON.parse(binding.networkInfo(this._handle)) }
   sync () { return JSON.parse(binding.sync(this._handle)) }
   address () { return JSON.parse(binding.address(this._handle)) }
+  rotateAddress () { return JSON.parse(binding.rotateAddress(this._handle)) }
 
   // -------- Channels --------
 
@@ -306,6 +307,9 @@ class SdkNode {
   listTransfers (assetId) {
     return JSON.parse(binding.listTransfers(this._handle, assetId))
   }
+  listTransfersByTxid (txid) {
+    return JSON.parse(binding.listTransfersByTxid(this._handle, txid))
+  }
   refreshTransfers (request) {
     return JSON.parse(binding.refreshTransfers(this._handle, JSON.stringify(request)))
   }
@@ -338,6 +342,9 @@ class SdkNode {
   listTransactions (skipSync = false) {
     return JSON.parse(binding.listTransactions(this._handle, !!skipSync))
   }
+  listTransactionsByTxid (txid, skipSync = false) {
+    return JSON.parse(binding.listTransactionsByTxid(this._handle, txid, !!skipSync))
+  }
   listUnspents (skipSync = false) {
     return JSON.parse(binding.listUnspents(this._handle, !!skipSync))
   }
@@ -356,6 +363,9 @@ class SdkNode {
   }
   signMessage (message) {
     return JSON.parse(binding.signMessage(this._handle, message))
+  }
+  verifyMessage (message, signature) {
+    return JSON.parse(binding.verifyMessage(this._handle, message, signature))
   }
   checkIndexerUrl (indexerUrl) {
     return JSON.parse(binding.checkIndexerUrl(this._handle, indexerUrl))
