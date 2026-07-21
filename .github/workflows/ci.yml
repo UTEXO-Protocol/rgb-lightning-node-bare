@@ -35,6 +35,9 @@ jobs:
         with:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
           components: rustfmt
+          # The pinned rust-lightning dependency emits one release-only warning.
+          # Keep it visible without converting third-party warnings into errors.
+          rustflags: ''
 
       - uses: actions/setup-node@v4
         with:
