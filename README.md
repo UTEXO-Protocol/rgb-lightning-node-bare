@@ -171,7 +171,7 @@ creating any node.
 |-------|---------|
 | Lifecycle | `create`, `init`, `unlock`, `shutdown` |
 | External signer | `initWithNativeExternalSigner`, `attachNativeExternalSigner`, `unlockWithNativeExternalSigner`, `initWithExternalSigner`, `unlockWithAttachedExternalSigner`, `detachExternalSigner` |
-| Info / sync | `nodeInfo`, `networkInfo`, `sync`, `address`, `rotateAddress` |
+| Info / sync | `nodeInfo`, `networkInfo`, `sync` (legacy), `syncWallet`, `walletSnapshot`, `address` / `getAddress`, `rotateAddress` |
 | Peers | `connectPeer`, `disconnectPeer`, `listPeers` |
 | Channels | `openChannel`, `closeChannel`, `listChannels`, `getChannelId` |
 | Invoices | `lnInvoice`, `decodeLnInvoice`, `invoiceStatus`, `rgbInvoice`, `decodeRgbInvoice`, `cancelHodlInvoice`, `claimHodlInvoice` |
@@ -183,6 +183,14 @@ creating any node.
 | VSS | `vssClearFence`, `vssBackup` |
 | APay | `apayNew` |
 | Signing / onion / diagnostics | `signMessage`, `verifyMessage`, `sendOnionMessage`, `checkIndexerUrl`, `checkProxyEndpoint` |
+
+`syncWallet({ mode })` is the production synchronization contract. `routine`
+updates every revealed Vanilla and Colored script with `FullSync`; `recovery`
+discovers both keychains with `FullScan`. It reports each keychain separately
+instead of hiding a partial failure. `walletSnapshot(request)` then reads a
+versioned, bounded snapshot without another implicit sync. Every monetary
+amount is base-10 text, and Lightning claimable balances remain distinct from
+inbound/outbound routing capacities.
 
 The C-FFI symbols backing these are declared in [`rln.h`](./rln.h) and
 wrapped in [`binding.cc`](./binding.cc); see [`index.js`](./index.js) for

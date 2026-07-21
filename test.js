@@ -55,11 +55,37 @@ try {
   })
   for (const method of [
     'rotateAddress',
+    'syncWallet',
+    'walletSnapshot',
     'listTransactionsByTxid',
     'listTransfersByTxid',
     'verifyMessage'
   ]) {
     if (typeof node[method] !== 'function') fail(`SdkNode.${method} is missing`)
+  }
+
+  let invalidSyncRequest
+  try {
+    node.syncWallet({ mode: 'routine', typo: true })
+  } catch (error) {
+    invalidSyncRequest = error
+  }
+  if (!String(invalidSyncRequest && invalidSyncRequest.message
+    ? invalidSyncRequest.message
+    : invalidSyncRequest).includes('unknown field')) {
+    fail(`syncWallet accepted an unknown request field: ${invalidSyncRequest}`)
+  }
+
+  let invalidSnapshotLimit
+  try {
+    node.walletSnapshot({ max_assets: 0 })
+  } catch (error) {
+    invalidSnapshotLimit = error
+  }
+  if (!String(invalidSnapshotLimit && invalidSnapshotLimit.message
+    ? invalidSnapshotLimit.message
+    : invalidSnapshotLimit).includes('max_assets')) {
+    fail(`walletSnapshot accepted max_assets=0: ${invalidSnapshotLimit}`)
   }
   console.log('✓ SdkNode created')
 } catch (e) {

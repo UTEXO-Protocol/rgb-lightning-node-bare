@@ -3,6 +3,7 @@
   "version": "0.1.0-beta.14",
   "description": "Bare native addon wrapping rgb-lightning-node C FFI for use in bare worklets",
   "main": "index.js",
+  "types": "index.d.ts",
   "addon": true,
   "license": "Apache-2.0",
   "author": "UTEXO",
@@ -13,9 +14,11 @@
   "files": [
     "binding.js",
     "binding.cc",
+    "index.d.ts",
     "rln.h",
     "CMakeLists.txt",
     "index.js",
+    "patches/",
     "prebuilds/",
     "lib/",
     "scripts/"
@@ -25,6 +28,7 @@
     "build": "bash scripts/build-prebuilds.sh",
     "build-cffi": "bash scripts/build-cffi.sh",
     "build-prebuilds": "bash scripts/build-prebuilds.sh",
+    "check:types": "tsc --noEmit --strict --skipLibCheck index.d.ts",
     "test": "bare test.js"
   },
   "dependencies": {
@@ -36,6 +40,7 @@
   "devDependencies": {
     "bare-runtime": "1.30.3",
     "cmake-bare": "^1.7.6",
-    "cmake-npm": "^1.1.0"
+    "cmake-npm": "^1.1.0",
+    "typescript": "^6.0.3"
   }
 }

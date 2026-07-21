@@ -10,6 +10,12 @@ while pre-`1.0`.
 ## [Unreleased]
 
 ### Added
+- `SdkNode.syncWallet()` and `SdkNode.walletSnapshot()` with the same
+  byte-identical v0.9.0-beta.3 overlay as NodeJS: dual-keychain
+  FullSync/FullScan modes, bounded activity, coherent tip evidence, and
+  decimal-string amounts.
+- Strict public TypeScript declarations and pull-request CI that builds and
+  executes the host Bare addon against the pinned native contract.
 - `SdkNode.verifyMessage(message, signature)` with canonical Lightning
   zbase32 verification, including locked external-signer nodes.
 - `rotateAddress()`, `listTransactionsByTxid()`, and
