@@ -44,6 +44,9 @@ echo "Mode:   $MODE"
 if grep -q 'rln-external-signer.git?branch=main#1efe6a61' "$CFFI_DIR/Cargo.lock" 2>/dev/null; then
   echo "--- Pinning signer-external -> 168faab (RLN v0.6.0-beta.1 pre-rename API) ---"
   ( cd "$CFFI_DIR" && cargo update -p signer-external --precise 168faab43779f944d1b7e9ed85b47d463cf44ab0 )
+elif grep -q 'rln-external-signer.git?branch=main#594d8c08' "$CFFI_DIR/Cargo.lock" 2>/dev/null; then
+  echo "--- Pinning signer-external -> 59e2932 (RLN v0.9.0-beta.3 compatible API) ---"
+  ( cd "$CFFI_DIR" && cargo update -p signer-external --precise 59e2932eb5d3d40ac5ded2b8951a43ecdb7ad865 )
 fi
 
 build_target() {
