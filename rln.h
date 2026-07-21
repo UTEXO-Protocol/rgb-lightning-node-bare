@@ -237,6 +237,8 @@ struct CResultString rln_sign_message(const struct COpaqueStruct *node, const ch
 
 struct CResultString rln_sync(const struct COpaqueStruct *node);
 
+struct CResultString rln_sync_wallet(const struct COpaqueStruct *node, const char *request_json);
+
 struct CResultString rln_taker(const struct COpaqueStruct *node, const char *request_json);
 
 struct CResultString rln_uniffi_healthcheck(void);
@@ -246,3 +248,6 @@ struct CResultString rln_uniffi_is_initialized(void);
 struct CResultString rln_verify_message(const struct COpaqueStruct *node,
                                         const char *message,
                                         const char *signature);
+
+struct CResultString rln_wallet_snapshot(const struct COpaqueStruct *node,
+                                         const char *request_json);

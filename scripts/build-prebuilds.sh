@@ -48,7 +48,15 @@ build_target() {
     ios-x64-simulator)
       CMAKE_ARGS+=(-DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES=x86_64 -DCMAKE_OSX_SYSROOT=iphonesimulator) ;;
     darwin-arm64)
-      CMAKE_ARGS+=(-DCMAKE_OSX_ARCHITECTURES=arm64) ;;
+      CMAKE_ARGS+=(
+        -DCMAKE_OSX_ARCHITECTURES=arm64
+        -DCMAKE_OSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-13.0}"
+      ) ;;
+    darwin-x64)
+      CMAKE_ARGS+=(
+        -DCMAKE_OSX_ARCHITECTURES=x86_64
+        -DCMAKE_OSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-13.0}"
+      ) ;;
     android-arm64)
       CMAKE_ARGS+=(-DCMAKE_TOOLCHAIN_FILE="$ANDROID_TOOLCHAIN" -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-24) ;;
     android-arm)
@@ -82,7 +90,7 @@ build_target() {
 if [ $# -ge 1 ]; then
   build_target "$1"
 else
-  for target in darwin-arm64 ios-arm64 ios-arm64-simulator ios-x64-simulator \
+  for target in darwin-arm64 darwin-x64 ios-arm64 ios-arm64-simulator ios-x64-simulator \
                 android-arm64 android-arm android-x64 android-ia32; do
     build_target "$target"
   done

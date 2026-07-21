@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # ============================================================================
-# Build librlncffi.a for darwin-arm64 + iOS targets.
+# Build librlncffi.a for the current Darwin host + iOS targets.
 #
 # Mirrors rgb-lib-bare's build-ios.sh: uses `cargo rustc --crate-type
 # staticlib` against the bindings/c-ffi crate in rgb-lightning-node, drops
@@ -77,7 +77,16 @@ build_target() {
 }
 
 if [ "$MODE" = "darwin" ] || [ "$MODE" = "all" ]; then
-  build_target "" "darwin-arm64"
+  case "$(uname -m)" in
+    arm64|aarch64) DARWIN_TARGET="darwin-arm64" ;;
+    x86_64) DARWIN_TARGET="darwin-x64" ;;
+    *)
+      echo "ERROR: unsupported Darwin host architecture: $(uname -m)"
+      exit 1
+      ;;
+  esac
+  export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-13.0}"
+  build_target "" "$DARWIN_TARGET"
   cp "$CFFI_DIR/rln.h" "$PKG_DIR/rln.h"
   echo "✅ Header copied"
 fi

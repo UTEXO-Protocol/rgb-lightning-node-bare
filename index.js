@@ -190,7 +190,14 @@ class SdkNode {
   nodeInfo () { return JSON.parse(binding.nodeInfo(this._handle)) }
   networkInfo () { return JSON.parse(binding.networkInfo(this._handle)) }
   sync () { return JSON.parse(binding.sync(this._handle)) }
+  syncWallet (request) {
+    return JSON.parse(binding.syncWallet(this._handle, JSON.stringify(request)))
+  }
+  walletSnapshot (request = {}) {
+    return JSON.parse(binding.walletSnapshot(this._handle, JSON.stringify(request)))
+  }
   address () { return JSON.parse(binding.address(this._handle)) }
+  getAddress () { return this.address() }
   rotateAddress () { return JSON.parse(binding.rotateAddress(this._handle)) }
 
   // -------- Channels --------
