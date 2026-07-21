@@ -29,7 +29,7 @@
     "build-cffi": "bash scripts/build-cffi.sh",
     "build-prebuilds": "bash scripts/build-prebuilds.sh",
     "check:types": "tsc --noEmit --strict --skipLibCheck index.d.ts",
-    "test": "bare test.js"
+    "test": "node ./node_modules/bare-runtime/bin/bare ./test.js"
   },
   "dependencies": {
     "bare-fs": "^4.7.1",
