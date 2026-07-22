@@ -32,6 +32,12 @@ while pre-`1.0`.
 ### Fixed
 - C-FFI network information now emits canonical lowercase network names,
   matching the public TypeScript contract and wallet snapshot contract v1.
+- Git-commit consumers now build the checksum-pinned C-FFI overlay for the
+  declared iOS targets (or import explicitly supplied, symbol-verified CI
+  artifacts) instead of silently linking older release binaries. Registry
+  packages without overlay metadata retain the release-asset installer. The
+  CMake packages needed by this production install path are runtime build
+  dependencies rather than dev-only dependencies.
 - Replaced the nonexistent `cmake-bare-rebuild` package script with the
   repository's supported prebuild script.
 - Release version commits now include `package-lock.json`.
