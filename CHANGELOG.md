@@ -30,6 +30,8 @@ while pre-`1.0`.
   `npm ci` installs.
 
 ### Fixed
+- C-FFI network information now emits canonical lowercase network names,
+  matching the public TypeScript contract and wallet snapshot contract v1.
 - Replaced the nonexistent `cmake-bare-rebuild` package script with the
   repository's supported prebuild script.
 - Release version commits now include `package-lock.json`.
