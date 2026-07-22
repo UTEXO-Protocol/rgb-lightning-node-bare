@@ -342,6 +342,8 @@ FN_NODE_JSON(sdk_node_unlock_with_attached_external_signer,
 FN_NODE(node_info, rln_node_info)
 FN_NODE(network_info, rln_network_info)
 FN_NODE(sync, rln_sync)
+FN_NODE_JSON(sync_wallet, rln_sync_wallet)
+FN_NODE_JSON(wallet_snapshot, rln_wallet_snapshot)
 FN_NODE(address, rln_address)
 FN_NODE(rotate_address, rln_rotate_address)
 
@@ -545,6 +547,8 @@ rgb_lightning_node_bare_exports(js_env_t *env, js_value_t *exports) {
   EXPORT("nodeInfo", node_info);
   EXPORT("networkInfo", network_info);
   EXPORT("sync", sync);
+  EXPORT("syncWallet", sync_wallet);
+  EXPORT("walletSnapshot", wallet_snapshot);
   EXPORT("address", address);
   EXPORT("rotateAddress", rotate_address);
 

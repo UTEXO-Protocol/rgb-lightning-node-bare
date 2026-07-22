@@ -10,7 +10,13 @@ crate, so applying the patch once benefits both bindings.
 
 | File | Targets upstream tag | Adds |
 |---|---|---|
+| `c-ffi-utexo-patches-v0.9.0-beta.3.patch` | [`v0.9.0-beta.3`](https://github.com/UTEXO-Protocol/rgb-lightning-node/releases/tag/v0.9.0-beta.3) | Versioned dual-keychain sync and bounded, decimal-safe wallet snapshots |
 | `c-ffi-utexo-patches-v0.5.0-beta.1.patch` | [`v0.5.0-beta.1`](https://github.com/UTEXO-Protocol/rgb-lightning-node/releases/tag/v0.5.0-beta.1) | `rln_sdk_node_apay_new`, `rln_sdk_node_vss_clear_fence` C wrappers + supporting JSON request types |
+
+The `v0.9.0-beta.3` overlay is byte-identical to the copy in the NodeJS
+binding repository. Routine synchronization FullSyncs both Vanilla and
+Colored keychains, recovery synchronization FullScans both keychains, and all
+snapshot monetary values cross the JavaScript boundary as decimal strings.
 
 ## Why a patch rather than a fork?
 

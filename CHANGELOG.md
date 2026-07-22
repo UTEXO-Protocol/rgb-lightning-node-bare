@@ -10,20 +10,37 @@ while pre-`1.0`.
 ## [Unreleased]
 
 ### Added
+- `SdkNode.syncWallet()` and `SdkNode.walletSnapshot()` with the same
+  byte-identical v0.9.0-beta.3 overlay as NodeJS: dual-keychain
+  FullSync/FullScan modes, bounded activity, coherent tip evidence, and
+  decimal-string amounts.
+- Strict public TypeScript declarations and pull-request CI that builds and
+  executes the host Bare addon against the pinned native contract.
 - `SdkNode.verifyMessage(message, signature)` with canonical Lightning
   zbase32 verification, including locked external-signer nodes.
 - `rotateAddress()`, `listTransactionsByTxid()`, and
   `listTransfersByTxid()` wrappers required by WDK's read-only account.
 - A release smoke test that loads the built Darwin addon and exercises node
   creation, external-signer initialization, and locked-state verification.
+- An explicit `RLN_BARE_JS_ONLY_INSTALL=1` mode for non-native CI tooling;
+  native app paths continue to require symbol-verified artifacts.
 
 ### Changed
 - Tag-specific C-FFI overlays are optional; current RLN tags build directly
   from upstream when no overlay exists.
 - CI and local package tests use the Bare runtime explicitly and reproducible
   `npm ci` installs.
+- Unsupported non-macOS Apple source builds fail with a direct platform error.
 
 ### Fixed
+- C-FFI network information now emits canonical lowercase network names,
+  matching the public TypeScript contract and wallet snapshot contract v1.
+- Git-commit consumers now build the checksum-pinned C-FFI overlay for the
+  declared iOS targets (or import explicitly supplied, symbol-verified CI
+  artifacts) instead of silently linking older release binaries. Registry
+  packages without overlay metadata retain the release-asset installer. The
+  CMake packages needed by this production install path are runtime build
+  dependencies rather than dev-only dependencies.
 - Replaced the nonexistent `cmake-bare-rebuild` package script with the
   repository's supported prebuild script.
 - Release version commits now include `package-lock.json`.
