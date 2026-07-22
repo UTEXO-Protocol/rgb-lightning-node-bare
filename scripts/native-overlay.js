@@ -24,8 +24,33 @@ const SUPPORTED_TARGETS = Object.freeze([
   'ios-x64-simulator'
 ])
 
+const JS_ONLY_INSTALL_ENV = 'RLN_BARE_JS_ONLY_INSTALL'
+
 function fail (message) {
   throw new Error(`[rgb-lightning-node-bare] ${message}`)
+}
+
+function nativeArtifactInstallMode (environment = process.env) {
+  const requested = environment[JS_ONLY_INSTALL_ENV]
+  if (requested === undefined) return 'native'
+  if (requested !== '1') {
+    fail(`${JS_ONLY_INSTALL_ENV} accepts only the explicit value 1`)
+  }
+  return 'js-only'
+}
+
+function assertSupportedBuildHost (config, platform = process.platform) {
+  if (
+    platform !== 'darwin' &&
+    config.targets.some((target) => (
+      target.startsWith('ios-') || target.startsWith('darwin-')
+    ))
+  ) {
+    fail(
+      'building the configured Apple artifacts requires macOS; ' +
+      `use ${JS_ONLY_INSTALL_ENV}=1 only for tooling that will not load the native addon`
+    )
+  }
 }
 
 function sha256 (filePath) {
@@ -230,6 +255,7 @@ function cloneSource (config) {
 }
 
 function buildArtifacts (packageRoot, sourceRoot, config) {
+  assertSupportedBuildHost(config)
   const cffiDir = path.join(sourceRoot, 'bindings', 'c-ffi')
   const environment = {
     ...process.env,
@@ -301,11 +327,14 @@ function ensureOverlayArtifacts (packageRoot, config, environment = process.env)
 }
 
 module.exports = {
+  JS_ONLY_INSTALL_ENV,
   LIBRARY_SYMBOLS,
   PREBUILD_SYMBOLS,
   SUPPORTED_TARGETS,
+  assertSupportedBuildHost,
   artifactPaths,
   ensureOverlayArtifacts,
+  nativeArtifactInstallMode,
   readOverlayConfig,
   validatedNmOutput,
   verifyArtifacts
