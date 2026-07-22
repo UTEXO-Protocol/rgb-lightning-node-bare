@@ -229,6 +229,34 @@ links dynamically at runtime (one `.node` per host), while `cmake-bare`
 links statically at build time, producing one self-contained `.bare` file
 usable inside any Bare worklet.
 
+## Git commit installs with a native overlay
+
+Git commits can expose C-FFI behavior that has not been promoted to a package
+release yet. Such commits declare `utexoNativeOverlay` in `package.json` with
+an exact upstream tag and commit, patch path and SHA-256, Rust toolchain, iOS
+deployment target, and output target list. During `postinstall` the package:
+
+1. verifies the metadata and patch checksum;
+2. verifies any existing static libraries and Bare addons contain the required
+   wallet snapshot symbols;
+3. optionally imports artifacts from the explicitly trusted
+   `RLN_BARE_ARTIFACTS_DIR`; or
+4. clones the exact upstream commit, applies only the checksum-pinned patch,
+   installs the pinned Rust targets, builds the declared outputs, and verifies
+   their symbols before succeeding.
+
+`RLN_BARE_SOURCE_DIR` may point to an exact local checkout for development. It
+must be at the configured commit and either pristine or have the complete
+configured patch already applied. Both overrides are build inputs controlled
+by the caller; neither bypasses commit, patch, file, or symbol validation.
+Registry packages without `utexoNativeOverlay` continue to download artifacts
+from their matching GitHub release.
+
+The current overlay intentionally declares the three iOS outputs only. Android
+continues to use the last released artifacts until an Android overlay target is
+built and promoted; the installer does not substitute an older Android binary
+for this newer C-FFI contract.
+
 ## Build and release (maintainers)
 
 Releases are cut by the **Build and Release (Bare)** GitHub Actions
