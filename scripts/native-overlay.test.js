@@ -6,9 +6,12 @@ const os = require('node:os')
 const path = require('node:path')
 const test = require('node:test')
 const {
+  JS_ONLY_INSTALL_ENV,
   LIBRARY_SYMBOLS,
   PREBUILD_SYMBOLS,
+  assertSupportedBuildHost,
   artifactPaths,
+  nativeArtifactInstallMode,
   readOverlayConfig,
   validatedNmOutput,
   verifyArtifacts
@@ -31,6 +34,27 @@ test('package overlay metadata is exact and checksum-pinned', () => {
     'ios-arm64-simulator',
     'ios-x64-simulator'
   ])
+})
+
+test('JS-only installation requires an explicit exact opt-out', () => {
+  assert.equal(nativeArtifactInstallMode({}), 'native')
+  assert.equal(nativeArtifactInstallMode({ [JS_ONLY_INSTALL_ENV]: '1' }), 'js-only')
+  assert.throws(
+    () => nativeArtifactInstallMode({ [JS_ONLY_INSTALL_ENV]: 'true' }),
+    /accepts only the explicit value 1/
+  )
+})
+
+test('Apple source builds fail clearly on unsupported hosts', () => {
+  assert.doesNotThrow(() => assertSupportedBuildHost({ targets: ['ios-arm64'] }, 'darwin'))
+  assert.throws(
+    () => assertSupportedBuildHost({ targets: ['ios-arm64'] }, 'linux'),
+    /requires macOS/
+  )
+  assert.throws(
+    () => assertSupportedBuildHost({ targets: ['darwin-arm64'] }, 'linux'),
+    /requires macOS/
+  )
 })
 
 test('artifact verification requires every contract symbol in every output', (context) => {

@@ -22,12 +22,15 @@ while pre-`1.0`.
   `listTransfersByTxid()` wrappers required by WDK's read-only account.
 - A release smoke test that loads the built Darwin addon and exercises node
   creation, external-signer initialization, and locked-state verification.
+- An explicit `RLN_BARE_JS_ONLY_INSTALL=1` mode for non-native CI tooling;
+  native app paths continue to require symbol-verified artifacts.
 
 ### Changed
 - Tag-specific C-FFI overlays are optional; current RLN tags build directly
   from upstream when no overlay exists.
 - CI and local package tests use the Bare runtime explicitly and reproducible
   `npm ci` installs.
+- Unsupported non-macOS Apple source builds fail with a direct platform error.
 
 ### Fixed
 - C-FFI network information now emits canonical lowercase network names,

@@ -74,7 +74,7 @@ Static linking is mandatory on iOS and yields a single self-contained
 
 ## Requirements
 
-- Node.js >= 18 (for `cmake-bare` and the postinstall script)
+- Node.js >= 20 (for `cmake-bare` and the postinstall script)
 - [Bare] runtime (to actually load and run the addon)
 
 ## Installation
@@ -252,10 +252,23 @@ by the caller; neither bypasses commit, patch, file, or symbol validation.
 Registry packages without `utexoNativeOverlay` continue to download artifacts
 from their matching GitHub release.
 
+JavaScript-only CI jobs that will not link or load the native addon may opt out
+explicitly:
+
+```sh
+RLN_BARE_JS_ONLY_INSTALL=1 npm ci
+```
+
+The opt-out creates no native artifacts. A later app link or runtime step must
+still run the consumer's artifact and symbol checks, and therefore fails closed
+if a compatible addon was not installed. Source-building declared Apple
+targets requires macOS; non-macOS hosts receive a direct error instead of
+attempting an impossible cross-build.
+
 The current overlay intentionally declares the three iOS outputs only. Android
-continues to use the last released artifacts until an Android overlay target is
-built and promoted; the installer does not substitute an older Android binary
-for this newer C-FFI contract.
+registry releases remain on their last published ABI until an Android overlay
+target is built and promoted. This Git overlay does not substitute an older
+Android binary for the newer C-FFI contract.
 
 ## Build and release (maintainers)
 
