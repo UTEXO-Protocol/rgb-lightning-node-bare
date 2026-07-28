@@ -47,6 +47,9 @@ struct CResultString rln_cancel_btc_send_plan(const struct COpaqueStruct *node,
 struct CResultString rln_cancel_hodl_invoice(const struct COpaqueStruct *node,
                                              const char *request_json);
 
+struct CResultString rln_cancel_rgb_send_plan(const struct COpaqueStruct *node,
+                                              const char *request_json);
+
 struct CResultString rln_check_indexer_url(const struct COpaqueStruct *node,
                                            const char *indexer_url);
 
@@ -116,6 +119,9 @@ struct CResultString rln_issue_asset_uda(const struct COpaqueStruct *node,
 
 struct CResultString rln_keysend(const struct COpaqueStruct *node, const char *request_json);
 
+struct CResultString rln_list_address_receipts(const struct COpaqueStruct *node,
+                                               const char *address);
+
 struct CResultString rln_list_assets(const struct COpaqueStruct *node,
                                      const char *filter_asset_schemas_json);
 
@@ -124,6 +130,8 @@ struct CResultString rln_list_channels(const struct COpaqueStruct *node);
 struct CResultString rln_list_payments(const struct COpaqueStruct *node);
 
 struct CResultString rln_list_peers(const struct COpaqueStruct *node);
+
+struct CResultString rln_list_pending_rgb_send_plans(const struct COpaqueStruct *node);
 
 struct CResultString rln_list_pending_vanilla_transactions(const struct COpaqueStruct *node);
 

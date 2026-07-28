@@ -7,6 +7,16 @@ const path = require('node:path')
 const { spawnSync } = require('node:child_process')
 
 const LIBRARY_SYMBOLS = Object.freeze([
+  '_rln_cancel_btc_send_plan',
+  '_rln_cancel_rgb_send_plan',
+  '_rln_commit_prepared_btc_send',
+  '_rln_commit_prepared_rgb_send',
+  '_rln_list_address_receipts',
+  '_rln_list_pending_rgb_send_plans',
+  '_rln_list_pending_vanilla_transactions',
+  '_rln_prepare_btc_send',
+  '_rln_prepare_rgb_send',
+  '_rln_send_payment',
   '_rln_sync_wallet',
   '_rln_wallet_snapshot'
 ])

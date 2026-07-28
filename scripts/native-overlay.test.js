@@ -26,7 +26,7 @@ test('package overlay metadata is exact and checksum-pinned', () => {
   const config = readOverlayConfig(packageRoot)
 
   assert.equal(config.commit, '0bfa66fa256a6c36f3737d5b6402eacea40c68fc')
-  assert.equal(config.patchSha256, '5e96674f5de17a8800ffa29e016735904bdd0fd2e87add522f4dec277c069e82')
+  assert.equal(config.patchSha256, '65d1d46bb17223f86b02df68b4f77623fcef0c2d2ed4c2e8cc2b2a98b3d4a850')
   assert.equal(config.rustToolchain, '1.88.0')
   assert.equal(config.iosDeploymentTarget, '16.0')
   assert.deepEqual(config.targets, [
@@ -72,7 +72,7 @@ test('artifact verification requires every contract symbol in every output', (co
   ).join('\n')))
   assert.throws(
     () => verifyArtifacts(root, targets, () => '_bare_register_module_v0'),
-    /_rln_sync_wallet/
+    new RegExp(LIBRARY_SYMBOLS[0])
   )
 })
 

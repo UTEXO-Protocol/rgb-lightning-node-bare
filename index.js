@@ -335,6 +335,12 @@ class SdkNode {
   commitPreparedRgbSend (request) {
     return JSON.parse(binding.commitPreparedRgbSend(this._handle, JSON.stringify(request)))
   }
+  cancelRgbSendPlan (request) {
+    return JSON.parse(binding.cancelRgbSendPlan(this._handle, JSON.stringify(request)))
+  }
+  listPendingRgbSendPlans () {
+    return JSON.parse(binding.listPendingRgbSendPlans(this._handle))
+  }
   inflate (request) {
     return JSON.parse(binding.inflate(this._handle, JSON.stringify(request)))
   }
@@ -370,6 +376,11 @@ class SdkNode {
   listPendingVanillaTransactions () {
     return JSON.parse(binding.listPendingVanillaTransactions(this._handle))
   }
+
+  listAddressReceipts (address) {
+    return JSON.parse(binding.listAddressReceipts(this._handle, address))
+  }
+
   listTransactions (skipSync = false) {
     return JSON.parse(binding.listTransactions(this._handle, !!skipSync))
   }

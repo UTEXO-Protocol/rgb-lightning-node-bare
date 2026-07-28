@@ -61,8 +61,11 @@ try {
     'commitPreparedBtcSend',
     'cancelBtcSendPlan',
     'listPendingVanillaTransactions',
+    'listAddressReceipts',
     'prepareRgbSend',
     'commitPreparedRgbSend',
+    'cancelRgbSendPlan',
+    'listPendingRgbSendPlans',
     'listTransactionsByTxid',
     'listTransfersByTxid',
     'verifyMessage'
