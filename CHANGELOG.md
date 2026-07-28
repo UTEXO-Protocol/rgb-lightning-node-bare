@@ -45,6 +45,9 @@ while pre-`1.0`.
 - Unsupported non-macOS Apple source builds fail with a direct platform error.
 
 ### Fixed
+- `decodeRgbInvoice()` now returns a stable tagged assignment object instead
+  of an implementation-defined Rust `Debug` string. The exact blind/witness
+  recipient type and nullable expiration remain preserved.
 - `decodeLnInvoice()` now preserves `min_final_cltv_expiry_delta` across the
   C-FFI JSON boundary. A native contract test guards the complete mobile
   response shape so the React Native runtime cannot silently lose CLTV data.
