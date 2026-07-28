@@ -41,6 +41,9 @@ struct CResultString rln_asset_metadata(const struct COpaqueStruct *node, const 
 
 struct CResultString rln_btc_balance(const struct COpaqueStruct *node, bool skip_sync);
 
+struct CResultString rln_cancel_btc_send_plan(const struct COpaqueStruct *node,
+                                              const char *request_json);
+
 struct CResultString rln_cancel_hodl_invoice(const struct COpaqueStruct *node,
                                              const char *request_json);
 
@@ -54,6 +57,12 @@ struct CResultString rln_claim_hodl_invoice(const struct COpaqueStruct *node,
                                             const char *request_json);
 
 struct CResultString rln_close_channel(const struct COpaqueStruct *node, const char *request_json);
+
+struct CResultString rln_commit_prepared_btc_send(const struct COpaqueStruct *node,
+                                                  const char *request_json);
+
+struct CResultString rln_commit_prepared_rgb_send(const struct COpaqueStruct *node,
+                                                  const char *request_json);
 
 struct CResultString rln_connect_peer(const struct COpaqueStruct *node,
                                       const char *peer_pubkey_and_addr);
@@ -116,6 +125,8 @@ struct CResultString rln_list_payments(const struct COpaqueStruct *node);
 
 struct CResultString rln_list_peers(const struct COpaqueStruct *node);
 
+struct CResultString rln_list_pending_vanilla_transactions(const struct COpaqueStruct *node);
+
 struct CResultString rln_list_swaps(const struct COpaqueStruct *node);
 
 struct CResultString rln_list_transactions(const struct COpaqueStruct *node, bool skip_sync);
@@ -149,6 +160,12 @@ struct CResultString rln_node_info(const struct COpaqueStruct *node);
 struct CResultString rln_open_channel(const struct COpaqueStruct *node, const char *request_json);
 
 struct CResultString rln_post_asset_media(const struct COpaqueStruct *node,
+                                          const char *request_json);
+
+struct CResultString rln_prepare_btc_send(const struct COpaqueStruct *node,
+                                          const char *request_json);
+
+struct CResultString rln_prepare_rgb_send(const struct COpaqueStruct *node,
                                           const char *request_json);
 
 struct CResultString rln_refresh_transfers(const struct COpaqueStruct *node,

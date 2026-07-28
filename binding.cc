@@ -437,6 +437,8 @@ FN_NODE_JSON(refresh_transfers, rln_refresh_transfers)
 FN_NODE_JSON(fail_transfers, rln_fail_transfers)
 
 FN_NODE_JSON(send_rgb, rln_send_rgb)
+FN_NODE_JSON(prepare_rgb_send, rln_prepare_rgb_send)
+FN_NODE_JSON(commit_prepared_rgb_send, rln_commit_prepared_rgb_send)
 FN_NODE_JSON(inflate, rln_inflate)
 
 // Asset media
@@ -449,6 +451,10 @@ FN_NODE_JSON(post_asset_media, rln_post_asset_media)
 
 FN_NODE_BOOL(btc_balance, rln_btc_balance)
 FN_NODE_JSON(send_btc, rln_send_btc)
+FN_NODE_JSON(prepare_btc_send, rln_prepare_btc_send)
+FN_NODE_JSON(commit_prepared_btc_send, rln_commit_prepared_btc_send)
+FN_NODE_JSON(cancel_btc_send_plan, rln_cancel_btc_send_plan)
+FN_NODE(list_pending_vanilla_transactions, rln_list_pending_vanilla_transactions)
 FN_NODE_BOOL(list_transactions, rln_list_transactions)
 
 static js_value_t *fn_list_transactions_by_txid(js_env_t *env, js_callback_info_t *info) {
@@ -598,6 +604,8 @@ rgb_lightning_node_bare_exports(js_env_t *env, js_value_t *exports) {
   EXPORT("refreshTransfers", refresh_transfers);
   EXPORT("failTransfers", fail_transfers);
   EXPORT("sendRgb", send_rgb);
+  EXPORT("prepareRgbSend", prepare_rgb_send);
+  EXPORT("commitPreparedRgbSend", commit_prepared_rgb_send);
   EXPORT("inflate", inflate);
   EXPORT("getAssetMedia", get_asset_media);
   EXPORT("postAssetMedia", post_asset_media);
@@ -605,6 +613,10 @@ rgb_lightning_node_bare_exports(js_env_t *env, js_value_t *exports) {
   // BTC ops
   EXPORT("btcBalance", btc_balance);
   EXPORT("sendBtc", send_btc);
+  EXPORT("prepareBtcSend", prepare_btc_send);
+  EXPORT("commitPreparedBtcSend", commit_prepared_btc_send);
+  EXPORT("cancelBtcSendPlan", cancel_btc_send_plan);
+  EXPORT("listPendingVanillaTransactions", list_pending_vanilla_transactions);
   EXPORT("listTransactions", list_transactions);
   EXPORT("listTransactionsByTxid", list_transactions_by_txid);
   EXPORT("listUnspents", list_unspents);

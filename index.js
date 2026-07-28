@@ -327,6 +327,14 @@ class SdkNode {
   sendRgb (request) {
     return JSON.parse(binding.sendRgb(this._handle, JSON.stringify(request)))
   }
+
+  prepareRgbSend (request) {
+    return JSON.parse(binding.prepareRgbSend(this._handle, JSON.stringify(request)))
+  }
+
+  commitPreparedRgbSend (request) {
+    return JSON.parse(binding.commitPreparedRgbSend(this._handle, JSON.stringify(request)))
+  }
   inflate (request) {
     return JSON.parse(binding.inflate(this._handle, JSON.stringify(request)))
   }
@@ -345,6 +353,22 @@ class SdkNode {
   }
   sendBtc (request) {
     return JSON.parse(binding.sendBtc(this._handle, JSON.stringify(request)))
+  }
+
+  prepareBtcSend (request) {
+    return JSON.parse(binding.prepareBtcSend(this._handle, JSON.stringify(request)))
+  }
+
+  commitPreparedBtcSend (request) {
+    return JSON.parse(binding.commitPreparedBtcSend(this._handle, JSON.stringify(request)))
+  }
+
+  cancelBtcSendPlan (request) {
+    return JSON.parse(binding.cancelBtcSendPlan(this._handle, JSON.stringify(request)))
+  }
+
+  listPendingVanillaTransactions () {
+    return JSON.parse(binding.listPendingVanillaTransactions(this._handle))
   }
   listTransactions (skipSync = false) {
     return JSON.parse(binding.listTransactions(this._handle, !!skipSync))
