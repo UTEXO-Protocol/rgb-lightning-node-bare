@@ -45,6 +45,9 @@ while pre-`1.0`.
 - Unsupported non-macOS Apple source builds fail with a direct platform error.
 
 ### Fixed
+- `decodeLnInvoice()` now preserves `min_final_cltv_expiry_delta` across the
+  C-FFI JSON boundary. A native contract test guards the complete mobile
+  response shape so the React Native runtime cannot silently lose CLTV data.
 - C-FFI network information now emits canonical lowercase network names,
   matching the public TypeScript contract and wallet snapshot contract v1.
 - Git-commit consumers now build the checksum-pinned C-FFI overlay for the

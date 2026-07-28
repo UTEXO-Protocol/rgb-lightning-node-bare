@@ -1,6 +1,6 @@
 {
   "name": "@utexo/rgb-lightning-node-bare",
-  "version": "0.1.0-beta.15",
+  "version": "0.1.0-beta.16",
   "description": "Bare native addon wrapping rgb-lightning-node C FFI for use in bare worklets",
   "main": "index.js",
   "types": "index.d.ts",
@@ -19,7 +19,7 @@
     "ref": "v0.10.0-beta.3",
     "commit": "0bfa66fa256a6c36f3737d5b6402eacea40c68fc",
     "patch": "patches/c-ffi-utexo-patches-v0.10.0-beta.3.patch",
-    "patchSha256": "65d1d46bb17223f86b02df68b4f77623fcef0c2d2ed4c2e8cc2b2a98b3d4a850",
+    "patchSha256": "f222db026d09d3af50393d47871caba31c0b82cc0cdb61ea8b1e071f57aea81b",
     "rustToolchain": "1.88.0",
     "iosDeploymentTarget": "16.0",
     "targets": [
