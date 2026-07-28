@@ -4,6 +4,7 @@ node_modules/
 # Build artefacts (large; distributed via GitHub Releases like rgb-lib-bare)
 lib/
 prebuilds/
+.utexo-native-overlay.json
 
 # CMake build dirs
 build/

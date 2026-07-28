@@ -114,10 +114,16 @@ try {
 const SEED_HEX = '01'.repeat(32)
 let signer
 try {
-  signer = NativeExternalSigner.create(SEED_HEX, 'regtest')
-  console.log('✓ NativeExternalSigner created')
+  const signerDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rln-canary-vls-'))
+  signer = NativeExternalSigner.createWithStorage(
+    SEED_HEX,
+    'regtest',
+    signerDataDir,
+    true
+  )
+  console.log('✓ persistent NativeExternalSigner created')
 } catch (e) {
-  fail(`NativeExternalSigner.create threw: ${e.message}`)
+  fail(`NativeExternalSigner.createWithStorage threw: ${e.message}`)
 }
 
 let bootstrap

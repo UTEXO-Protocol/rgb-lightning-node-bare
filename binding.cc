@@ -291,6 +291,26 @@ static js_value_t *fn_native_external_signer_new(js_env_t *env, js_callback_info
   return handle_result_signer(env, res);
 }
 
+static js_value_t *fn_native_external_signer_new_with_storage(js_env_t *env,
+                                                              js_callback_info_t *info) {
+  js_value_t *args[4];
+  get_args(env, info, args, 4);
+  char *seed_hex = js_to_cstring(env, args[0]);
+  char *network = js_to_cstring(env, args[1]);
+  bool permissive_policy = js_to_bool(env, args[2]);
+  char *storage_dir_path = js_to_cstring(env, args[3]);
+  struct CResult res = rln_native_external_signer_new_with_storage(
+    seed_hex,
+    network,
+    permissive_policy,
+    storage_dir_path
+  );
+  free(seed_hex);
+  free(network);
+  free(storage_dir_path);
+  return handle_result_signer(env, res);
+}
+
 static js_value_t *fn_native_external_signer_bootstrap(js_env_t *env, js_callback_info_t *info) {
   js_value_t *args[1];
   get_args(env, info, args, 1);
@@ -537,6 +557,7 @@ rgb_lightning_node_bare_exports(js_env_t *env, js_value_t *exports) {
 
   // External signer (native — recommended)
   EXPORT("nativeExternalSignerNew", native_external_signer_new);
+  EXPORT("nativeExternalSignerNewWithStorage", native_external_signer_new_with_storage);
   EXPORT("nativeExternalSignerBootstrap", native_external_signer_bootstrap);
   EXPORT("sdkNodeInitWithNativeExternalSigner",
          sdk_node_init_with_native_external_signer);

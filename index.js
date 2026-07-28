@@ -420,13 +420,13 @@ class SdkNode {
 exports.SdkNode = SdkNode
 
 /**
- * Host-provided in-memory VLS signer.
+ * Host-provided VLS signer.
  *
  * The seed never reaches RLN's persistence layer — the host (e.g. the
  * WDK secret manager) supplies a stable 32-byte BIP-32 seed at unlock
- * time, the VLS signer state lives entirely in process memory, and
- * everything cryptographic happens in-process via `signer-external` /
- * `vls-protocol-signer`.
+ * time. Production channel wallets must use `createWithStorage` so VLS
+ * commitment state survives process restarts. `create` is intentionally
+ * retained for stateless tooling and tests that do not preserve channels.
  *
  * Lifecycle:
  *   1. `NativeExternalSigner.create(seedHex, network)`
@@ -458,6 +458,34 @@ class NativeExternalSigner {
     }
     return new NativeExternalSigner(
       binding.nativeExternalSignerNew(seedHex, network, !!permissivePolicy)
+    )
+  }
+
+  /**
+   * Construct a disk-backed signer whose channel validation state survives
+   * process restarts. The storage directory is signer-private state and must
+   * be stable for the wallet identity.
+   *
+   * @param {string} seedHex - 64-char hex string (32-byte BIP-32 entropy)
+   * @param {string} network - "mainnet" | "testnet" | "testnet4" | "signet" | "regtest"
+   * @param {string} storageDirPath - Stable, private signer-state directory
+   * @param {boolean} [permissivePolicy=false] - VLS policy filter
+   * @returns {NativeExternalSigner}
+   */
+  static createWithStorage (seedHex, network, storageDirPath, permissivePolicy = false) {
+    if (typeof seedHex !== 'string' || seedHex.length !== 64) {
+      throw new Error('NativeExternalSigner.createWithStorage: seedHex must be a 64-char hex string')
+    }
+    if (typeof storageDirPath !== 'string' || storageDirPath.length === 0) {
+      throw new Error('NativeExternalSigner.createWithStorage: storageDirPath is required')
+    }
+    return new NativeExternalSigner(
+      binding.nativeExternalSignerNewWithStorage(
+        seedHex,
+        network,
+        !!permissivePolicy,
+        storageDirPath
+      )
     )
   }
 

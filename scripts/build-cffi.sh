@@ -73,8 +73,6 @@ build_target() {
     cp "target/$RUST_TARGET/release/librlncffi.a" "$OUT_DIR/$DIR_NAME/"
   fi
 
-  strip -S "$OUT_DIR/$DIR_NAME/librlncffi.a" 2>/dev/null || true
-
   SIZE=$(ls -lh "$OUT_DIR/$DIR_NAME/librlncffi.a" | awk '{print $5}')
   echo "✅ $DIR_NAME: $SIZE"
 }

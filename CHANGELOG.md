@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.0-beta.19
+
+- Expose the disk-backed native VLS signer required for channels to survive
+  mobile process restarts.
+- Bind native artifacts to the exact overlay commit, patch, toolchain, targets,
+  and content hashes so stale binaries cannot satisfy a newer package contract.
+- Add a production-shaped RGB payment regression for a persistent external
+  signer accepting an inbound trusted virtual channel.
+
 All notable changes to `@utexo/rgb-lightning-node-bare` are documented
 here.
 

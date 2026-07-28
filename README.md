@@ -199,13 +199,16 @@ the authoritative JS method list.
 ## Seed handling
 
 RLN never sees the BIP-39 mnemonic. The host (WDK) derives a 32-byte
-BIP-32 entropy and passes it as `seedHex` to `NativeExternalSigner.create`.
+BIP-32 entropy and passes it as `seedHex` to
+`NativeExternalSigner.createWithStorage`.
 `initWithNativeExternalSigner` writes only public identifying data (xpubs,
 node id, master fingerprint) to the key-source file on disk. The same
 mnemonic re-derives the same `seedHex` on every launch, so the LDK node
-identity stays stable across restarts. The VLS signer state lives entirely
-in process memory; all channel-state cryptography happens in-process via
-`signer-external` / `vls-protocol-signer`. The JS signer handle can be
+identity stays stable across restarts. VLS channel-validation state is kept
+in the caller-provided private storage directory; production wallets must
+retain that directory for the lifetime of their channels. The seed remains
+host-owned and is never written there. All channel-state cryptography happens
+in-process via `signer-external` / `vls-protocol-signer`. The JS signer handle can be
 dropped (`destroy()` or GC) once RLN has cloned its `Arc` ref via
 attach/init/unlock.
 

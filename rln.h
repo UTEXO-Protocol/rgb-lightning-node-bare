@@ -161,6 +161,11 @@ struct CResult rln_native_external_signer_new(const char *seed_hex,
                                               const char *network,
                                               bool permissive_policy);
 
+struct CResult rln_native_external_signer_new_with_storage(const char *seed_hex,
+                                                           const char *network,
+                                                           bool permissive_policy,
+                                                           const char *storage_dir_path);
+
 struct CResultString rln_network_info(const struct COpaqueStruct *node);
 
 struct CResultString rln_node_info(const struct COpaqueStruct *node);

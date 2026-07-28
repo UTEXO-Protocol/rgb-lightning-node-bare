@@ -14,12 +14,16 @@ const LIBRARY_SYMBOLS = Object.freeze([
   '_rln_list_address_receipts',
   '_rln_list_pending_rgb_send_plans',
   '_rln_list_pending_vanilla_transactions',
+  '_rln_native_external_signer_new_with_storage',
   '_rln_prepare_btc_send',
   '_rln_prepare_rgb_send',
   '_rln_send_payment',
   '_rln_sync_wallet',
   '_rln_wallet_snapshot'
 ])
+
+const ARTIFACT_MANIFEST = '.utexo-native-overlay.json'
+const ARTIFACT_MANIFEST_SCHEMA = 1
 
 const PREBUILD_SYMBOLS = Object.freeze([
   '_bare_register_module_v0',
@@ -65,6 +69,19 @@ function assertSupportedBuildHost (config, platform = process.platform) {
 
 function sha256 (filePath) {
   return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex')
+}
+
+function overlayIdentity (config) {
+  return Object.freeze({
+    schemaVersion: ARTIFACT_MANIFEST_SCHEMA,
+    repository: config.repository,
+    ref: config.ref,
+    commit: config.commit,
+    patchSha256: config.patchSha256,
+    rustToolchain: config.rustToolchain,
+    iosDeploymentTarget: config.iosDeploymentTarget,
+    targets: [...config.targets]
+  })
 }
 
 function run (command, args, options = {}) {
@@ -198,7 +215,61 @@ function inspectSymbols (filePath) {
   return validatedNmOutput(result)
 }
 
-function verifyArtifacts (root, targets, symbolReader = inspectSymbols) {
+function artifactManifestPath (root) {
+  return path.join(root, ARTIFACT_MANIFEST)
+}
+
+function writeArtifactManifest (root, config) {
+  const artifacts = {}
+  for (const target of config.targets) {
+    const paths = artifactPaths(root, target)
+    artifacts[target] = {
+      librarySha256: sha256(paths.library),
+      prebuildSha256: sha256(paths.prebuild)
+    }
+  }
+  const manifest = {
+    ...overlayIdentity(config),
+    artifacts
+  }
+  fs.writeFileSync(
+    artifactManifestPath(root),
+    `${JSON.stringify(manifest, null, 2)}\n`,
+    { mode: 0o600 }
+  )
+}
+
+function verifyArtifactManifest (root, config) {
+  const manifestPath = artifactManifestPath(root)
+  if (!fs.existsSync(manifestPath)) {
+    fail('native artifacts are missing overlay provenance')
+  }
+  let manifest
+  try {
+    manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+  } catch {
+    fail('native artifact overlay provenance is invalid')
+  }
+  const expectedIdentity = overlayIdentity(config)
+  for (const [key, expected] of Object.entries(expectedIdentity)) {
+    if (JSON.stringify(manifest[key]) !== JSON.stringify(expected)) {
+      fail(`native artifact overlay provenance does not match ${key}`)
+    }
+  }
+  for (const target of config.targets) {
+    const artifacts = artifactPaths(root, target)
+    const recorded = manifest.artifacts && manifest.artifacts[target]
+    if (
+      !recorded ||
+      recorded.librarySha256 !== sha256(artifacts.library) ||
+      recorded.prebuildSha256 !== sha256(artifacts.prebuild)
+    ) {
+      fail(`native artifact hashes do not match overlay provenance for ${target}`)
+    }
+  }
+}
+
+function verifyArtifacts (root, targets, symbolReader = inspectSymbols, config) {
   for (const target of targets) {
     const artifacts = artifactPaths(root, target)
     for (const [kind, filePath] of Object.entries(artifacts)) {
@@ -214,11 +285,12 @@ function verifyArtifacts (root, targets, symbolReader = inspectSymbols) {
       }
     }
   }
+  if (config) verifyArtifactManifest(root, config)
 }
 
-function copyArtifacts (sourceRoot, packageRoot, targets) {
-  verifyArtifacts(sourceRoot, targets)
-  for (const target of targets) {
+function copyArtifacts (sourceRoot, packageRoot, config) {
+  verifyArtifacts(sourceRoot, config.targets, inspectSymbols, config)
+  for (const target of config.targets) {
     const source = artifactPaths(sourceRoot, target)
     const destination = artifactPaths(packageRoot, target)
     for (const kind of Object.keys(source)) {
@@ -226,6 +298,7 @@ function copyArtifacts (sourceRoot, packageRoot, targets) {
       fs.copyFileSync(source[kind], destination[kind])
     }
   }
+  fs.copyFileSync(artifactManifestPath(sourceRoot), artifactManifestPath(packageRoot))
 }
 
 function exactHead (sourceRoot) {
@@ -297,11 +370,12 @@ function buildArtifacts (packageRoot, sourceRoot, config) {
       env: environment
     })
   }
+  writeArtifactManifest(packageRoot, config)
 }
 
 function ensureOverlayArtifacts (packageRoot, config, environment = process.env) {
   try {
-    verifyArtifacts(packageRoot, config.targets)
+    verifyArtifacts(packageRoot, config.targets, inspectSymbols, config)
     console.log('[rgb-lightning-node-bare] Native overlay artifacts already satisfy the contract.')
     return
   } catch {
@@ -310,8 +384,8 @@ function ensureOverlayArtifacts (packageRoot, config, environment = process.env)
 
   const artifactRoot = environment.RLN_BARE_ARTIFACTS_DIR
   if (artifactRoot) {
-    copyArtifacts(path.resolve(artifactRoot), packageRoot, config.targets)
-    verifyArtifacts(packageRoot, config.targets)
+    copyArtifacts(path.resolve(artifactRoot), packageRoot, config)
+    verifyArtifacts(packageRoot, config.targets, inspectSymbols, config)
     console.log('[rgb-lightning-node-bare] Imported verified native overlay artifacts.')
     return
   }
@@ -329,7 +403,7 @@ function ensureOverlayArtifacts (packageRoot, config, environment = process.env)
   try {
     applyOverlay(sourceRoot, config)
     buildArtifacts(packageRoot, sourceRoot, config)
-    verifyArtifacts(packageRoot, config.targets)
+    verifyArtifacts(packageRoot, config.targets, inspectSymbols, config)
     console.log('[rgb-lightning-node-bare] Built and verified native overlay artifacts.')
   } finally {
     if (temporaryRoot) fs.rmSync(temporaryRoot, { force: true, recursive: true })
@@ -337,6 +411,7 @@ function ensureOverlayArtifacts (packageRoot, config, environment = process.env)
 }
 
 module.exports = {
+  ARTIFACT_MANIFEST,
   JS_ONLY_INSTALL_ENV,
   LIBRARY_SYMBOLS,
   PREBUILD_SYMBOLS,
@@ -347,5 +422,6 @@ module.exports = {
   nativeArtifactInstallMode,
   readOverlayConfig,
   validatedNmOutput,
+  writeArtifactManifest,
   verifyArtifacts
 }

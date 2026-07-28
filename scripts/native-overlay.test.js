@@ -6,6 +6,7 @@ const os = require('node:os')
 const path = require('node:path')
 const test = require('node:test')
 const {
+  ARTIFACT_MANIFEST,
   JS_ONLY_INSTALL_ENV,
   LIBRARY_SYMBOLS,
   PREBUILD_SYMBOLS,
@@ -14,6 +15,7 @@ const {
   nativeArtifactInstallMode,
   readOverlayConfig,
   validatedNmOutput,
+  writeArtifactManifest,
   verifyArtifacts
 } = require('./native-overlay')
 
@@ -26,7 +28,7 @@ test('package overlay metadata is exact and checksum-pinned', () => {
   const config = readOverlayConfig(packageRoot)
 
   assert.equal(config.commit, '0bfa66fa256a6c36f3737d5b6402eacea40c68fc')
-  assert.equal(config.patchSha256, 'fd622bf2a24d51a860d8ae84fe818966dcf42235618ec11d0ba82f716b2d0ff8')
+  assert.equal(config.patchSha256, '14d92a75067fd44436c2895266a5762ecbcd782f6fb29696a6f21c171b57de0a')
   assert.equal(config.rustToolchain, '1.88.0')
   assert.equal(config.iosDeploymentTarget, '16.0')
   assert.deepEqual(config.targets, [
@@ -83,6 +85,61 @@ test('artifact verification rejects missing or empty outputs', (context) => {
   assert.throws(
     () => verifyArtifacts(root, ['ios-arm64'], () => PREBUILD_SYMBOLS.join('\n')),
     /missing library artifact/
+  )
+})
+
+test('overlay provenance binds artifacts to the exact patch and hashes', (context) => {
+  const root = fixtureRoot()
+  context.after(() => fs.rmSync(root, { force: true, recursive: true }))
+  const config = readOverlayConfig(path.resolve(__dirname, '..'))
+  const target = config.targets[0]
+  const artifacts = artifactPaths(root, target)
+  for (const filePath of Object.values(artifacts)) {
+    fs.mkdirSync(path.dirname(filePath), { recursive: true })
+    fs.writeFileSync(filePath, 'fixture')
+  }
+  const oneTargetConfig = { ...config, targets: [target] }
+  writeArtifactManifest(root, oneTargetConfig)
+  const symbols = (filePath) => (
+    filePath.endsWith('.a') ? LIBRARY_SYMBOLS : PREBUILD_SYMBOLS
+  ).join('\n')
+
+  assert.doesNotThrow(() => verifyArtifacts(
+    root,
+    oneTargetConfig.targets,
+    symbols,
+    oneTargetConfig
+  ))
+
+  fs.appendFileSync(artifacts.library, 'tampered')
+  assert.throws(
+    () => verifyArtifacts(root, oneTargetConfig.targets, symbols, oneTargetConfig),
+    /artifact hashes do not match/
+  )
+  assert.ok(fs.existsSync(path.join(root, ARTIFACT_MANIFEST)))
+})
+
+test('overlay provenance rejects a stale patch identity', (context) => {
+  const root = fixtureRoot()
+  context.after(() => fs.rmSync(root, { force: true, recursive: true }))
+  const config = readOverlayConfig(path.resolve(__dirname, '..'))
+  const target = config.targets[0]
+  const oneTargetConfig = { ...config, targets: [target] }
+  const artifacts = artifactPaths(root, target)
+  for (const filePath of Object.values(artifacts)) {
+    fs.mkdirSync(path.dirname(filePath), { recursive: true })
+    fs.writeFileSync(filePath, 'fixture')
+  }
+  writeArtifactManifest(root, oneTargetConfig)
+
+  assert.throws(
+    () => verifyArtifacts(
+      root,
+      oneTargetConfig.targets,
+      () => PREBUILD_SYMBOLS.join('\n'),
+      { ...oneTargetConfig, patchSha256: '0'.repeat(64) }
+    ),
+    /provenance does not match patchSha256/
   )
 })
 
