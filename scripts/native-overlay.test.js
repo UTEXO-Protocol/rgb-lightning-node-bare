@@ -26,7 +26,7 @@ test('package overlay metadata is exact and checksum-pinned', () => {
   const config = readOverlayConfig(packageRoot)
 
   assert.equal(config.commit, '0bfa66fa256a6c36f3737d5b6402eacea40c68fc')
-  assert.equal(config.patchSha256, '75553ffcaf61da04ca1873c47ae9fb539581380f92329b5e55dcc8891a2663fb')
+  assert.equal(config.patchSha256, 'fd622bf2a24d51a860d8ae84fe818966dcf42235618ec11d0ba82f716b2d0ff8')
   assert.equal(config.rustToolchain, '1.88.0')
   assert.equal(config.iosDeploymentTarget, '16.0')
   assert.deepEqual(config.targets, [
