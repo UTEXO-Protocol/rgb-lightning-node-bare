@@ -62,6 +62,10 @@ while pre-`1.0`.
 - Unsupported non-macOS Apple source builds fail with a direct platform error.
 
 ### Fixed
+- Prepared RGB UTXO setup advances the pinned colored address before building
+  outputs when address reuse is enabled. Active witness receive scripts can no
+  longer quarantine every output in the setup transaction as
+  `pending_witness`.
 - Reopening a trusted virtual channel no longer fails after the previous
   channel was safely abandoned. Active and abandon-pending sessions still
   block duplicate opens; only the terminal abandoned state is reusable.
