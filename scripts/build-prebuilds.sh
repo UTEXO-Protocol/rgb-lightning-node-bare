@@ -20,6 +20,12 @@ cd "$PKG_DIR"
 ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-$HOME/Library/Android/sdk/ndk/27.1.12297006}"
 ANDROID_TOOLCHAIN="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake"
 IOS_DEPLOYMENT_TARGET="${IPHONEOS_DEPLOYMENT_TARGET:-16.0}"
+CMAKE_BARE_DIR="$(
+  node "$SCRIPT_DIR/resolve-package-root.js" cmake-bare "$PKG_DIR"
+)"
+CMAKE_NPM_DIR="$(
+  node "$SCRIPT_DIR/resolve-package-root.js" cmake-npm "$PKG_DIR"
+)"
 
 build_target() {
   local TARGET_NAME="$1"
@@ -37,8 +43,8 @@ build_target() {
   mkdir -p "$BUILD_DIR"
 
   CMAKE_ARGS=(
-    -Dcmake-bare_DIR="$PKG_DIR/node_modules/cmake-bare"
-    -Dcmake-npm_DIR="$PKG_DIR/node_modules/cmake-npm"
+    -Dcmake-bare_DIR="$CMAKE_BARE_DIR"
+    -Dcmake-npm_DIR="$CMAKE_NPM_DIR"
   )
 
   case "$TARGET_NAME" in

@@ -46,7 +46,7 @@
     "build-cffi": "bash scripts/build-cffi.sh",
     "build-prebuilds": "bash scripts/build-prebuilds.sh",
     "check:types": "tsc --noEmit --strict --skipLibCheck index.d.ts",
-    "test:installer": "node --test scripts/native-overlay.test.js",
+    "test:installer": "node --test scripts/*.test.js",
     "test": "npm run test:installer && node ./node_modules/bare-runtime/bin/bare ./test.js"
   },
   "dependencies": {
