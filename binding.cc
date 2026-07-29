@@ -476,6 +476,9 @@ FN_NODE_JSON(send_btc, rln_send_btc)
 FN_NODE_JSON(prepare_btc_send, rln_prepare_btc_send)
 FN_NODE_JSON(commit_prepared_btc_send, rln_commit_prepared_btc_send)
 FN_NODE_JSON(cancel_btc_send_plan, rln_cancel_btc_send_plan)
+FN_NODE_JSON(prepare_create_utxos, rln_prepare_create_utxos)
+FN_NODE_JSON(commit_prepared_create_utxos, rln_commit_prepared_create_utxos)
+FN_NODE_JSON(cancel_create_utxos_plan, rln_cancel_create_utxos_plan)
 FN_NODE(list_pending_vanilla_transactions, rln_list_pending_vanilla_transactions)
 FN_NODE_STR(list_address_receipts, rln_list_address_receipts)
 FN_NODE_BOOL(list_transactions, rln_list_transactions)
@@ -642,6 +645,9 @@ rgb_lightning_node_bare_exports(js_env_t *env, js_value_t *exports) {
   EXPORT("prepareBtcSend", prepare_btc_send);
   EXPORT("commitPreparedBtcSend", commit_prepared_btc_send);
   EXPORT("cancelBtcSendPlan", cancel_btc_send_plan);
+  EXPORT("prepareCreateUtxos", prepare_create_utxos);
+  EXPORT("commitPreparedCreateUtxos", commit_prepared_create_utxos);
+  EXPORT("cancelCreateUtxosPlan", cancel_create_utxos_plan);
   EXPORT("listPendingVanillaTransactions", list_pending_vanilla_transactions);
   EXPORT("listAddressReceipts", list_address_receipts);
   EXPORT("listTransactions", list_transactions);

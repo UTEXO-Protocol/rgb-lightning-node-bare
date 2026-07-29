@@ -373,6 +373,18 @@ class SdkNode {
     return JSON.parse(binding.cancelBtcSendPlan(this._handle, JSON.stringify(request)))
   }
 
+  prepareCreateUtxos (request) {
+    return JSON.parse(binding.prepareCreateUtxos(this._handle, JSON.stringify(request)))
+  }
+
+  commitPreparedCreateUtxos (request) {
+    return JSON.parse(binding.commitPreparedCreateUtxos(this._handle, JSON.stringify(request)))
+  }
+
+  cancelCreateUtxosPlan (request) {
+    return JSON.parse(binding.cancelCreateUtxosPlan(this._handle, JSON.stringify(request)))
+  }
+
   listPendingVanillaTransactions () {
     return JSON.parse(binding.listPendingVanillaTransactions(this._handle))
   }

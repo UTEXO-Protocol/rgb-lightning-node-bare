@@ -44,6 +44,9 @@ struct CResultString rln_btc_balance(const struct COpaqueStruct *node, bool skip
 struct CResultString rln_cancel_btc_send_plan(const struct COpaqueStruct *node,
                                               const char *request_json);
 
+struct CResultString rln_cancel_create_utxos_plan(const struct COpaqueStruct *node,
+                                                  const char *request_json);
+
 struct CResultString rln_cancel_hodl_invoice(const struct COpaqueStruct *node,
                                              const char *request_json);
 
@@ -63,6 +66,9 @@ struct CResultString rln_close_channel(const struct COpaqueStruct *node, const c
 
 struct CResultString rln_commit_prepared_btc_send(const struct COpaqueStruct *node,
                                                   const char *request_json);
+
+struct CResultString rln_commit_prepared_create_utxos(const struct COpaqueStruct *node,
+                                                      const char *request_json);
 
 struct CResultString rln_commit_prepared_rgb_send(const struct COpaqueStruct *node,
                                                   const char *request_json);
@@ -177,6 +183,9 @@ struct CResultString rln_post_asset_media(const struct COpaqueStruct *node,
 
 struct CResultString rln_prepare_btc_send(const struct COpaqueStruct *node,
                                           const char *request_json);
+
+struct CResultString rln_prepare_create_utxos(const struct COpaqueStruct *node,
+                                              const char *request_json);
 
 struct CResultString rln_prepare_rgb_send(const struct COpaqueStruct *node,
                                           const char *request_json);
