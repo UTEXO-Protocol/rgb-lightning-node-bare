@@ -290,6 +290,7 @@ FN_NODE_JSON(sdk_node_unlock, rln_sdk_node_unlock)
 FN_NODE(sdk_node_shutdown, rln_sdk_node_shutdown)
 FN_NODE_JSON(sdk_node_vss_clear_fence, rln_sdk_node_vss_clear_fence)
 FN_NODE(sdk_node_vss_backup, rln_sdk_node_vss_backup)
+FN_NODE_JSON(sdk_node_vss_delete_all, rln_sdk_node_vss_delete_all)
 FN_NODE_STR(sdk_node_apay_new, rln_sdk_node_apay_new)
 
 static js_value_t *fn_sdk_node_destroy(js_env_t *env, js_callback_info_t *info) {
@@ -393,6 +394,23 @@ static js_value_t *fn_sdk_node_unlock_with_native_external_signer(js_env_t *env,
   free(request_json);
   return handle_result_string(env, res);
 }
+
+static js_value_t *fn_sdk_node_start_unlock_with_native_external_signer(
+    js_env_t *env, js_callback_info_t *info) {
+  js_value_t *args[3];
+  get_args(env, info, args, 3);
+  const struct COpaqueStruct *node = unwrap_sdk_node(env, args[0]);
+  const struct COpaqueStruct *signer = unwrap_signer(env, args[1]);
+  char *request_json = js_to_cstring(env, args[2]);
+  struct CResultString res =
+    rln_sdk_node_start_unlock_with_native_external_signer(node, signer, request_json);
+  free(request_json);
+  return handle_result_string(env, res);
+}
+
+FN_NODE_STR(sdk_node_native_operation_status, rln_sdk_node_native_operation_status)
+FN_NODE_STR(sdk_node_adopt_native_operation, rln_sdk_node_adopt_native_operation)
+FN_NODE_STR(sdk_node_cancel_native_operation, rln_sdk_node_cancel_native_operation)
 
 // `node` + `bootstrap_json` / `unlock_request_json` — host-implemented
 // signer path. Reuse the FN_NODE_JSON shape.
@@ -603,6 +621,7 @@ rgb_lightning_node_bare_exports(js_env_t *env, js_value_t *exports) {
   EXPORT("sdkNodeDestroy", sdk_node_destroy);
   EXPORT("sdkNodeVssClearFence", sdk_node_vss_clear_fence);
   EXPORT("sdkNodeVssBackup", sdk_node_vss_backup);
+  EXPORT("sdkNodeVssDeleteAll", sdk_node_vss_delete_all);
   EXPORT("sdkNodeApayNew", sdk_node_apay_new);
 
   // External signer (native — recommended)
@@ -616,6 +635,11 @@ rgb_lightning_node_bare_exports(js_env_t *env, js_value_t *exports) {
          sdk_node_attach_native_external_signer);
   EXPORT("sdkNodeUnlockWithNativeExternalSigner",
          sdk_node_unlock_with_native_external_signer);
+  EXPORT("sdkNodeStartUnlockWithNativeExternalSigner",
+         sdk_node_start_unlock_with_native_external_signer);
+  EXPORT("sdkNodeNativeOperationStatus", sdk_node_native_operation_status);
+  EXPORT("sdkNodeAdoptNativeOperation", sdk_node_adopt_native_operation);
+  EXPORT("sdkNodeCancelNativeOperation", sdk_node_cancel_native_operation);
 
   // External signer (host-implemented — bootstrap dict only;
   // foreign-signer callback transport not yet exposed)

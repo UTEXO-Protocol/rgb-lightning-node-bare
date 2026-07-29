@@ -21,6 +21,11 @@ const LIBRARY_SYMBOLS = Object.freeze([
   '_rln_prepare_create_utxos',
   '_rln_prepare_rgb_send',
   '_rln_send_payment',
+  '_rln_sdk_node_adopt_native_operation',
+  '_rln_sdk_node_cancel_native_operation',
+  '_rln_sdk_node_native_operation_status',
+  '_rln_sdk_node_start_unlock_with_native_external_signer',
+  '_rln_sdk_node_vss_delete_all',
   '_rln_sync_wallet',
   '_rln_wallet_snapshot'
 ])

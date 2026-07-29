@@ -112,6 +112,10 @@ class SdkNode {
     return JSON.parse(binding.sdkNodeVssBackup(this._handle))
   }
 
+  vssDeleteAll (request) {
+    return JSON.parse(binding.sdkNodeVssDeleteAll(this._handle, JSON.stringify(request)))
+  }
+
   /**
    * APay receiver-side registration with an LSP. Pass the LSP's
    * node_id (hex). Returns the parsed AsyncOrderNewResponse —
@@ -165,6 +169,26 @@ class SdkNode {
       signer._handle,
       JSON.stringify(request)
     )
+  }
+
+  startUnlockWithNativeExternalSigner (signer, request) {
+    return JSON.parse(binding.sdkNodeStartUnlockWithNativeExternalSigner(
+      this._handle,
+      signer._handle,
+      JSON.stringify(request)
+    ))
+  }
+
+  nativeOperationStatus (operationId) {
+    return JSON.parse(binding.sdkNodeNativeOperationStatus(this._handle, operationId))
+  }
+
+  adoptNativeOperation (operationId) {
+    return JSON.parse(binding.sdkNodeAdoptNativeOperation(this._handle, operationId))
+  }
+
+  cancelNativeOperation (operationId) {
+    return JSON.parse(binding.sdkNodeCancelNativeOperation(this._handle, operationId))
   }
 
   /**

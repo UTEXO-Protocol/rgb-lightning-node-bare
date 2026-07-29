@@ -199,6 +199,9 @@ struct CResultString rln_rotate_address(const struct COpaqueStruct *node);
 
 struct CResultString rln_sdk_initialize(const char *request_json);
 
+struct CResultString rln_sdk_node_adopt_native_operation(const struct COpaqueStruct *node,
+                                                         const char *operation_id);
+
 /**
  * APay receiver-side registration with an LSP. Argument is the LSP's
  * node_id as a hex string (compressed secp256k1). Returns JSON of
@@ -212,6 +215,9 @@ struct CResultString rln_sdk_node_apay_new(const struct COpaqueStruct *node,
 struct CResultString rln_sdk_node_attach_native_external_signer(const struct COpaqueStruct *node,
                                                                 const struct COpaqueStruct *signer);
 
+struct CResultString rln_sdk_node_cancel_native_operation(const struct COpaqueStruct *node,
+                                                          const char *operation_id);
+
 struct CResultString rln_sdk_node_detach_external_signer(const struct COpaqueStruct *node);
 
 struct CResultString rln_sdk_node_init(const struct COpaqueStruct *node,
@@ -224,9 +230,16 @@ struct CResultString rln_sdk_node_init_with_external_signer(const struct COpaque
 struct CResultString rln_sdk_node_init_with_native_external_signer(const struct COpaqueStruct *node,
                                                                    const struct COpaqueStruct *signer);
 
+struct CResultString rln_sdk_node_native_operation_status(const struct COpaqueStruct *node,
+                                                          const char *operation_id);
+
 struct CResult rln_sdk_node_new(const char *request_json);
 
 struct CResultString rln_sdk_node_shutdown(const struct COpaqueStruct *node);
+
+struct CResultString rln_sdk_node_start_unlock_with_native_external_signer(const struct COpaqueStruct *node,
+                                                                           const struct COpaqueStruct *signer,
+                                                                           const char *request_json);
 
 struct CResultString rln_sdk_node_unlock(const struct COpaqueStruct *node,
                                          const char *request_json);
@@ -260,6 +273,14 @@ struct CResultString rln_sdk_node_vss_backup(const struct COpaqueStruct *node);
  */
 struct CResultString rln_sdk_node_vss_clear_fence(const struct COpaqueStruct *node,
                                                   const char *request_json);
+
+/**
+ * Permanently delete every object in the authenticated VSS store.
+ * Request JSON: `{"password":"..."}`. The node must be locked.
+ * Returns `{"deleted_keys": u64}` after a verified empty re-list.
+ */
+struct CResultString rln_sdk_node_vss_delete_all(const struct COpaqueStruct *node,
+                                                 const char *request_json);
 
 struct CResultString rln_sdk_shutdown(void);
 
