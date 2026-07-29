@@ -62,10 +62,13 @@ while pre-`1.0`.
 - Unsupported non-macOS Apple source builds fail with a direct platform error.
 
 ### Fixed
-- Prepared RGB UTXO setup advances the pinned colored address before building
-  outputs when address reuse is enabled. Active witness receive scripts can no
-  longer quarantine every output in the setup transaction as
-  `pending_witness`.
+- Prepared RGB UTXO setup atomically isolates allocation outputs on a fresh
+  colored address and advances the receive address again before returning the
+  plan. Existing and future witness invoices can no longer quarantine setup
+  outputs as `pending_witness`.
+- Explicit node shutdown and signer destruction now release their native
+  handles immediately, including persistent signer database locks, instead of
+  waiting for nondeterministic garbage collection.
 - Reopening a trusted virtual channel no longer fails after the previous
   channel was safely abandoned. Active and abandon-pending sessions still
   block duplicate opens; only the terminal abandoned state is reusable.

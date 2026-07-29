@@ -81,8 +81,13 @@ struct SdkNodeRef {
 static void sdk_node_destructor(js_env_t *env, void *data, void *hint) {
   SdkNodeRef *ref = (SdkNodeRef *)data;
   if (!ref->freed) {
-    rln_sdk_node_shutdown(&ref->opaque);
+    struct CResultString shutdown_result = rln_sdk_node_shutdown(&ref->opaque);
+    if (shutdown_result.inner != NULL) {
+      rln_free_string(shutdown_result.inner);
+    }
     free_sdk_node(ref->opaque);
+    ref->opaque.ptr = NULL;
+    ref->freed = true;
   }
   free(ref);
 }
@@ -102,6 +107,12 @@ static const struct COpaqueStruct *unwrap_sdk_node(js_env_t *env, js_value_t *va
   js_get_value_external(env, val, &data);
   SdkNodeRef *ref = (SdkNodeRef *)data;
   return &ref->opaque;
+}
+
+static SdkNodeRef *unwrap_sdk_node_ref(js_env_t *env, js_value_t *val) {
+  void *data;
+  js_get_value_external(env, val, &data);
+  return (SdkNodeRef *)data;
 }
 
 static js_value_t *handle_result_node(js_env_t *env, struct CResult res) {
@@ -157,6 +168,12 @@ static const struct COpaqueStruct *unwrap_signer(js_env_t *env, js_value_t *val)
   js_get_value_external(env, val, &data);
   SignerRef *ref = (SignerRef *)data;
   return &ref->opaque;
+}
+
+static SignerRef *unwrap_signer_ref(js_env_t *env, js_value_t *val) {
+  void *data;
+  js_get_value_external(env, val, &data);
+  return (SignerRef *)data;
 }
 
 static js_value_t *handle_result_signer(js_env_t *env, struct CResult res) {
@@ -275,6 +292,20 @@ FN_NODE_JSON(sdk_node_vss_clear_fence, rln_sdk_node_vss_clear_fence)
 FN_NODE(sdk_node_vss_backup, rln_sdk_node_vss_backup)
 FN_NODE_STR(sdk_node_apay_new, rln_sdk_node_apay_new)
 
+static js_value_t *fn_sdk_node_destroy(js_env_t *env, js_callback_info_t *info) {
+  js_value_t *args[1];
+  get_args(env, info, args, 1);
+  SdkNodeRef *ref = unwrap_sdk_node_ref(env, args[0]);
+  if (!ref->freed) {
+    free_sdk_node(ref->opaque);
+    ref->opaque.ptr = NULL;
+    ref->freed = true;
+  }
+  js_value_t *undefined;
+  js_get_undefined(env, &undefined);
+  return undefined;
+}
+
 // ============================================================================
 // External-signer surface
 // ============================================================================
@@ -316,6 +347,21 @@ static js_value_t *fn_native_external_signer_bootstrap(js_env_t *env, js_callbac
   get_args(env, info, args, 1);
   const struct COpaqueStruct *signer = unwrap_signer(env, args[0]);
   return handle_result_string(env, rln_native_external_signer_bootstrap(signer));
+}
+
+static js_value_t *fn_native_external_signer_destroy(js_env_t *env,
+                                                      js_callback_info_t *info) {
+  js_value_t *args[1];
+  get_args(env, info, args, 1);
+  SignerRef *ref = unwrap_signer_ref(env, args[0]);
+  if (!ref->freed) {
+    free_native_external_signer(ref->opaque);
+    ref->opaque.ptr = NULL;
+    ref->freed = true;
+  }
+  js_value_t *undefined;
+  js_get_undefined(env, &undefined);
+  return undefined;
 }
 
 // `node` + `signer` form (3 of these): init / attach / unlock-with-native
@@ -554,6 +600,7 @@ rgb_lightning_node_bare_exports(js_env_t *env, js_value_t *exports) {
   EXPORT("sdkNodeInit", sdk_node_init);
   EXPORT("sdkNodeUnlock", sdk_node_unlock);
   EXPORT("sdkNodeShutdown", sdk_node_shutdown);
+  EXPORT("sdkNodeDestroy", sdk_node_destroy);
   EXPORT("sdkNodeVssClearFence", sdk_node_vss_clear_fence);
   EXPORT("sdkNodeVssBackup", sdk_node_vss_backup);
   EXPORT("sdkNodeApayNew", sdk_node_apay_new);
@@ -562,6 +609,7 @@ rgb_lightning_node_bare_exports(js_env_t *env, js_value_t *exports) {
   EXPORT("nativeExternalSignerNew", native_external_signer_new);
   EXPORT("nativeExternalSignerNewWithStorage", native_external_signer_new_with_storage);
   EXPORT("nativeExternalSignerBootstrap", native_external_signer_bootstrap);
+  EXPORT("nativeExternalSignerDestroy", native_external_signer_destroy);
   EXPORT("sdkNodeInitWithNativeExternalSigner",
          sdk_node_init_with_native_external_signer);
   EXPORT("sdkNodeAttachNativeExternalSigner",

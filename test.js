@@ -116,8 +116,9 @@ try {
 // use a deterministic non-zero pattern instead).
 const SEED_HEX = '01'.repeat(32)
 let signer
+let signerDataDir
 try {
-  const signerDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rln-canary-vls-'))
+  signerDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rln-canary-vls-'))
   signer = NativeExternalSigner.createWithStorage(
     SEED_HEX,
     'regtest',
@@ -206,6 +207,20 @@ try {
   console.log('✓ signer canary SdkNode shutdown clean')
 } catch (e) {
   fail(`signer canary shutdown threw: ${e.message}`)
+}
+
+try {
+  signer.destroy()
+  const reopenedSigner = NativeExternalSigner.createWithStorage(
+    SEED_HEX,
+    'regtest',
+    signerDataDir,
+    true
+  )
+  reopenedSigner.destroy()
+  console.log('✓ explicit cleanup releases the persistent signer database')
+} catch (e) {
+  fail(`persistent signer reopen after cleanup threw: ${e.message}`)
 }
 
 console.log('\n✅ Canary 1 PASSED — bare ↔ C-FFI ↔ tokio ↔ LDK boot + external signer OK')

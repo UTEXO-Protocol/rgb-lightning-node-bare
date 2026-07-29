@@ -69,8 +69,17 @@ class SdkNode {
 
   shutdown () {
     if (this._closed) return
-    binding.sdkNodeShutdown(this._handle)
-    this._closed = true
+    let failure
+    try {
+      binding.sdkNodeShutdown(this._handle)
+    } catch (error) {
+      failure = error
+    } finally {
+      binding.sdkNodeDestroy(this._handle)
+      this._handle = null
+      this._closed = true
+    }
+    if (failure) throw failure
   }
 
   /**
@@ -511,11 +520,11 @@ class NativeExternalSigner {
     return JSON.parse(binding.nativeExternalSignerBootstrap(this._handle))
   }
 
-  // Eager drop. Optional — the GC destructor handles it otherwise.
+  // Eager drop. The GC destructor remains as an idempotent fallback.
   destroy () {
-    // The native destructor runs on GC; nothing explicit to do here yet,
-    // but we keep this method so consumers can express intent and we
-    // can switch to an explicit-free C-FFI later without an API churn.
+    if (this._destroyed) return
+    binding.nativeExternalSignerDestroy(this._handle)
+    this._handle = null
     this._destroyed = true
   }
 }
