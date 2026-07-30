@@ -64,11 +64,11 @@ build_target() {
   fi
 
   if [ -z "$RUST_TARGET" ]; then
-    cargo rustc --release --lib --crate-type staticlib 2>&1 | tail -3
+    cargo rustc --release --lib --crate-type staticlib
     mkdir -p "$OUT_DIR/$DIR_NAME"
     cp target/release/librlncffi.a "$OUT_DIR/$DIR_NAME/"
   else
-    cargo rustc --release --target "$RUST_TARGET" --lib --crate-type staticlib 2>&1 | tail -3
+    cargo rustc --release --target "$RUST_TARGET" --lib --crate-type staticlib
     mkdir -p "$OUT_DIR/$DIR_NAME"
     cp "target/$RUST_TARGET/release/librlncffi.a" "$OUT_DIR/$DIR_NAME/"
   fi
@@ -122,7 +122,7 @@ build_android_target() {
   echo "--- Building for $RUST_TARGET → $DIR_NAME (Android NDK ABI $NDK_ABI) ---"
 
   cd "$CFFI_DIR"
-  cargo ndk -t "$NDK_ABI" rustc --release --lib --crate-type staticlib 2>&1 | tail -3
+  cargo ndk -t "$NDK_ABI" rustc --release --lib --crate-type staticlib
   mkdir -p "$OUT_DIR/$DIR_NAME"
   cp "target/$RUST_TARGET/release/librlncffi.a" "$OUT_DIR/$DIR_NAME/"
 
