@@ -2,16 +2,17 @@
 set -euo pipefail
 
 # ============================================================================
-# Build librlncffi.a for the current Darwin host + iOS targets.
+# Build librlncffi.a for Darwin, iOS, or Android targets.
 #
 # Mirrors rgb-lib-bare's build-ios.sh: uses `cargo rustc --crate-type
 # staticlib` against the bindings/c-ffi crate in rgb-lightning-node, drops
 # the resulting .a into lib/<target>/, copies the cbindgen header.
 #
 # Usage:
-#   bash scripts/build-cffi.sh           # darwin host + iOS triple
+#   bash scripts/build-cffi.sh           # darwin host + iOS + Android
 #   bash scripts/build-cffi.sh darwin    # darwin only (canary 1)
 #   bash scripts/build-cffi.sh ios       # iOS triple only
+#   bash scripts/build-cffi.sh android   # Android arm64, armv7, and x64
 #
 # Set CFFI_DIR to override the c-ffi source location.
 # ============================================================================
@@ -122,13 +123,21 @@ build_android_target() {
   echo "--- Building for $RUST_TARGET → $DIR_NAME (Android NDK ABI $NDK_ABI) ---"
 
   cd "$CFFI_DIR"
-  cargo ndk -t "$NDK_ABI" rustc --release --lib --crate-type staticlib
+  cargo ndk -t "$NDK_ABI" -P "${ANDROID_API_LEVEL:-29}" \
+    rustc --release --lib --crate-type staticlib
   mkdir -p "$OUT_DIR/$DIR_NAME"
   cp "target/$RUST_TARGET/release/librlncffi.a" "$OUT_DIR/$DIR_NAME/"
 
   # Use llvm-strip from the NDK; macOS `strip` corrupts ELF archives with a
   # "truncated or malformed archive" error at ld.lld link time.
-  LLVM_STRIP="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-strip"
+  NDK_PREBUILT_ROOT="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt"
+  NDK_HOST_COUNT=$(find "$NDK_PREBUILT_ROOT" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')
+  if [ "$NDK_HOST_COUNT" -ne 1 ]; then
+    echo "ERROR: expected one NDK host toolchain, found $NDK_HOST_COUNT"
+    exit 1
+  fi
+  NDK_HOST_DIR=$(find "$NDK_PREBUILT_ROOT" -mindepth 1 -maxdepth 1 -type d)
+  LLVM_STRIP="$NDK_HOST_DIR/bin/llvm-strip"
   [ -x "$LLVM_STRIP" ] && "$LLVM_STRIP" --strip-debug "$OUT_DIR/$DIR_NAME/librlncffi.a" 2>/dev/null || true
   SIZE=$(ls -lh "$OUT_DIR/$DIR_NAME/librlncffi.a" | awk '{print $5}')
   echo "✅ $DIR_NAME: $SIZE"

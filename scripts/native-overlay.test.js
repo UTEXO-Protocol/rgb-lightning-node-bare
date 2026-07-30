@@ -13,7 +13,10 @@ const {
   assertSupportedBuildHost,
   artifactPaths,
   nativeArtifactInstallMode,
+  normalizedSymbols,
   readOverlayConfig,
+  resolveAndroidNdk,
+  resolveInstallTargets,
   validatedNmOutput,
   writeArtifactManifest,
   verifyArtifacts
@@ -31,10 +34,17 @@ test('package overlay metadata is exact and checksum-pinned', () => {
   assert.equal(config.patchSha256, 'b024039de512358fecbb64773b587b11bb626364bd41a165cd797641a0e999e2')
   assert.equal(config.rustToolchain, '1.88.0')
   assert.equal(config.iosDeploymentTarget, '16.0')
+  assert.equal(config.androidNdkVersion, '27.1.12297006')
+  assert.equal(config.androidApiLevel, 29)
+  assert.equal(config.cargoNdkVersion, '4.1.2')
+  assert.equal(config.bindgenCliVersion, '0.72.1')
   assert.deepEqual(config.targets, [
     'ios-arm64',
     'ios-arm64-simulator',
-    'ios-x64-simulator'
+    'ios-x64-simulator',
+    'android-arm64',
+    'android-arm',
+    'android-x64'
   ])
 })
 
@@ -72,6 +82,58 @@ test('Apple source builds fail clearly on unsupported hosts', () => {
   assert.throws(
     () => assertSupportedBuildHost({ targets: ['darwin-arm64'] }, 'linux'),
     /requires macOS/
+  )
+  assert.doesNotThrow(() => assertSupportedBuildHost(
+    { targets: ['android-arm64'] },
+    'linux'
+  ))
+})
+
+test('install target selection is platform scoped and explicit', () => {
+  const config = readOverlayConfig(path.resolve(__dirname, '..'))
+
+  assert.deepEqual(resolveInstallTargets(config, {}, 'darwin'), [
+    'ios-arm64',
+    'ios-arm64-simulator',
+    'ios-x64-simulator'
+  ])
+  assert.deepEqual(resolveInstallTargets(config, {}, 'darwin', 'android'), [
+    'android-arm64',
+    'android-arm',
+    'android-x64'
+  ])
+  assert.deepEqual(resolveInstallTargets(
+    config,
+    { EAS_BUILD_PLATFORM: 'android' },
+    'darwin'
+  ), [
+    'android-arm64',
+    'android-arm',
+    'android-x64'
+  ])
+  assert.deepEqual(resolveInstallTargets(
+    config,
+    { RLN_BARE_TARGETS: 'android-arm64,android-x64' },
+    'darwin',
+    'ios'
+  ), [
+    'android-arm64',
+    'android-x64'
+  ])
+  assert.throws(
+    () => resolveInstallTargets(
+      config,
+      { RLN_BARE_TARGETS: 'android-ia32' },
+      'darwin'
+    ),
+    /unconfigured target/
+  )
+})
+
+test('symbol normalization makes Mach-O and ELF contracts equivalent', () => {
+  assert.equal(
+    normalizedSymbols('_rln_wallet_snapshot\nbare_register_module_v0\n'),
+    'rln_wallet_snapshot\nbare_register_module_v0'
   )
 })
 
@@ -135,6 +197,28 @@ test('overlay provenance binds artifacts to the exact patch and hashes', (contex
   assert.ok(fs.existsSync(path.join(root, ARTIFACT_MANIFEST)))
 })
 
+test('overlay provenance can be extended by a second platform without losing hashes', (context) => {
+  const root = fixtureRoot()
+  context.after(() => fs.rmSync(root, { force: true, recursive: true }))
+  const config = readOverlayConfig(path.resolve(__dirname, '..'))
+  const iosTarget = 'ios-arm64'
+  const androidTarget = 'android-arm64'
+  for (const target of [iosTarget, androidTarget]) {
+    const artifacts = artifactPaths(root, target)
+    for (const filePath of Object.values(artifacts)) {
+      fs.mkdirSync(path.dirname(filePath), { recursive: true })
+      fs.writeFileSync(filePath, `${target}-fixture`)
+    }
+  }
+  writeArtifactManifest(root, config, [iosTarget])
+  const iosManifest = JSON.parse(fs.readFileSync(path.join(root, ARTIFACT_MANIFEST), 'utf8'))
+  writeArtifactManifest(root, config, [androidTarget])
+  const combinedManifest = JSON.parse(fs.readFileSync(path.join(root, ARTIFACT_MANIFEST), 'utf8'))
+
+  assert.deepEqual(combinedManifest.artifacts[iosTarget], iosManifest.artifacts[iosTarget])
+  assert.ok(combinedManifest.artifacts[androidTarget])
+})
+
 test('overlay provenance rejects a stale patch identity', (context) => {
   const root = fixtureRoot()
   context.after(() => fs.rmSync(root, { force: true, recursive: true }))
@@ -187,4 +271,25 @@ test('nm tolerates only the known Rust producer and Apple reader mismatch', () =
     stdout: '_rln_wallet_snapshot\n',
     stderr: '/usr/bin/nm: error: archive.a(member.o): Unknown file format\n'
   }), /Unknown file format/)
+})
+
+test('Android NDK resolution requires the exact configured revision', (context) => {
+  const root = fixtureRoot()
+  context.after(() => fs.rmSync(root, { force: true, recursive: true }))
+  const config = readOverlayConfig(path.resolve(__dirname, '..'))
+  fs.writeFileSync(
+    path.join(root, 'source.properties'),
+    `Pkg.Desc = Android NDK\nPkg.Revision = ${config.androidNdkVersion}\n`
+  )
+
+  assert.equal(resolveAndroidNdk(config, { ANDROID_NDK_HOME: root }), root)
+
+  fs.writeFileSync(
+    path.join(root, 'source.properties'),
+    'Pkg.Desc = Android NDK\nPkg.Revision = 27.0.0\n'
+  )
+  assert.throws(
+    () => resolveAndroidNdk(config, { ANDROID_NDK_HOME: root }),
+    /Android NDK 27\.1\.12297006 is required/
+  )
 })

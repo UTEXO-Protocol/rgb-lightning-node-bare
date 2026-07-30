@@ -19,6 +19,7 @@ cd "$PKG_DIR"
 
 ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-$HOME/Library/Android/sdk/ndk/27.1.12297006}"
 ANDROID_TOOLCHAIN="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake"
+ANDROID_API_LEVEL="${ANDROID_API_LEVEL:-29}"
 IOS_DEPLOYMENT_TARGET="${IPHONEOS_DEPLOYMENT_TARGET:-16.0}"
 CMAKE_BARE_DIR="$(
   node "$SCRIPT_DIR/resolve-package-root.js" cmake-bare "$PKG_DIR"
@@ -65,13 +66,13 @@ build_target() {
         -DCMAKE_OSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-13.0}"
       ) ;;
     android-arm64)
-      CMAKE_ARGS+=(-DCMAKE_TOOLCHAIN_FILE="$ANDROID_TOOLCHAIN" -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-24) ;;
+      CMAKE_ARGS+=(-DCMAKE_TOOLCHAIN_FILE="$ANDROID_TOOLCHAIN" -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM="android-$ANDROID_API_LEVEL") ;;
     android-arm)
-      CMAKE_ARGS+=(-DCMAKE_TOOLCHAIN_FILE="$ANDROID_TOOLCHAIN" -DANDROID_ABI=armeabi-v7a -DANDROID_PLATFORM=android-24) ;;
+      CMAKE_ARGS+=(-DCMAKE_TOOLCHAIN_FILE="$ANDROID_TOOLCHAIN" -DANDROID_ABI=armeabi-v7a -DANDROID_PLATFORM="android-$ANDROID_API_LEVEL") ;;
     android-x64)
-      CMAKE_ARGS+=(-DCMAKE_TOOLCHAIN_FILE="$ANDROID_TOOLCHAIN" -DANDROID_ABI=x86_64 -DANDROID_PLATFORM=android-24) ;;
+      CMAKE_ARGS+=(-DCMAKE_TOOLCHAIN_FILE="$ANDROID_TOOLCHAIN" -DANDROID_ABI=x86_64 -DANDROID_PLATFORM="android-$ANDROID_API_LEVEL") ;;
     android-ia32)
-      CMAKE_ARGS+=(-DCMAKE_TOOLCHAIN_FILE="$ANDROID_TOOLCHAIN" -DANDROID_ABI=x86 -DANDROID_PLATFORM=android-24) ;;
+      CMAKE_ARGS+=(-DCMAKE_TOOLCHAIN_FILE="$ANDROID_TOOLCHAIN" -DANDROID_ABI=x86 -DANDROID_PLATFORM="android-$ANDROID_API_LEVEL") ;;
   esac
 
   cmake -B "$BUILD_DIR" -S . "${CMAKE_ARGS[@]}" 2>&1 | tail -5
@@ -86,10 +87,24 @@ build_target() {
   fi
 
   mkdir -p "prebuilds/$TARGET_NAME"
-  cp "$BARE_FILE" "prebuilds/$TARGET_NAME/utexo__rgb-lightning-node-bare.bare"
+  OUTPUT_FILE="prebuilds/$TARGET_NAME/utexo__rgb-lightning-node-bare.bare"
+  cp "$BARE_FILE" "$OUTPUT_FILE"
 
-  SIZE=$(ls -lh "prebuilds/$TARGET_NAME/utexo__rgb-lightning-node-bare.bare" | awk '{print $5}')
-  echo "  ✅ prebuilds/$TARGET_NAME/utexo__rgb-lightning-node-bare.bare ($SIZE)"
+  case "$TARGET_NAME" in
+    android-*)
+      NDK_PREBUILT_ROOT="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt"
+      NDK_HOST_COUNT=$(find "$NDK_PREBUILT_ROOT" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')
+      if [ "$NDK_HOST_COUNT" -ne 1 ]; then
+        echo "ERROR: expected one NDK host toolchain, found $NDK_HOST_COUNT"
+        exit 1
+      fi
+      NDK_HOST_DIR=$(find "$NDK_PREBUILT_ROOT" -mindepth 1 -maxdepth 1 -type d)
+      "$NDK_HOST_DIR/bin/llvm-strip" --strip-debug "$OUTPUT_FILE"
+      ;;
+  esac
+
+  SIZE=$(ls -lh "$OUTPUT_FILE" | awk '{print $5}')
+  echo "  ✅ $OUTPUT_FILE ($SIZE)"
 
   rm -rf "$BUILD_DIR"
 }

@@ -237,7 +237,8 @@ usable inside any Bare worklet.
 Git commits can expose C-FFI behavior that has not been promoted to a package
 release yet. Such commits declare `utexoNativeOverlay` in `package.json` with
 an exact upstream tag and commit, patch path and SHA-256, Rust toolchain, iOS
-deployment target, and output target list. During `postinstall` the package:
+deployment target, Android NDK/API/tool versions, and output target list.
+During `postinstall` the package:
 
 1. verifies the metadata and patch checksum;
 2. verifies any existing static libraries and Bare addons contain the required
@@ -245,8 +246,9 @@ deployment target, and output target list. During `postinstall` the package:
 3. optionally imports artifacts from the explicitly trusted
    `RLN_BARE_ARTIFACTS_DIR`; or
 4. clones the exact upstream commit, applies only the checksum-pinned patch,
-   installs the pinned Rust targets, builds the declared outputs, and verifies
-   their symbols before succeeding.
+   installs the pinned Rust targets and Android build tools, builds the
+   platform-scoped outputs, strips Android debug sections, and verifies their
+   symbols before succeeding.
 
 `RLN_BARE_SOURCE_DIR` may point to an exact local checkout for development. It
 must be at the configured commit and either pristine or have the complete
@@ -254,6 +256,20 @@ configured patch already applied. Both overrides are build inputs controlled
 by the caller; neither bypasses commit, patch, file, or symbol validation.
 Registry packages without `utexoNativeOverlay` continue to download artifacts
 from their matching GitHub release.
+
+Target preparation is platform scoped so an Android build does not require or
+replace iOS artifacts, and vice versa. On a normal macOS install the Apple
+targets are prepared. EAS selects the target group from `EAS_BUILD_PLATFORM`;
+local or custom build pipelines can select it explicitly:
+
+```sh
+node scripts/install-native-artifacts.js --platform ios
+node scripts/install-native-artifacts.js --platform android
+```
+
+`RLN_BARE_TARGETS` accepts an explicit comma-separated subset of configured
+targets for artifact CI. Provenance is incremental: preparing a second platform
+adds its hashes without discarding already verified hashes for the first.
 
 JavaScript-only CI jobs that will not link or load the native addon may opt out
 explicitly:
@@ -266,12 +282,9 @@ The opt-out creates no native artifacts. A later app link or runtime step must
 still run the consumer's artifact and symbol checks, and therefore fails closed
 if a compatible addon was not installed. Source-building declared Apple
 targets requires macOS; non-macOS hosts receive a direct error instead of
-attempting an impossible cross-build.
-
-The current overlay intentionally declares the three iOS outputs only. Android
-registry releases remain on their last published ABI until an Android overlay
-target is built and promoted. This Git overlay does not substitute an older
-Android binary for the newer C-FFI contract.
+attempting an impossible cross-build. Android builds require the exact NDK
+revision declared by the overlay and produce `arm64-v8a`, `armeabi-v7a`, and
+`x86_64` addons from the same patched source and symbol contract as iOS.
 
 ## Build and release (maintainers)
 

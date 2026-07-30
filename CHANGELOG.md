@@ -19,6 +19,11 @@ while pre-`1.0`.
 ## [Unreleased]
 
 ### Added
+- Reproducible Android overlay artifacts for `arm64-v8a`, `armeabi-v7a`,
+  and `x86_64`, built from the same pinned native patch as iOS with exact
+  Rust, NDK, API-level, cargo-ndk, and bindgen inputs.
+- Platform-scoped native preparation for local and EAS builds, incremental
+  cross-platform artifact provenance, and ELF-aware exported-symbol checks.
 - Authoritative `listAddressReceipts(address)` settlement evidence backed by
   the configured Electrum or Esplora indexer, including exact received
   satoshis, transaction IDs, block heights, and confirmation counts.
@@ -55,6 +60,8 @@ while pre-`1.0`.
   native app paths continue to require symbol-verified artifacts.
 
 ### Changed
+- Android Bare addons have debug sections stripped with the pinned NDK
+  toolchain before hashing and packaging.
 - Tag-specific C-FFI overlays are optional; current RLN tags build directly
   from upstream when no overlay exists.
 - CI and local package tests use the Bare runtime explicitly and reproducible

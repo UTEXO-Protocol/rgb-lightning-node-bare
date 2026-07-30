@@ -5,10 +5,21 @@ const { spawnSync } = require('node:child_process')
 const {
   ensureOverlayArtifacts,
   nativeArtifactInstallMode,
-  readOverlayConfig
+  readOverlayConfig,
+  resolveInstallTargets
 } = require('./native-overlay')
 
 const packageRoot = path.resolve(__dirname, '..')
+
+function requestedPlatform (args) {
+  if (args.length === 0) return undefined
+  if (args.length !== 2 || args[0] !== '--platform') {
+    throw new Error(
+      'usage: node scripts/install-native-artifacts.js [--platform android|ios|darwin|apple|all]'
+    )
+  }
+  return args[1]
+}
 
 try {
   const installMode = nativeArtifactInstallMode(process.env)
@@ -19,7 +30,13 @@ try {
   } else {
     const overlay = readOverlayConfig(packageRoot)
     if (overlay) {
-      ensureOverlayArtifacts(packageRoot, overlay)
+      const targets = resolveInstallTargets(
+        overlay,
+        process.env,
+        process.platform,
+        requestedPlatform(process.argv.slice(2))
+      )
+      ensureOverlayArtifacts(packageRoot, overlay, targets, process.env)
     } else {
       const result = spawnSync('bash', [path.join(__dirname, 'download-libs.sh')], {
         cwd: packageRoot,

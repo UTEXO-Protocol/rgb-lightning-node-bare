@@ -15,7 +15,7 @@ env:
 jobs:
   contract:
     runs-on: macos-14
-    timeout-minutes: 75
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
 
@@ -75,3 +75,15 @@ jobs:
           bash scripts/build-cffi.sh darwin
           bash scripts/build-prebuilds.sh "$HOST_TARGET"
           npm test
+
+      - name: Setup pinned Android NDK
+        uses: nttld/setup-ndk@v1
+        id: setup_ndk
+        with:
+          ndk-version: r27c
+
+      - name: Build and verify every supported Android addon
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup_ndk.outputs.ndk-path }}
+          RLN_BARE_SOURCE_DIR: ${{ github.workspace }}/../../rgb-lightning-node
+        run: node scripts/install-native-artifacts.js --platform android
