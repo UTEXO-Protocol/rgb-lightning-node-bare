@@ -83,6 +83,8 @@ test('Bare node handles are destroyed during environment teardown', () => {
   assert.match(binding, /js_add_teardown_callback\(env, sdk_node_teardown, ref\)/)
   assert.match(binding, /js_remove_teardown_callback\(env, sdk_node_teardown, ref\)/)
   assert.match(binding, /shutdown_and_free_sdk_node\(ref\)/)
+  assert.match(binding, /ERR_RLN_NODE_CLOSED/)
+  assert.match(binding, /if \(node == NULL\) return make_undefined\(env\)/)
 })
 
 test('JS-only installation requires an explicit exact opt-out', () => {

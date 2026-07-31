@@ -42,6 +42,12 @@ static js_value_t *cstring_to_js(js_env_t *env, const char *str) {
   return result;
 }
 
+static js_value_t *make_undefined(js_env_t *env) {
+  js_value_t *undefined;
+  js_get_undefined(env, &undefined);
+  return undefined;
+}
+
 static js_value_t *handle_result_string(js_env_t *env, struct CResultString res) {
   if (res.result == Ok) {
     js_value_t *val = cstring_to_js(env, res.inner);
@@ -135,10 +141,20 @@ static js_value_t *wrap_sdk_node(js_env_t *env, struct COpaqueStruct opaque) {
   return external;
 }
 
-static const struct COpaqueStruct *unwrap_sdk_node(js_env_t *env, js_value_t *val) {
-  void *data;
-  js_get_value_external(env, val, &data);
+static const struct COpaqueStruct *require_sdk_node(js_env_t *env,
+                                                    js_value_t *val) {
+  void *data = NULL;
+  if (js_get_value_external(env, val, &data) != 0 || data == NULL) {
+    js_throw_error(env, "ERR_RLN_NODE_CLOSED",
+                   "RGB Lightning node handle is unavailable");
+    return NULL;
+  }
   SdkNodeRef *ref = (SdkNodeRef *)data;
+  if (ref->freed || ref->opaque.ptr == NULL) {
+    js_throw_error(env, "ERR_RLN_NODE_CLOSED",
+                   "RGB Lightning node is already closed");
+    return NULL;
+  }
   return &ref->opaque;
 }
 
@@ -196,10 +212,20 @@ static js_value_t *wrap_signer(js_env_t *env, struct COpaqueStruct opaque) {
   return external;
 }
 
-static const struct COpaqueStruct *unwrap_signer(js_env_t *env, js_value_t *val) {
-  void *data;
-  js_get_value_external(env, val, &data);
+static const struct COpaqueStruct *require_signer(js_env_t *env,
+                                                  js_value_t *val) {
+  void *data = NULL;
+  if (js_get_value_external(env, val, &data) != 0 || data == NULL) {
+    js_throw_error(env, "ERR_RLN_SIGNER_CLOSED",
+                   "RGB Lightning signer handle is unavailable");
+    return NULL;
+  }
   SignerRef *ref = (SignerRef *)data;
+  if (ref->freed || ref->opaque.ptr == NULL) {
+    js_throw_error(env, "ERR_RLN_SIGNER_CLOSED",
+                   "RGB Lightning signer is already closed");
+    return NULL;
+  }
   return &ref->opaque;
 }
 
@@ -243,7 +269,8 @@ static int get_args(js_env_t *env, js_callback_info_t *info,
   static js_value_t *fn_##NAME(js_env_t *env, js_callback_info_t *info) {  \
     js_value_t *args[1];                                                   \
     get_args(env, info, args, 1);                                          \
-    const struct COpaqueStruct *node = unwrap_sdk_node(env, args[0]);      \
+    const struct COpaqueStruct *node = require_sdk_node(env, args[0]);     \
+    if (node == NULL) return make_undefined(env);                          \
     return handle_result_string(env, RLN_FN(node));                        \
   }
 
@@ -251,7 +278,8 @@ static int get_args(js_env_t *env, js_callback_info_t *info,
   static js_value_t *fn_##NAME(js_env_t *env, js_callback_info_t *info) {  \
     js_value_t *args[2];                                                   \
     get_args(env, info, args, 2);                                          \
-    const struct COpaqueStruct *node = unwrap_sdk_node(env, args[0]);      \
+    const struct COpaqueStruct *node = require_sdk_node(env, args[0]);     \
+    if (node == NULL) return make_undefined(env);                          \
     char *s = js_to_cstring(env, args[1]);                                 \
     struct CResultString res = RLN_FN(node, s);                            \
     free(s);                                                               \
@@ -264,7 +292,8 @@ static int get_args(js_env_t *env, js_callback_info_t *info,
   static js_value_t *fn_##NAME(js_env_t *env, js_callback_info_t *info) {  \
     js_value_t *args[2];                                                   \
     get_args(env, info, args, 2);                                          \
-    const struct COpaqueStruct *node = unwrap_sdk_node(env, args[0]);      \
+    const struct COpaqueStruct *node = require_sdk_node(env, args[0]);     \
+    if (node == NULL) return make_undefined(env);                          \
     bool b = js_to_bool(env, args[1]);                                     \
     return handle_result_string(env, RLN_FN(node, b));                     \
   }
@@ -310,7 +339,8 @@ static js_value_t *fn_sdk_node_new(js_env_t *env, js_callback_info_t *info) {
 static js_value_t *fn_sdk_node_init(js_env_t *env, js_callback_info_t *info) {
   js_value_t *args[3];
   get_args(env, info, args, 3);
-  const struct COpaqueStruct *node = unwrap_sdk_node(env, args[0]);
+  const struct COpaqueStruct *node = require_sdk_node(env, args[0]);
+  if (node == NULL) return make_undefined(env);
   char *password = js_to_cstring(env, args[1]);
   char *mnemonic = js_to_cstring(env, args[2]);
   struct CResultString res = rln_sdk_node_init(node, password, mnemonic);
@@ -381,7 +411,8 @@ static js_value_t *fn_native_external_signer_new_with_storage(js_env_t *env,
 static js_value_t *fn_native_external_signer_bootstrap(js_env_t *env, js_callback_info_t *info) {
   js_value_t *args[1];
   get_args(env, info, args, 1);
-  const struct COpaqueStruct *signer = unwrap_signer(env, args[0]);
+  const struct COpaqueStruct *signer = require_signer(env, args[0]);
+  if (signer == NULL) return make_undefined(env);
   return handle_result_string(env, rln_native_external_signer_bootstrap(signer));
 }
 
@@ -407,8 +438,10 @@ static js_value_t *fn_native_external_signer_destroy(js_env_t *env,
   static js_value_t *fn_##NAME(js_env_t *env, js_callback_info_t *info) {     \
     js_value_t *args[2];                                                      \
     get_args(env, info, args, 2);                                             \
-    const struct COpaqueStruct *node = unwrap_sdk_node(env, args[0]);         \
-    const struct COpaqueStruct *signer = unwrap_signer(env, args[1]);         \
+    const struct COpaqueStruct *node = require_sdk_node(env, args[0]);        \
+    if (node == NULL) return make_undefined(env);                             \
+    const struct COpaqueStruct *signer = require_signer(env, args[1]);        \
+    if (signer == NULL) return make_undefined(env);                           \
     return handle_result_string(env, RLN_FN(node, signer));                   \
   }
 
@@ -421,8 +454,10 @@ static js_value_t *fn_sdk_node_unlock_with_native_external_signer(js_env_t *env,
                                                                   js_callback_info_t *info) {
   js_value_t *args[3];
   get_args(env, info, args, 3);
-  const struct COpaqueStruct *node = unwrap_sdk_node(env, args[0]);
-  const struct COpaqueStruct *signer = unwrap_signer(env, args[1]);
+  const struct COpaqueStruct *node = require_sdk_node(env, args[0]);
+  if (node == NULL) return make_undefined(env);
+  const struct COpaqueStruct *signer = require_signer(env, args[1]);
+  if (signer == NULL) return make_undefined(env);
   char *request_json = js_to_cstring(env, args[2]);
   struct CResultString res =
     rln_sdk_node_unlock_with_native_external_signer(node, signer, request_json);
@@ -434,8 +469,10 @@ static js_value_t *fn_sdk_node_start_unlock_with_native_external_signer(
     js_env_t *env, js_callback_info_t *info) {
   js_value_t *args[3];
   get_args(env, info, args, 3);
-  const struct COpaqueStruct *node = unwrap_sdk_node(env, args[0]);
-  const struct COpaqueStruct *signer = unwrap_signer(env, args[1]);
+  const struct COpaqueStruct *node = require_sdk_node(env, args[0]);
+  if (node == NULL) return make_undefined(env);
+  const struct COpaqueStruct *signer = require_signer(env, args[1]);
+  if (signer == NULL) return make_undefined(env);
   char *request_json = js_to_cstring(env, args[2]);
   struct CResultString res =
     rln_sdk_node_start_unlock_with_native_external_signer(node, signer, request_json);
@@ -508,7 +545,8 @@ FN_NODE(list_payments, rln_list_payments)
 static js_value_t *fn_get_payment(js_env_t *env, js_callback_info_t *info) {
   js_value_t *args[3];
   get_args(env, info, args, 3);
-  const struct COpaqueStruct *node = unwrap_sdk_node(env, args[0]);
+  const struct COpaqueStruct *node = require_sdk_node(env, args[0]);
+  if (node == NULL) return make_undefined(env);
   char *hash = js_to_cstring(env, args[1]);
   char *type = js_to_cstring(env, args[2]);
   struct CResultString res = rln_get_payment(node, hash, type);
@@ -529,7 +567,8 @@ FN_NODE(list_swaps, rln_list_swaps)
 static js_value_t *fn_get_swap(js_env_t *env, js_callback_info_t *info) {
   js_value_t *args[3];
   get_args(env, info, args, 3);
-  const struct COpaqueStruct *node = unwrap_sdk_node(env, args[0]);
+  const struct COpaqueStruct *node = require_sdk_node(env, args[0]);
+  if (node == NULL) return make_undefined(env);
   char *hash = js_to_cstring(env, args[1]);
   bool taker_flag = js_to_bool(env, args[2]);
   struct CResultString res = rln_get_swap(node, hash, taker_flag);
@@ -585,7 +624,8 @@ FN_NODE_BOOL(list_transactions, rln_list_transactions)
 static js_value_t *fn_list_transactions_by_txid(js_env_t *env, js_callback_info_t *info) {
   js_value_t *args[3];
   get_args(env, info, args, 3);
-  const struct COpaqueStruct *node = unwrap_sdk_node(env, args[0]);
+  const struct COpaqueStruct *node = require_sdk_node(env, args[0]);
+  if (node == NULL) return make_undefined(env);
   char *txid = js_to_cstring(env, args[1]);
   bool skip_sync = js_to_bool(env, args[2]);
   struct CResultString res = rln_list_transactions_by_txid(node, txid, skip_sync);
@@ -599,7 +639,8 @@ FN_NODE_JSON(create_utxos, rln_create_utxos)
 static js_value_t *fn_estimate_fee(js_env_t *env, js_callback_info_t *info) {
   js_value_t *args[2];
   get_args(env, info, args, 2);
-  const struct COpaqueStruct *node = unwrap_sdk_node(env, args[0]);
+  const struct COpaqueStruct *node = require_sdk_node(env, args[0]);
+  if (node == NULL) return make_undefined(env);
   uint32_t blocks_u32 = js_to_uint32(env, args[1]);
   uint16_t blocks = (uint16_t)(blocks_u32 & 0xFFFF);
   return handle_result_string(env, rln_estimate_fee(node, blocks));
@@ -615,7 +656,8 @@ FN_NODE_STR(sign_message, rln_sign_message)
 static js_value_t *fn_verify_message(js_env_t *env, js_callback_info_t *info) {
   js_value_t *args[3];
   get_args(env, info, args, 3);
-  const struct COpaqueStruct *node = unwrap_sdk_node(env, args[0]);
+  const struct COpaqueStruct *node = require_sdk_node(env, args[0]);
+  if (node == NULL) return make_undefined(env);
   char *message = js_to_cstring(env, args[1]);
   char *signature = js_to_cstring(env, args[2]);
   struct CResultString res = rln_verify_message(node, message, signature);

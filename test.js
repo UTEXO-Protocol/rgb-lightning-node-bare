@@ -111,6 +111,23 @@ try {
   fail(`shutdown threw: ${e.message}`)
 }
 
+let closedNodeError
+try {
+  node.nativeOperationStatus('closed-node-canary')
+} catch (error) {
+  closedNodeError = error
+}
+const closedNodeMessage = String(closedNodeError && closedNodeError.message
+  ? closedNodeError.message
+  : closedNodeError)
+if (
+  !closedNodeMessage.includes('node handle is unavailable') &&
+  !closedNodeMessage.includes('node is already closed')
+) {
+  fail(`closed SdkNode call did not fail safely: ${closedNodeError}`)
+}
+console.log('✓ closed SdkNode calls fail safely')
+
 // ─── Step 3: external-signer boundary ─────────────────────────────────────
 // A throwaway 32-byte seed (all-zero is rejected by some VLS validators, so
 // use a deterministic non-zero pattern instead).
