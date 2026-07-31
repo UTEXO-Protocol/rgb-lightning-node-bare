@@ -552,8 +552,6 @@ function buildArtifacts (packageRoot, sourceRoot, config, targets) {
     RUSTUP_TOOLCHAIN: config.rustToolchain
   }
   const scriptsRoot = path.join(packageRoot, 'scripts')
-  const hasDarwin = targets.some((target) => target.startsWith('darwin-'))
-  const hasIos = targets.some((target) => target.startsWith('ios-'))
   const hasAndroid = targets.some((target) => target.startsWith('android-'))
 
   run('rustup', ['toolchain', 'install', config.rustToolchain, '--profile', 'minimal'])
@@ -582,20 +580,8 @@ function buildArtifacts (packageRoot, sourceRoot, config, targets) {
     )
   }
 
-  if (hasDarwin) {
-    run('bash', [path.join(scriptsRoot, 'build-cffi.sh'), 'darwin'], {
-      cwd: packageRoot,
-      env: environment
-    })
-  }
-  if (hasIos) {
-    run('bash', [path.join(scriptsRoot, 'build-cffi.sh'), 'ios'], {
-      cwd: packageRoot,
-      env: environment
-    })
-  }
-  if (hasAndroid) {
-    run('bash', [path.join(scriptsRoot, 'build-cffi.sh'), 'android'], {
+  for (const target of targets) {
+    run('bash', [path.join(scriptsRoot, 'build-cffi.sh'), target], {
       cwd: packageRoot,
       env: environment
     })

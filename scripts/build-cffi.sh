@@ -13,6 +13,8 @@ set -euo pipefail
 #   bash scripts/build-cffi.sh darwin    # darwin only (canary 1)
 #   bash scripts/build-cffi.sh ios       # iOS triple only
 #   bash scripts/build-cffi.sh android   # Android arm64, armv7, and x64
+#   bash scripts/build-cffi.sh android-arm64
+#   bash scripts/build-cffi.sh ios-arm64-simulator
 #
 # Set CFFI_DIR to override the c-ffi source location.
 # ============================================================================
@@ -93,7 +95,7 @@ if [ "$MODE" = "darwin" ] || [ "$MODE" = "all" ]; then
   echo "✅ Header copied"
 fi
 
-if [ "$MODE" = "ios" ] || [ "$MODE" = "all" ]; then
+if [ "$MODE" = "ios" ] || [ "$MODE" = "all" ] || [[ "$MODE" == ios-* ]]; then
   IOS_SDK=$(xcrun --sdk iphoneos --show-sdk-path)
   IOS_SIM_SDK=$(xcrun --sdk iphonesimulator --show-sdk-path)
 
@@ -106,9 +108,15 @@ if [ "$MODE" = "ios" ] || [ "$MODE" = "all" ]; then
   # device the demo runs on. Override via env if you need older.
   IOS_DEPLOYMENT_TARGET="${IPHONEOS_DEPLOYMENT_TARGET:-16.0}"
 
-  build_target "aarch64-apple-ios"     "ios-arm64"           "export SDKROOT='$IOS_SDK' IPHONEOS_DEPLOYMENT_TARGET='$IOS_DEPLOYMENT_TARGET'"
-  build_target "aarch64-apple-ios-sim" "ios-arm64-simulator" "export SDKROOT='$IOS_SIM_SDK' IPHONEOS_DEPLOYMENT_TARGET='$IOS_DEPLOYMENT_TARGET'"
-  build_target "x86_64-apple-ios"      "ios-x64-simulator"   "export SDKROOT='$IOS_SIM_SDK' IPHONEOS_DEPLOYMENT_TARGET='$IOS_DEPLOYMENT_TARGET'"
+  if [ "$MODE" = "ios" ] || [ "$MODE" = "all" ] || [ "$MODE" = "ios-arm64" ]; then
+    build_target "aarch64-apple-ios" "ios-arm64" "export SDKROOT='$IOS_SDK' IPHONEOS_DEPLOYMENT_TARGET='$IOS_DEPLOYMENT_TARGET'"
+  fi
+  if [ "$MODE" = "ios" ] || [ "$MODE" = "all" ] || [ "$MODE" = "ios-arm64-simulator" ]; then
+    build_target "aarch64-apple-ios-sim" "ios-arm64-simulator" "export SDKROOT='$IOS_SIM_SDK' IPHONEOS_DEPLOYMENT_TARGET='$IOS_DEPLOYMENT_TARGET'"
+  fi
+  if [ "$MODE" = "ios" ] || [ "$MODE" = "all" ] || [ "$MODE" = "ios-x64-simulator" ]; then
+    build_target "x86_64-apple-ios" "ios-x64-simulator" "export SDKROOT='$IOS_SIM_SDK' IPHONEOS_DEPLOYMENT_TARGET='$IOS_DEPLOYMENT_TARGET'"
+  fi
 fi
 
 # Android — uses cargo-ndk to set NDK linker / sysroot env vars.
@@ -143,7 +151,7 @@ build_android_target() {
   echo "✅ $DIR_NAME: $SIZE"
 }
 
-if [ "$MODE" = "android" ] || [ "$MODE" = "all" ]; then
+if [ "$MODE" = "android" ] || [ "$MODE" = "all" ] || [[ "$MODE" == android-* ]]; then
   if [ -z "${ANDROID_NDK_HOME:-}" ]; then
     echo "ERROR: ANDROID_NDK_HOME not set"
     echo "  e.g. export ANDROID_NDK_HOME=\$HOME/Library/Android/sdk/ndk/<version>"
@@ -154,9 +162,15 @@ if [ "$MODE" = "android" ] || [ "$MODE" = "all" ]; then
     exit 1
   fi
 
-  build_android_target "arm64-v8a"   "aarch64-linux-android"     "android-arm64"
-  build_android_target "armeabi-v7a" "armv7-linux-androideabi"   "android-arm"
-  build_android_target "x86_64"      "x86_64-linux-android"      "android-x64"
+  if [ "$MODE" = "android" ] || [ "$MODE" = "all" ] || [ "$MODE" = "android-arm64" ]; then
+    build_android_target "arm64-v8a" "aarch64-linux-android" "android-arm64"
+  fi
+  if [ "$MODE" = "android" ] || [ "$MODE" = "all" ] || [ "$MODE" = "android-arm" ]; then
+    build_android_target "armeabi-v7a" "armv7-linux-androideabi" "android-arm"
+  fi
+  if [ "$MODE" = "android" ] || [ "$MODE" = "all" ] || [ "$MODE" = "android-x64" ]; then
+    build_android_target "x86_64" "x86_64-linux-android" "android-x64"
+  fi
 fi
 
 echo ""

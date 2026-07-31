@@ -76,10 +76,10 @@ static uint32_t js_to_uint32(js_env_t *env, js_value_t *val) {
 struct SdkNodeRef {
   struct COpaqueStruct opaque;
   bool freed;
+  bool teardown_registered;
 };
 
-static void sdk_node_destructor(js_env_t *env, void *data, void *hint) {
-  SdkNodeRef *ref = (SdkNodeRef *)data;
+static void shutdown_and_free_sdk_node(SdkNodeRef *ref) {
   if (!ref->freed) {
     struct CResultString shutdown_result = rln_sdk_node_shutdown(&ref->opaque);
     if (shutdown_result.inner != NULL) {
@@ -89,6 +89,21 @@ static void sdk_node_destructor(js_env_t *env, void *data, void *hint) {
     ref->opaque.ptr = NULL;
     ref->freed = true;
   }
+}
+
+static void sdk_node_teardown(void *data) {
+  SdkNodeRef *ref = (SdkNodeRef *)data;
+  ref->teardown_registered = false;
+  shutdown_and_free_sdk_node(ref);
+}
+
+static void sdk_node_destructor(js_env_t *env, void *data, void *hint) {
+  SdkNodeRef *ref = (SdkNodeRef *)data;
+  if (ref->teardown_registered) {
+    js_remove_teardown_callback(env, sdk_node_teardown, ref);
+    ref->teardown_registered = false;
+  }
+  shutdown_and_free_sdk_node(ref);
   free(ref);
 }
 
@@ -96,9 +111,27 @@ static js_value_t *wrap_sdk_node(js_env_t *env, struct COpaqueStruct opaque) {
   SdkNodeRef *ref = (SdkNodeRef *)malloc(sizeof(SdkNodeRef));
   ref->opaque = opaque;
   ref->freed = false;
+  ref->teardown_registered = false;
+
+  int err = js_add_teardown_callback(env, sdk_node_teardown, ref);
+  if (err != 0) {
+    shutdown_and_free_sdk_node(ref);
+    free(ref);
+    js_throw_error(env, NULL, "Unable to register rgb-lightning-node teardown");
+    return NULL;
+  }
+  ref->teardown_registered = true;
 
   js_value_t *external;
-  js_create_external(env, ref, sdk_node_destructor, NULL, &external);
+  err = js_create_external(env, ref, sdk_node_destructor, NULL, &external);
+  if (err != 0) {
+    js_remove_teardown_callback(env, sdk_node_teardown, ref);
+    ref->teardown_registered = false;
+    shutdown_and_free_sdk_node(ref);
+    free(ref);
+    js_throw_error(env, NULL, "Unable to create rgb-lightning-node handle");
+    return NULL;
+  }
   return external;
 }
 
@@ -298,9 +331,11 @@ static js_value_t *fn_sdk_node_destroy(js_env_t *env, js_callback_info_t *info) 
   get_args(env, info, args, 1);
   SdkNodeRef *ref = unwrap_sdk_node_ref(env, args[0]);
   if (!ref->freed) {
-    free_sdk_node(ref->opaque);
-    ref->opaque.ptr = NULL;
-    ref->freed = true;
+    shutdown_and_free_sdk_node(ref);
+  }
+  if (ref->teardown_registered) {
+    js_remove_teardown_callback(env, sdk_node_teardown, ref);
+    ref->teardown_registered = false;
   }
   js_value_t *undefined;
   js_get_undefined(env, &undefined);
