@@ -10,7 +10,7 @@ crate, so applying the patch once benefits both bindings.
 
 | File | Targets upstream tag | Adds |
 |---|---|---|
-| `c-ffi-utexo-patches-v0.10.0-beta.3.patch` | [`v0.10.0-beta.3`](https://github.com/UTEXO-Protocol/rgb-lightning-node/releases/tag/v0.10.0-beta.3) | Versioned dual-keychain sync, bounded decimal-safe wallet snapshots, complete Lightning and stable RGB decode metadata, explicit Lightning fee caps, persisted actual routing fees and stable failure codes, deterministic BTC/RGB send plans, isolated RGB UTXO setup, transactional orphaned virtual-session recovery, and deterministic LDK/signer shutdown |
+| `c-ffi-utexo-patches-v0.10.0-beta.3.patch` | [`v0.10.0-beta.3`](https://github.com/UTEXO-Protocol/rgb-lightning-node/releases/tag/v0.10.0-beta.3) | Versioned dual-keychain sync, rotation-safe address discovery, bounded decimal-safe wallet snapshots, durable RGB Lightning payment identity, typed expiry/failure metadata, explicit Lightning fee caps, deterministic BTC/RGB send plans, isolated RGB UTXO setup, trusted-LSP virtual-channel classification, transactional orphaned-session recovery, and deterministic shutdown |
 | `c-ffi-utexo-patches-v0.9.0-beta.3.patch` | [`v0.9.0-beta.3`](https://github.com/UTEXO-Protocol/rgb-lightning-node/releases/tag/v0.9.0-beta.3) | Versioned dual-keychain sync and bounded, decimal-safe wallet snapshots |
 | `c-ffi-utexo-patches-v0.5.0-beta.1.patch` | [`v0.5.0-beta.1`](https://github.com/UTEXO-Protocol/rgb-lightning-node/releases/tag/v0.5.0-beta.1) | `rln_sdk_node_apay_new`, `rln_sdk_node_vss_clear_fence` C wrappers + supporting JSON request types |
 
@@ -19,6 +19,12 @@ in the NodeJS binding repository. Routine synchronization FullSyncs both
 Vanilla and Colored keychains, recovery synchronization FullScans both
 keychains, and all snapshot monetary values cross the JavaScript boundary as
 decimal strings.
+
+Payment persistence stores RGB contract, asset amount, and carrier millisatoshis
+with the same native payment record as status. Snapshot contract v3 exposes that
+identity, expiry, and terminal reason after restart. Address rotation reveals the
+new script before returning, and an inbound channel is classified as virtual only
+when SCID privacy is requested by an explicitly configured trusted peer.
 
 ## Why a patch rather than a fork?
 

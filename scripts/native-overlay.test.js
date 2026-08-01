@@ -31,7 +31,7 @@ test('package overlay metadata is exact and checksum-pinned', () => {
   const config = readOverlayConfig(packageRoot)
 
   assert.equal(config.commit, '0bfa66fa256a6c36f3737d5b6402eacea40c68fc')
-  assert.equal(config.patchSha256, '59d5d7c77a6563934d571ff36b0564c7e44b24f68ce07b305fe6c535ab1f50d1')
+  assert.equal(config.patchSha256, 'e68d22c829c899674cb8b20d5456783c10a62e563c39b7f9a44885db2d17b57c')
   assert.equal(config.rustToolchain, '1.88.0')
   assert.equal(config.iosDeploymentTarget, '16.0')
   assert.equal(config.androidNdkVersion, '27.1.12297006')
@@ -74,6 +74,17 @@ test('overlay enforces deterministic node ownership and teardown', () => {
   assert.match(patch, /prepared_rgb_utxos_are_isolated_from_existing_and_future_witness_invoices/)
   assert.match(patch, /pub extern "C" fn free_sdk_node/)
   assert.match(patch, /node\.shutdown\(\)/)
+})
+
+test('overlay preserves wallet discovery, RGB payment identity, and inbound channel semantics', () => {
+  const config = readOverlayConfig(path.resolve(__dirname, '..'))
+  const patch = fs.readFileSync(config.patchPath, 'utf8')
+
+  assert.match(patch, /does not match the revealed wallet address/)
+  assert.match(patch, /payment_info_persists_rgb_identity_with_its_payment_status/)
+  assert.match(patch, /standard_inbound_channel_is_not_reclassified_when_virtual_support_is_enabled/)
+  assert.match(patch, /INVOICE_EXPIRED/)
+  assert.match(patch, /utexo-wallet-v3/)
 })
 
 test('Bare node handles are destroyed during environment teardown', () => {
