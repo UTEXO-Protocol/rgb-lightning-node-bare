@@ -26,8 +26,9 @@ typedef struct CResult {
 } CResult;
 
 /**
- * Drop a `NativeExternalSigner` handle. Safe to call immediately after
- * attach / init / unlock succeeds: RLN holds its own `Arc` clone.
+ * Shut down and drop a `NativeExternalSigner` handle. Call only after node
+ * shutdown has completed; shutdown invalidates every outstanding `Arc` clone
+ * so the seed-bearing backend and persistent VLS store are released.
  */
 void free_native_external_signer(struct COpaqueStruct obj);
 
