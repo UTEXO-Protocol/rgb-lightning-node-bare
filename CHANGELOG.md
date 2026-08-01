@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Persist a local VSS writer identity so abrupt process restarts reclaim their
+  own fence without enabling automatic cross-installation fence clearing.
+
 ## 0.1.0-beta.19
 
 - Expose the disk-backed native VLS signer required for channels to survive
