@@ -111,7 +111,9 @@ struct CResultString rln_get_swap(const struct COpaqueStruct *node,
 struct CResultString rln_inflate(const struct COpaqueStruct *node, const char *request_json);
 
 struct CResultString rln_import_rgb_transfer_consignment(const struct COpaqueStruct *node,
-                                                        const char *request_json);
+                                                         const char *request_json);
+struct CResultString rln_import_rgb_contract(const struct COpaqueStruct *node,
+                                             const char *request_json);
 
 struct CResultString rln_invoice_status(const struct COpaqueStruct *node, const char *invoice);
 

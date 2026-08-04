@@ -14,6 +14,7 @@ const LIBRARY_SYMBOLS = Object.freeze([
   'rln_commit_prepared_create_utxos',
   'rln_commit_prepared_rgb_send',
   'rln_import_rgb_transfer_consignment',
+  'rln_import_rgb_contract',
   'rln_list_address_receipts',
   'rln_list_pending_rgb_send_plans',
   'rln_list_pending_vanilla_transactions',

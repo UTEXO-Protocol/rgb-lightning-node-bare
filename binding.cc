@@ -596,6 +596,7 @@ FN_NODE_JSON(fail_transfers, rln_fail_transfers)
 
 FN_NODE_JSON(send_rgb, rln_send_rgb)
 FN_NODE_JSON(import_rgb_transfer_consignment, rln_import_rgb_transfer_consignment)
+FN_NODE_JSON(import_rgb_contract, rln_import_rgb_contract)
 FN_NODE_JSON(prepare_rgb_send, rln_prepare_rgb_send)
 FN_NODE_JSON(commit_prepared_rgb_send, rln_commit_prepared_rgb_send)
 FN_NODE_JSON(cancel_rgb_send_plan, rln_cancel_rgb_send_plan)
@@ -782,6 +783,7 @@ rgb_lightning_node_bare_exports(js_env_t *env, js_value_t *exports) {
   EXPORT("failTransfers", fail_transfers);
   EXPORT("sendRgb", send_rgb);
   EXPORT("importRgbTransferConsignment", import_rgb_transfer_consignment);
+  EXPORT("importRgbContract", import_rgb_contract);
   EXPORT("prepareRgbSend", prepare_rgb_send);
   EXPORT("commitPreparedRgbSend", commit_prepared_rgb_send);
   EXPORT("cancelRgbSendPlan", cancel_rgb_send_plan);
