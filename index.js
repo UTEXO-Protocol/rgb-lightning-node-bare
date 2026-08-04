@@ -361,6 +361,10 @@ class SdkNode {
     return JSON.parse(binding.sendRgb(this._handle, JSON.stringify(request)))
   }
 
+  importRgbTransferConsignment (request) {
+    return JSON.parse(binding.importRgbTransferConsignment(this._handle, JSON.stringify(request)))
+  }
+
   prepareRgbSend (request) {
     return JSON.parse(binding.prepareRgbSend(this._handle, JSON.stringify(request)))
   }

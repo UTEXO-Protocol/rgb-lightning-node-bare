@@ -71,6 +71,7 @@ try {
     'listPendingRgbSendPlans',
     'listTransactionsByTxid',
     'listTransfersByTxid',
+    'importRgbTransferConsignment',
     'verifyMessage'
   ]) {
     if (typeof node[method] !== 'function') fail(`SdkNode.${method} is missing`)
