@@ -136,18 +136,11 @@ jobs:
         if: matrix.os == 'android'
         run: cargo install --force --locked bindgen-cli --version 0.72.1
 
-      - name: Resolve pinned Android NDK
+      - name: Install pinned Android NDK
         if: matrix.os == 'android'
-        id: android_ndk_contract
-        run: |
-          echo "version=$(node -p 'require("./package.json").utexoNativeOverlay.androidNdkVersion')" >> "$GITHUB_OUTPUT"
-
-      - name: Setup Android NDK
-        if: matrix.os == 'android'
-        uses: nttld/setup-ndk@v1
         id: setup_ndk
-        with:
-          ndk-version: ${{ steps.android_ndk_contract.outputs.version }}
+        run: |
+          echo "ndk-path=$(bash scripts/install-android-ndk.sh)" >> "$GITHUB_OUTPUT"
 
       - name: Pin signer-external to RLN-compatible commit
         env:
@@ -270,18 +263,11 @@ jobs:
           name: librlncffi-${{ matrix.platform }}
           path: lib/${{ matrix.platform }}
 
-      - name: Resolve pinned Android NDK
+      - name: Install pinned Android NDK
         if: startsWith(matrix.platform, 'android-')
-        id: android_ndk_contract
-        run: |
-          echo "version=$(node -p 'require("./package.json").utexoNativeOverlay.androidNdkVersion')" >> "$GITHUB_OUTPUT"
-
-      - name: Setup Android NDK
-        if: startsWith(matrix.platform, 'android-')
-        uses: nttld/setup-ndk@v1
         id: setup_ndk
-        with:
-          ndk-version: ${{ steps.android_ndk_contract.outputs.version }}
+        run: |
+          echo "ndk-path=$(bash scripts/install-android-ndk.sh)" >> "$GITHUB_OUTPUT"
 
       - name: Build prebuild (Apple)
         if: ${{ !startsWith(matrix.platform, 'android-') }}
@@ -295,11 +281,7 @@ jobs:
           cmake --build build-tmp
           BARE=$(find build-tmp -name "*.bare" -type f | head -1)
           mkdir -p prebuilds/${{ matrix.platform }}
-          OUTPUT=prebuilds/${{ matrix.platform }}/utexo__rgb-lightning-node-bare.bare
-          cp "$BARE" "$OUTPUT"
-          NDK_PREBUILT_ROOT="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt"
-          NDK_HOST_DIR=$(find "$NDK_PREBUILT_ROOT" -mindepth 1 -maxdepth 1 -type d)
-          "$NDK_HOST_DIR/bin/llvm-strip" --strip-debug "$OUTPUT"
+          cp "$BARE" prebuilds/${{ matrix.platform }}/utexo__rgb-lightning-node-bare.bare
 
       - name: Smoke test darwin prebuild
         if: matrix.platform == 'darwin-arm64'
