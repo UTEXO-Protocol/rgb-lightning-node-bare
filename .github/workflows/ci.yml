@@ -85,5 +85,4 @@ jobs:
       - name: Build and verify every supported Android addon
         env:
           ANDROID_NDK_HOME: ${{ steps.setup_ndk.outputs.ndk-path }}
-          RLN_BARE_SOURCE_DIR: ${{ github.workspace }}/../../rgb-lightning-node
         run: node scripts/install-native-artifacts.js --platform android
