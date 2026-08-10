@@ -136,12 +136,18 @@ jobs:
         if: matrix.os == 'android'
         run: cargo install --force --locked bindgen-cli --version 0.72.1
 
+      - name: Resolve pinned Android NDK
+        if: matrix.os == 'android'
+        id: android_ndk_contract
+        run: |
+          echo "version=$(node -p 'require("./package.json").utexoNativeOverlay.androidNdkVersion')" >> "$GITHUB_OUTPUT"
+
       - name: Setup Android NDK
         if: matrix.os == 'android'
         uses: nttld/setup-ndk@v1
         id: setup_ndk
         with:
-          ndk-version: r27c
+          ndk-version: ${{ steps.android_ndk_contract.outputs.version }}
 
       - name: Pin signer-external to RLN-compatible commit
         env:
@@ -264,12 +270,18 @@ jobs:
           name: librlncffi-${{ matrix.platform }}
           path: lib/${{ matrix.platform }}
 
+      - name: Resolve pinned Android NDK
+        if: startsWith(matrix.platform, 'android-')
+        id: android_ndk_contract
+        run: |
+          echo "version=$(node -p 'require("./package.json").utexoNativeOverlay.androidNdkVersion')" >> "$GITHUB_OUTPUT"
+
       - name: Setup Android NDK
         if: startsWith(matrix.platform, 'android-')
         uses: nttld/setup-ndk@v1
         id: setup_ndk
         with:
-          ndk-version: r27c
+          ndk-version: ${{ steps.android_ndk_contract.outputs.version }}
 
       - name: Build prebuild (Apple)
         if: ${{ !startsWith(matrix.platform, 'android-') }}

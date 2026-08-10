@@ -65,11 +65,16 @@ jobs:
           bash scripts/build-prebuilds.sh "$HOST_TARGET"
           npm test
 
+      - name: Resolve pinned Android NDK
+        id: android_ndk_contract
+        run: |
+          echo "version=$(node -p 'require("./package.json").utexoNativeOverlay.androidNdkVersion')" >> "$GITHUB_OUTPUT"
+
       - name: Setup pinned Android NDK
         uses: nttld/setup-ndk@v1
         id: setup_ndk
         with:
-          ndk-version: r27c
+          ndk-version: ${{ steps.android_ndk_contract.outputs.version }}
 
       - name: Build and verify every supported Android addon
         env:
