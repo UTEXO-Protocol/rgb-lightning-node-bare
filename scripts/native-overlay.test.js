@@ -31,7 +31,7 @@ test('package overlay metadata is exact and checksum-pinned', () => {
   const config = readOverlayConfig(packageRoot)
 
   assert.equal(config.commit, '0bfa66fa256a6c36f3737d5b6402eacea40c68fc')
-  assert.equal(config.patchSha256, '4ed9b5b1fbe45948c71e97c5bb18be090b6e5bd17e17b7772d57329b06684086')
+  assert.equal(config.patchSha256, '90893cf5c1300699566bf4d8a01cb98184c96695215a3dbe9f12986f69246823')
   assert.equal(config.rustToolchain, '1.88.0')
   assert.equal(config.iosDeploymentTarget, '16.0')
   assert.equal(config.androidNdkVersion, '27.1.12297006')
@@ -62,6 +62,19 @@ test('overlay contains the complete native operation registry source', () => {
   assert.match(patch, /pub\(crate\) fn status\(/)
   assert.match(patch, /pub\(crate\) fn adopt\(/)
   assert.match(patch, /pub\(crate\) fn cancel\(/)
+})
+
+test('overlay contains the hardened shared RGB import implementation', () => {
+  const config = readOverlayConfig(path.resolve(__dirname, '..'))
+  const patch = fs.readFileSync(config.patchPath, 'utf8')
+
+  assert.match(patch, /diff --git a\/src\/rgb_import\.rs b\/src\/rgb_import\.rs/)
+  assert.match(patch, /MAX_RGB_IMPORT_BASE64_CHARACTERS/)
+  assert.match(patch, /MAX_RGB_IMPORT_BODY_BYTES/)
+  assert.match(patch, /RgbTxid::from_str/)
+  assert.match(patch, /let task = tokio::spawn/)
+  assert.match(patch, /save_new_asset\(consignment, offchain_txid\)\?;/)
+  assert.match(patch, /95332c41fd715939ac6e078ad859d474b1f6fa9b/)
 })
 
 test('overlay enforces deterministic node ownership and teardown', () => {
