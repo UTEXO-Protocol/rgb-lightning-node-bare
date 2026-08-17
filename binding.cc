@@ -82,14 +82,18 @@ static uint32_t js_to_uint32(js_env_t *env, js_value_t *val) {
 struct SdkNodeRef {
   struct COpaqueStruct opaque;
   bool freed;
+  bool shutdown_attempted;
   bool teardown_registered;
 };
 
 static void shutdown_and_free_sdk_node(SdkNodeRef *ref) {
   if (!ref->freed) {
-    struct CResultString shutdown_result = rln_sdk_node_shutdown(&ref->opaque);
-    if (shutdown_result.inner != NULL) {
-      rln_free_string(shutdown_result.inner);
+    if (!ref->shutdown_attempted) {
+      ref->shutdown_attempted = true;
+      struct CResultString shutdown_result = rln_sdk_node_shutdown(&ref->opaque);
+      if (shutdown_result.inner != NULL) {
+        rln_free_string(shutdown_result.inner);
+      }
     }
     free_sdk_node(ref->opaque);
     ref->opaque.ptr = NULL;
@@ -117,6 +121,7 @@ static js_value_t *wrap_sdk_node(js_env_t *env, struct COpaqueStruct opaque) {
   SdkNodeRef *ref = (SdkNodeRef *)malloc(sizeof(SdkNodeRef));
   ref->opaque = opaque;
   ref->freed = false;
+  ref->shutdown_attempted = false;
   ref->teardown_registered = false;
 
   int err = js_add_teardown_callback(env, sdk_node_teardown, ref);
@@ -150,7 +155,7 @@ static const struct COpaqueStruct *require_sdk_node(js_env_t *env,
     return NULL;
   }
   SdkNodeRef *ref = (SdkNodeRef *)data;
-  if (ref->freed || ref->opaque.ptr == NULL) {
+  if (ref->freed || ref->shutdown_attempted || ref->opaque.ptr == NULL) {
     js_throw_error(env, "ERR_RLN_NODE_CLOSED",
                    "RGB Lightning node is already closed");
     return NULL;
@@ -159,8 +164,8 @@ static const struct COpaqueStruct *require_sdk_node(js_env_t *env,
 }
 
 static SdkNodeRef *unwrap_sdk_node_ref(js_env_t *env, js_value_t *val) {
-  void *data;
-  js_get_value_external(env, val, &data);
+  void *data = NULL;
+  if (js_get_value_external(env, val, &data) != 0 || data == NULL) return NULL;
   return (SdkNodeRef *)data;
 }
 
@@ -350,7 +355,24 @@ static js_value_t *fn_sdk_node_init(js_env_t *env, js_callback_info_t *info) {
 }
 
 FN_NODE_JSON(sdk_node_unlock, rln_sdk_node_unlock)
-FN_NODE(sdk_node_shutdown, rln_sdk_node_shutdown)
+static js_value_t *fn_sdk_node_shutdown(js_env_t *env,
+                                        js_callback_info_t *info) {
+  js_value_t *args[1];
+  get_args(env, info, args, 1);
+  SdkNodeRef *ref = unwrap_sdk_node_ref(env, args[0]);
+  if (ref == NULL || ref->freed || ref->opaque.ptr == NULL) {
+    js_throw_error(env, "ERR_RLN_NODE_CLOSED",
+                   "RGB Lightning node is already closed");
+    return make_undefined(env);
+  }
+  if (ref->shutdown_attempted) return make_undefined(env);
+
+  // Mark the attempt before entering native code. A failed or panicking
+  // shutdown can leave partially released resources and must not be retried
+  // implicitly by destroy() or the environment teardown callback.
+  ref->shutdown_attempted = true;
+  return handle_result_string(env, rln_sdk_node_shutdown(&ref->opaque));
+}
 FN_NODE_JSON(sdk_node_vss_clear_fence, rln_sdk_node_vss_clear_fence)
 FN_NODE(sdk_node_vss_backup, rln_sdk_node_vss_backup)
 FN_NODE_JSON(sdk_node_vss_delete_all, rln_sdk_node_vss_delete_all)
@@ -360,6 +382,11 @@ static js_value_t *fn_sdk_node_destroy(js_env_t *env, js_callback_info_t *info) 
   js_value_t *args[1];
   get_args(env, info, args, 1);
   SdkNodeRef *ref = unwrap_sdk_node_ref(env, args[0]);
+  if (ref == NULL) {
+    js_throw_error(env, "ERR_RLN_NODE_CLOSED",
+                   "RGB Lightning node handle is unavailable");
+    return make_undefined(env);
+  }
   if (!ref->freed) {
     shutdown_and_free_sdk_node(ref);
   }
@@ -587,10 +614,31 @@ FN_NODE_JSON(issue_asset_ifa, rln_issue_asset_ifa)
 
 FN_NODE_JSON(list_assets, rln_list_assets)
 FN_NODE_STR(asset_balance, rln_asset_balance)
+FN_NODE_JSON(asset_link_create, rln_asset_link_create)
 FN_NODE_STR(asset_metadata, rln_asset_metadata)
 
-FN_NODE_STR(list_transfers, rln_list_transfers)
-FN_NODE_STR(list_transfers_by_txid, rln_list_transfers_by_txid)
+static js_value_t *fn_list_transfers(js_env_t *env, js_callback_info_t *info) {
+  js_value_t *args[2];
+  get_args(env, info, args, 2);
+  const struct COpaqueStruct *node = require_sdk_node(env, args[0]);
+  if (node == NULL) return make_undefined(env);
+  char *asset_id = js_to_cstring(env, args[1]);
+  struct CResultString res = rln_list_transfers(node, asset_id, NULL);
+  free(asset_id);
+  return handle_result_string(env, res);
+}
+
+static js_value_t *fn_list_transfers_by_txid(js_env_t *env,
+                                              js_callback_info_t *info) {
+  js_value_t *args[2];
+  get_args(env, info, args, 2);
+  const struct COpaqueStruct *node = require_sdk_node(env, args[0]);
+  if (node == NULL) return make_undefined(env);
+  char *txid = js_to_cstring(env, args[1]);
+  struct CResultString res = rln_list_transfers(node, NULL, txid);
+  free(txid);
+  return handle_result_string(env, res);
+}
 FN_NODE_JSON(refresh_transfers, rln_refresh_transfers)
 FN_NODE_JSON(fail_transfers, rln_fail_transfers)
 
@@ -611,17 +659,26 @@ FN_NODE_JSON(post_asset_media, rln_post_asset_media)
 // BTC ops
 // ============================================================================
 
-FN_NODE_BOOL(btc_balance, rln_btc_balance)
-FN_NODE_JSON(send_btc, rln_send_btc)
-FN_NODE_JSON(prepare_btc_send, rln_prepare_btc_send)
+  FN_NODE_BOOL(btc_balance, rln_btc_balance)
+  FN_NODE_JSON(send_btc, rln_send_btc)
+  FN_NODE_JSON(prepare_btc_send, rln_prepare_btc_send)
 FN_NODE_JSON(commit_prepared_btc_send, rln_commit_prepared_btc_send)
 FN_NODE_JSON(cancel_btc_send_plan, rln_cancel_btc_send_plan)
 FN_NODE_JSON(prepare_create_utxos, rln_prepare_create_utxos)
 FN_NODE_JSON(commit_prepared_create_utxos, rln_commit_prepared_create_utxos)
 FN_NODE_JSON(cancel_create_utxos_plan, rln_cancel_create_utxos_plan)
 FN_NODE(list_pending_vanilla_transactions, rln_list_pending_vanilla_transactions)
-FN_NODE_STR(list_address_receipts, rln_list_address_receipts)
-FN_NODE_BOOL(list_transactions, rln_list_transactions)
+  FN_NODE_STR(list_address_receipts, rln_list_address_receipts)
+static js_value_t *fn_list_transactions(js_env_t *env,
+                                         js_callback_info_t *info) {
+  js_value_t *args[2];
+  get_args(env, info, args, 2);
+  const struct COpaqueStruct *node = require_sdk_node(env, args[0]);
+  if (node == NULL) return make_undefined(env);
+  bool skip_sync = js_to_bool(env, args[1]);
+  return handle_result_string(env,
+                              rln_list_transactions(node, skip_sync, NULL));
+}
 
 static js_value_t *fn_list_transactions_by_txid(js_env_t *env, js_callback_info_t *info) {
   js_value_t *args[3];
@@ -630,7 +687,7 @@ static js_value_t *fn_list_transactions_by_txid(js_env_t *env, js_callback_info_
   if (node == NULL) return make_undefined(env);
   char *txid = js_to_cstring(env, args[1]);
   bool skip_sync = js_to_bool(env, args[2]);
-  struct CResultString res = rln_list_transactions_by_txid(node, txid, skip_sync);
+  struct CResultString res = rln_list_transactions(node, skip_sync, txid);
   free(txid);
   return handle_result_string(env, res);
 }
@@ -776,6 +833,7 @@ rgb_lightning_node_bare_exports(js_env_t *env, js_value_t *exports) {
   EXPORT("issueAssetIfa", issue_asset_ifa);
   EXPORT("listAssets", list_assets);
   EXPORT("assetBalance", asset_balance);
+  EXPORT("assetLinkCreate", asset_link_create);
   EXPORT("assetMetadata", asset_metadata);
   EXPORT("listTransfers", list_transfers);
   EXPORT("listTransfersByTxid", list_transfers_by_txid);

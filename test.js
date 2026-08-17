@@ -55,6 +55,9 @@ try {
   })
   for (const method of [
     'rotateAddress',
+    'assetLinkCreate',
+    'listTransactions',
+    'listTransfers',
     'syncWallet',
     'walletSnapshot',
     'prepareBtcSend',

@@ -52,12 +52,14 @@ while pre-`1.0`.
 - Idempotent BTC and RGB plan cancellation plus bounded pending-plan
   inspection, allowing a wallet to release abandoned send reservations
   without touching channel or UTXO-management operations.
-- `SdkNode.syncWallet()` and `SdkNode.walletSnapshot()` with the same
-  byte-identical v0.9.0-beta.3 overlay as NodeJS: dual-keychain
+- `SdkNode.syncWallet()` and `SdkNode.walletSnapshot()` with the same pinned
+  native overlay as NodeJS: dual-keychain
   FullSync/FullScan modes, bounded activity, coherent tip evidence, and
   decimal-string amounts.
 - Strict public TypeScript declarations and pull-request CI that builds and
   executes the host Bare addon against the pinned native contract.
+- `SdkNode.assetLinkCreate(request)` for the RLN v0.11 parent/child RGB
+  asset-link contract.
 - `SdkNode.verifyMessage(message, signature)` with canonical Lightning
   zbase32 verification, including locked external-signer nodes.
 - `rotateAddress()`, `listTransactionsByTxid()`, and
@@ -70,6 +72,9 @@ while pre-`1.0`.
 ### Changed
 - Android Bare addons have debug sections stripped with the pinned NDK
   toolchain before hashing and packaging.
+- Updated the transaction and transfer query bindings for the consolidated
+  RLN v0.11 C-FFI filter signatures while retaining the existing JavaScript
+  convenience methods.
 - Tag-specific C-FFI overlays are optional; current RLN tags build directly
   from upstream when no overlay exists.
 - CI and local package tests use the Bare runtime explicitly and reproducible

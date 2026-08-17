@@ -340,6 +340,9 @@ class SdkNode {
   assetBalance (assetId) {
     return JSON.parse(binding.assetBalance(this._handle, assetId))
   }
+  assetLinkCreate (request) {
+    return JSON.parse(binding.assetLinkCreate(this._handle, JSON.stringify(request)))
+  }
   assetMetadata (assetId) {
     return JSON.parse(binding.assetMetadata(this._handle, assetId))
   }

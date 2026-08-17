@@ -30,8 +30,8 @@ test('package overlay metadata is exact and checksum-pinned', () => {
   const packageRoot = path.resolve(__dirname, '..')
   const config = readOverlayConfig(packageRoot)
 
-  assert.equal(config.commit, '0bfa66fa256a6c36f3737d5b6402eacea40c68fc')
-  assert.equal(config.patchSha256, '90893cf5c1300699566bf4d8a01cb98184c96695215a3dbe9f12986f69246823')
+  assert.equal(config.commit, 'f30a5393268de67c6bb5a1c525bc790c5b11afa2')
+  assert.equal(config.patchSha256, 'a765ad577bb0e0a88cd15136074357babffd61e2c3dffde624017a2a3cc8983d')
   assert.equal(config.rustToolchain, '1.88.0')
   assert.equal(config.iosDeploymentTarget, '16.0')
   assert.equal(config.androidNdkVersion, '27.1.12297006')
@@ -108,13 +108,16 @@ test('overlay preserves wallet discovery, RGB payment identity, and inbound chan
   assert.match(patch, /utexo-wallet-v3/)
 })
 
-test('Bare node handles are destroyed during environment teardown', () => {
+test('Bare node handles shut down exactly once and are destroyed during teardown', () => {
   const packageRoot = path.resolve(__dirname, '..')
   const binding = fs.readFileSync(path.join(packageRoot, 'binding.cc'), 'utf8')
 
   assert.match(binding, /js_add_teardown_callback\(env, sdk_node_teardown, ref\)/)
   assert.match(binding, /js_remove_teardown_callback\(env, sdk_node_teardown, ref\)/)
   assert.match(binding, /shutdown_and_free_sdk_node\(ref\)/)
+  assert.match(binding, /bool shutdown_attempted;/)
+  assert.match(binding, /if \(!ref->shutdown_attempted\)/)
+  assert.match(binding, /ref->shutdown_attempted = true;/)
   assert.match(binding, /ERR_RLN_NODE_CLOSED/)
   assert.match(binding, /if \(node == NULL\) return make_undefined\(env\)/)
 })
