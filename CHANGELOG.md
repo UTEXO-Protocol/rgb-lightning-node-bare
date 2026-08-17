@@ -10,6 +10,8 @@ while pre-`1.0`.
 ## [Unreleased]
 
 ### Added
+- `SdkNode.assetLinkCreate(request)` for the RLN v0.11 parent/child RGB
+  asset-link contract.
 - `SdkNode.verifyMessage(message, signature)` with canonical Lightning
   zbase32 verification, including locked external-signer nodes.
 - `rotateAddress()`, `listTransactionsByTxid()`, and
@@ -18,6 +20,9 @@ while pre-`1.0`.
   creation, external-signer initialization, and locked-state verification.
 
 ### Changed
+- Updated the transaction and transfer query bindings for the consolidated
+  RLN v0.11 C-FFI filter signatures while retaining the existing JavaScript
+  convenience methods.
 - Tag-specific C-FFI overlays are optional; current RLN tags build directly
   from upstream when no overlay exists.
 - CI and local package tests use the Bare runtime explicitly and reproducible
