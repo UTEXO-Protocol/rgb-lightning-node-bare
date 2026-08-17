@@ -57,12 +57,52 @@ try {
     'rotateAddress',
     'assetLinkCreate',
     'listTransactions',
-    'listTransactionsByTxid',
     'listTransfers',
+    'syncWallet',
+    'walletSnapshot',
+    'prepareBtcSend',
+    'commitPreparedBtcSend',
+    'cancelBtcSendPlan',
+    'prepareCreateUtxos',
+    'commitPreparedCreateUtxos',
+    'cancelCreateUtxosPlan',
+    'listPendingVanillaTransactions',
+    'listAddressReceipts',
+    'prepareRgbSend',
+    'commitPreparedRgbSend',
+    'cancelRgbSendPlan',
+    'listPendingRgbSendPlans',
+    'listTransactionsByTxid',
     'listTransfersByTxid',
+    'importRgbTransferConsignment',
+    'importRgbContract',
     'verifyMessage'
   ]) {
     if (typeof node[method] !== 'function') fail(`SdkNode.${method} is missing`)
+  }
+
+  let invalidSyncRequest
+  try {
+    node.syncWallet({ mode: 'routine', typo: true })
+  } catch (error) {
+    invalidSyncRequest = error
+  }
+  if (!String(invalidSyncRequest && invalidSyncRequest.message
+    ? invalidSyncRequest.message
+    : invalidSyncRequest).includes('unknown field')) {
+    fail(`syncWallet accepted an unknown request field: ${invalidSyncRequest}`)
+  }
+
+  let invalidSnapshotLimit
+  try {
+    node.walletSnapshot({ max_assets: 0 })
+  } catch (error) {
+    invalidSnapshotLimit = error
+  }
+  if (!String(invalidSnapshotLimit && invalidSnapshotLimit.message
+    ? invalidSnapshotLimit.message
+    : invalidSnapshotLimit).includes('max_assets')) {
+    fail(`walletSnapshot accepted max_assets=0: ${invalidSnapshotLimit}`)
   }
   console.log('✓ SdkNode created')
 } catch (e) {
@@ -76,16 +116,40 @@ try {
   fail(`shutdown threw: ${e.message}`)
 }
 
+let closedNodeError
+try {
+  node.nativeOperationStatus('closed-node-canary')
+} catch (error) {
+  closedNodeError = error
+}
+const closedNodeMessage = String(closedNodeError && closedNodeError.message
+  ? closedNodeError.message
+  : closedNodeError)
+if (
+  !closedNodeMessage.includes('node handle is unavailable') &&
+  !closedNodeMessage.includes('node is already closed')
+) {
+  fail(`closed SdkNode call did not fail safely: ${closedNodeError}`)
+}
+console.log('✓ closed SdkNode calls fail safely')
+
 // ─── Step 3: external-signer boundary ─────────────────────────────────────
 // A throwaway 32-byte seed (all-zero is rejected by some VLS validators, so
 // use a deterministic non-zero pattern instead).
 const SEED_HEX = '01'.repeat(32)
 let signer
+let signerDataDir
 try {
-  signer = NativeExternalSigner.create(SEED_HEX, 'regtest')
-  console.log('✓ NativeExternalSigner created')
+  signerDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rln-canary-vls-'))
+  signer = NativeExternalSigner.createWithStorage(
+    SEED_HEX,
+    'regtest',
+    signerDataDir,
+    true
+  )
+  console.log('✓ persistent NativeExternalSigner created')
 } catch (e) {
-  fail(`NativeExternalSigner.create threw: ${e.message}`)
+  fail(`NativeExternalSigner.createWithStorage threw: ${e.message}`)
 }
 
 let bootstrap
@@ -165,6 +229,20 @@ try {
   console.log('✓ signer canary SdkNode shutdown clean')
 } catch (e) {
   fail(`signer canary shutdown threw: ${e.message}`)
+}
+
+try {
+  signer.destroy()
+  const reopenedSigner = NativeExternalSigner.createWithStorage(
+    SEED_HEX,
+    'regtest',
+    signerDataDir,
+    true
+  )
+  reopenedSigner.destroy()
+  console.log('✓ explicit cleanup releases the persistent signer database')
+} catch (e) {
+  fail(`persistent signer reopen after cleanup threw: ${e.message}`)
 }
 
 console.log('\n✅ Canary 1 PASSED — bare ↔ C-FFI ↔ tokio ↔ LDK boot + external signer OK')

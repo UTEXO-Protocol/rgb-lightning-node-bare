@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+- Persist a local VSS writer identity so abrupt process restarts reclaim their
+  own fence without enabling automatic cross-installation fence clearing.
+- Publish that identity with an Android-safe exclusive-create protocol instead
+  of filesystem hard links, with bounded concurrent-reader retry and
+  fail-closed corruption handling.
+
+## 0.1.0-beta.19
+
+- Expose the disk-backed native VLS signer required for channels to survive
+  mobile process restarts.
+- Bind native artifacts to the exact overlay commit, patch, toolchain, targets,
+  and content hashes so stale binaries cannot satisfy a newer package contract.
+- Add a production-shaped RGB payment regression for a persistent external
+  signer accepting an inbound trusted virtual channel.
+
 All notable changes to `@utexo/rgb-lightning-node-bare` are documented
 here.
 
@@ -10,6 +27,37 @@ while pre-`1.0`.
 ## [Unreleased]
 
 ### Added
+- Reproducible Android overlay artifacts for `arm64-v8a`, `armeabi-v7a`,
+  and `x86_64`, built from the same pinned native patch as iOS with exact
+  Rust, NDK, API-level, cargo-ndk, and bindgen inputs.
+- Platform-scoped native preparation for local and EAS builds, incremental
+  cross-platform artifact provenance, and ELF-aware exported-symbol checks.
+- Authoritative `listAddressReceipts(address)` settlement evidence backed by
+  the configured Electrum or Esplora indexer, including exact received
+  satoshis, transaction IDs, block heights, and confirmation counts.
+- Deterministic BTC and RGB on-chain send plans. `prepareBtcSend()` and
+  `prepareRgbSend()` reserve the exact unsigned plan inside the native wallet
+  and return only its opaque transaction identity, fee, input/output totals,
+  virtual size, and RGB batch identity. `commitPreparedBtcSend()` and
+  `commitPreparedRgbSend()` idempotently validate and submit that exact
+  native plan without exposing PSBT material to JavaScript.
+- Explicit RGB wallet UTXO setup plans. `prepareCreateUtxos()` reserves an
+  exact native transaction and returns only review-safe fee, input, output,
+  virtual-size, target-count, and output-size data.
+  `commitPreparedCreateUtxos()` signs and broadcasts that exact plan, while
+  `cancelCreateUtxosPlan()` releases only a matching setup reservation.
+- Preserve `pending_blinded` in every `listUnspents()` item so callers can
+  distinguish a genuinely free RGB allocation slot from a receive-reserved
+  colorable UTXO.
+- Idempotent BTC and RGB plan cancellation plus bounded pending-plan
+  inspection, allowing a wallet to release abandoned send reservations
+  without touching channel or UTXO-management operations.
+- `SdkNode.syncWallet()` and `SdkNode.walletSnapshot()` with the same pinned
+  native overlay as NodeJS: dual-keychain
+  FullSync/FullScan modes, bounded activity, coherent tip evidence, and
+  decimal-string amounts.
+- Strict public TypeScript declarations and pull-request CI that builds and
+  executes the host Bare addon against the pinned native contract.
 - `SdkNode.assetLinkCreate(request)` for the RLN v0.11 parent/child RGB
   asset-link contract.
 - `SdkNode.verifyMessage(message, signature)` with canonical Lightning
@@ -18,8 +66,12 @@ while pre-`1.0`.
   `listTransfersByTxid()` wrappers required by WDK's read-only account.
 - A release smoke test that loads the built Darwin addon and exercises node
   creation, external-signer initialization, and locked-state verification.
+- An explicit `RLN_BARE_JS_ONLY_INSTALL=1` mode for non-native CI tooling;
+  native app paths continue to require symbol-verified artifacts.
 
 ### Changed
+- Android Bare addons have debug sections stripped with the pinned NDK
+  toolchain before hashing and packaging.
 - Updated the transaction and transfer query bindings for the consolidated
   RLN v0.11 C-FFI filter signatures while retaining the existing JavaScript
   convenience methods.
@@ -27,8 +79,33 @@ while pre-`1.0`.
   from upstream when no overlay exists.
 - CI and local package tests use the Bare runtime explicitly and reproducible
   `npm ci` installs.
+- Unsupported non-macOS Apple source builds fail with a direct platform error.
 
 ### Fixed
+- Prepared RGB UTXO setup atomically isolates allocation outputs on a fresh
+  colored address and advances the receive address again before returning the
+  plan. Existing and future witness invoices can no longer quarantine setup
+  outputs as `pending_witness`.
+- Explicit node shutdown and signer destruction now release their native
+  handles immediately, including persistent signer database locks, instead of
+  waiting for nondeterministic garbage collection.
+- Reopening a trusted virtual channel no longer fails after the previous
+  channel was safely abandoned. Active and abandon-pending sessions still
+  block duplicate opens; only the terminal abandoned state is reusable.
+- `decodeRgbInvoice()` now returns a stable tagged assignment object instead
+  of an implementation-defined Rust `Debug` string. The exact blind/witness
+  recipient type and nullable expiration remain preserved.
+- `decodeLnInvoice()` now preserves `min_final_cltv_expiry_delta` across the
+  C-FFI JSON boundary. A native contract test guards the complete mobile
+  response shape so the React Native runtime cannot silently lose CLTV data.
+- C-FFI network information now emits canonical lowercase network names,
+  matching the public TypeScript contract and wallet snapshot contract v1.
+- Git-commit consumers now build the checksum-pinned C-FFI overlay for the
+  declared iOS targets (or import explicitly supplied, symbol-verified CI
+  artifacts) instead of silently linking older release binaries. Registry
+  packages without overlay metadata retain the release-asset installer. The
+  CMake packages needed by this production install path are runtime build
+  dependencies rather than dev-only dependencies.
 - Replaced the nonexistent `cmake-bare-rebuild` package script with the
   repository's supported prebuild script.
 - Release version commits now include `package-lock.json`.

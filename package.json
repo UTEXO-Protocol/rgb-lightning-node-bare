@@ -1,41 +1,72 @@
 {
   "name": "@utexo/rgb-lightning-node-bare",
-  "version": "0.1.0-beta.16",
+  "version": "0.1.0-beta.19",
   "description": "Bare native addon wrapping rgb-lightning-node C FFI for use in bare worklets",
   "main": "index.js",
+  "types": "index.d.ts",
   "addon": true,
+  "engines": {
+    "node": ">=20"
+  },
   "license": "Apache-2.0",
   "author": "UTEXO",
   "repository": {
     "type": "git",
     "url": "https://github.com/UTEXO-Protocol/rgb-lightning-node-bare.git"
   },
+  "utexoNativeOverlay": {
+    "repository": "https://github.com/UTEXO-Protocol/rgb-lightning-node.git",
+    "ref": "v0.11.0-beta.3",
+    "commit": "f30a5393268de67c6bb5a1c525bc790c5b11afa2",
+    "patch": "patches/c-ffi-utexo-patches-v0.11.0-beta.3.patch",
+    "patchSha256": "a765ad577bb0e0a88cd15136074357babffd61e2c3dffde624017a2a3cc8983d",
+    "rustToolchain": "1.88.0",
+    "iosDeploymentTarget": "16.0",
+    "androidNdkVersion": "27.1.12297006",
+    "androidApiLevel": 29,
+    "cargoNdkVersion": "4.1.2",
+    "bindgenCliVersion": "0.72.1",
+    "targets": [
+      "ios-arm64",
+      "ios-arm64-simulator",
+      "ios-x64-simulator",
+      "android-arm64",
+      "android-arm",
+      "android-x64"
+    ]
+  },
   "files": [
     "binding.js",
     "binding.cc",
+    "index.d.ts",
     "rln.h",
     "CMakeLists.txt",
     "index.js",
+    "patches/",
     "prebuilds/",
     "lib/",
     "scripts/"
   ],
   "scripts": {
-    "postinstall": "bash scripts/download-libs.sh",
+    "postinstall": "node scripts/install-native-artifacts.js",
+    "prepare-native": "node scripts/install-native-artifacts.js",
     "build": "bash scripts/build-prebuilds.sh",
     "build-cffi": "bash scripts/build-cffi.sh",
     "build-prebuilds": "bash scripts/build-prebuilds.sh",
-    "test": "bare test.js"
+    "check:types": "tsc --noEmit --strict --skipLibCheck index.d.ts",
+    "test:installer": "node --test scripts/*.test.js",
+    "test": "npm run test:installer && node ./node_modules/bare-runtime/bin/bare ./test.js"
   },
   "dependencies": {
     "bare-fs": "^4.7.1",
     "bare-os": "^3.9.0",
     "bare-path": "^3.0.0",
+    "cmake-bare": "^1.7.6",
+    "cmake-npm": "^1.1.0",
     "require-addon": "^1.2.0"
   },
   "devDependencies": {
     "bare-runtime": "1.30.3",
-    "cmake-bare": "^1.7.6",
-    "cmake-npm": "^1.1.0"
+    "typescript": "^6.0.3"
   }
 }

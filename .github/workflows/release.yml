@@ -67,17 +67,17 @@ jobs:
             os: android
             target: aarch64-linux-android
             platform: android-arm64
-            ndk_linker: aarch64-linux-android24-clang
+            ndk_linker: aarch64-linux-android29-clang
           - runner: macos-latest
             os: android
             target: armv7-linux-androideabi
             platform: android-arm
-            ndk_linker: armv7a-linux-androideabi24-clang
+            ndk_linker: armv7a-linux-androideabi29-clang
           - runner: macos-latest
             os: android
             target: x86_64-linux-android
             platform: android-x64
-            ndk_linker: x86_64-linux-android24-clang
+            ndk_linker: x86_64-linux-android29-clang
     runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout repository
@@ -136,12 +136,11 @@ jobs:
         if: matrix.os == 'android'
         run: cargo install --force --locked bindgen-cli --version 0.72.1
 
-      - name: Setup Android NDK
+      - name: Install pinned Android NDK
         if: matrix.os == 'android'
-        uses: nttld/setup-ndk@v1
         id: setup_ndk
-        with:
-          ndk-version: r27c
+        run: |
+          echo "ndk-path=$(bash scripts/install-android-ndk.sh)" >> "$GITHUB_OUTPUT"
 
       - name: Pin signer-external to RLN-compatible commit
         env:
@@ -209,7 +208,7 @@ jobs:
           export RANLIB_${TARGET_UNDERSCORE}="$TOOLCHAIN/bin/llvm-ranlib"
 
           # bindgen needs the Android sysroot for non-arm64 targets.
-          export BINDGEN_EXTRA_CLANG_ARGS="--sysroot=$TOOLCHAIN/sysroot -target ${TARGET}24"
+          export BINDGEN_EXTRA_CLANG_ARGS="--sysroot=$TOOLCHAIN/sysroot -target ${TARGET}29"
 
           cargo rustc --release --target ${{ matrix.target }} --crate-type staticlib
           "$TOOLCHAIN/bin/llvm-strip" --strip-debug "target/${{ matrix.target }}/release/librlncffi.a" || true
@@ -264,12 +263,11 @@ jobs:
           name: librlncffi-${{ matrix.platform }}
           path: lib/${{ matrix.platform }}
 
-      - name: Setup Android NDK
+      - name: Install pinned Android NDK
         if: startsWith(matrix.platform, 'android-')
-        uses: nttld/setup-ndk@v1
         id: setup_ndk
-        with:
-          ndk-version: r27c
+        run: |
+          echo "ndk-path=$(bash scripts/install-android-ndk.sh)" >> "$GITHUB_OUTPUT"
 
       - name: Build prebuild (Apple)
         if: ${{ !startsWith(matrix.platform, 'android-') }}
@@ -301,7 +299,7 @@ jobs:
             -Dcmake-npm_DIR="$PWD/node_modules/cmake-npm" \
             -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
             -DANDROID_ABI=${{ matrix.android_abi }} \
-            -DANDROID_PLATFORM=android-24 \
+            -DANDROID_PLATFORM=android-29 \
             -DANDROID_ALLOW_UNDEFINED_SYMBOLS=TRUE
           cmake --build build-tmp
           BARE=$(find build-tmp -name "*.bare" -type f | head -1)

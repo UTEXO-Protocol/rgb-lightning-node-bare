@@ -74,7 +74,7 @@ Static linking is mandatory on iOS and yields a single self-contained
 
 ## Requirements
 
-- Node.js >= 18 (for `cmake-bare` and the postinstall script)
+- Node.js >= 20 (for `cmake-bare` and the postinstall script)
 - [Bare] runtime (to actually load and run the addon)
 
 ## Installation
@@ -171,18 +171,26 @@ creating any node.
 |-------|---------|
 | Lifecycle | `create`, `init`, `unlock`, `shutdown` |
 | External signer | `initWithNativeExternalSigner`, `attachNativeExternalSigner`, `unlockWithNativeExternalSigner`, `initWithExternalSigner`, `unlockWithAttachedExternalSigner`, `detachExternalSigner` |
-| Info / sync | `nodeInfo`, `networkInfo`, `sync`, `address`, `rotateAddress` |
+| Info / sync | `nodeInfo`, `networkInfo`, `sync` (legacy), `syncWallet`, `walletSnapshot`, `address` / `getAddress`, `rotateAddress` |
 | Peers | `connectPeer`, `disconnectPeer`, `listPeers` |
 | Channels | `openChannel`, `closeChannel`, `listChannels`, `getChannelId` |
 | Invoices | `lnInvoice`, `decodeLnInvoice`, `invoiceStatus`, `rgbInvoice`, `decodeRgbInvoice`, `cancelHodlInvoice`, `claimHodlInvoice` |
 | Payments | `sendPayment`, `keysend`, `listPayments`, `getPayment` |
 | Swaps | `makerInit`, `makerExecute`, `taker`, `listSwaps`, `getSwap` |
 | RGB issuance | `issueAssetNia`, `issueAssetUda`, `issueAssetCfa`, `issueAssetIfa` |
-| RGB assets | `listAssets`, `assetBalance`, `assetLinkCreate`, `assetMetadata`, `sendRgb`, `inflate`, `listTransfers`, `listTransfersByTxid`, `refreshTransfers`, `failTransfers`, `getAssetMedia`, `postAssetMedia` |
-| BTC | `btcBalance`, `sendBtc`, `listTransactions`, `listTransactionsByTxid`, `listUnspents`, `createUtxos`, `estimateFee` |
+| RGB assets | `listAssets`, `assetBalance`, `assetLinkCreate`, `assetMetadata`, `sendRgb`, `prepareRgbSend`, `commitPreparedRgbSend`, `cancelRgbSendPlan`, `listPendingRgbSendPlans`, `importRgbTransferConsignment`, `importRgbContract`, `inflate`, `listTransfers`, `listTransfersByTxid`, `refreshTransfers`, `failTransfers`, `getAssetMedia`, `postAssetMedia` |
+| BTC | `btcBalance`, `sendBtc`, `prepareBtcSend`, `commitPreparedBtcSend`, `cancelBtcSendPlan`, `listTransactions`, `listTransactionsByTxid`, `listUnspents`, `createUtxos`, `prepareCreateUtxos`, `commitPreparedCreateUtxos`, `cancelCreateUtxosPlan`, `estimateFee` |
 | VSS | `vssClearFence`, `vssBackup` |
 | APay | `apayNew` |
 | Signing / onion / diagnostics | `signMessage`, `verifyMessage`, `sendOnionMessage`, `checkIndexerUrl`, `checkProxyEndpoint` |
+
+`syncWallet({ mode })` is the production synchronization contract. `routine`
+updates every revealed Vanilla and Colored script with `FullSync`; `recovery`
+discovers both keychains with `FullScan`. It reports each keychain separately
+instead of hiding a partial failure. `walletSnapshot(request)` then reads a
+versioned, bounded snapshot without another implicit sync. Every monetary
+amount is base-10 text, and Lightning claimable balances remain distinct from
+inbound/outbound routing capacities.
 
 The C-FFI symbols backing these are declared in [`rln.h`](./rln.h) and
 wrapped in [`binding.cc`](./binding.cc); see [`index.js`](./index.js) for
@@ -191,13 +199,16 @@ the authoritative JS method list.
 ## Seed handling
 
 RLN never sees the BIP-39 mnemonic. The host (WDK) derives a 32-byte
-BIP-32 entropy and passes it as `seedHex` to `NativeExternalSigner.create`.
+BIP-32 entropy and passes it as `seedHex` to
+`NativeExternalSigner.createWithStorage`.
 `initWithNativeExternalSigner` writes only public identifying data (xpubs,
 node id, master fingerprint) to the key-source file on disk. The same
 mnemonic re-derives the same `seedHex` on every launch, so the LDK node
-identity stays stable across restarts. The VLS signer state lives entirely
-in process memory; all channel-state cryptography happens in-process via
-`signer-external` / `vls-protocol-signer`. The JS signer handle can be
+identity stays stable across restarts. VLS channel-validation state is kept
+in the caller-provided private storage directory; production wallets must
+retain that directory for the lifetime of their channels. The seed remains
+host-owned and is never written there. All channel-state cryptography happens
+in-process via `signer-external` / `vls-protocol-signer`. The JS signer handle can be
 dropped (`destroy()` or GC) once RLN has cloned its `Arc` ref via
 attach/init/unlock.
 
@@ -220,6 +231,60 @@ The difference from
 links dynamically at runtime (one `.node` per host), while `cmake-bare`
 links statically at build time, producing one self-contained `.bare` file
 usable inside any Bare worklet.
+
+## Git commit installs with a native overlay
+
+Git commits can expose C-FFI behavior that has not been promoted to a package
+release yet. Such commits declare `utexoNativeOverlay` in `package.json` with
+an exact upstream tag and commit, patch path and SHA-256, Rust toolchain, iOS
+deployment target, Android NDK/API/tool versions, and output target list.
+During `postinstall` the package:
+
+1. verifies the metadata and patch checksum;
+2. verifies any existing static libraries and Bare addons contain the required
+   wallet snapshot symbols;
+3. optionally imports artifacts from the explicitly trusted
+   `RLN_BARE_ARTIFACTS_DIR`; or
+4. clones the exact upstream commit, applies only the checksum-pinned patch,
+   installs the pinned Rust targets and Android build tools, builds the
+   platform-scoped outputs, strips Android debug sections, and verifies their
+   symbols before succeeding.
+
+`RLN_BARE_SOURCE_DIR` may point to an exact local checkout for development. It
+must be at the configured commit and either pristine or have the complete
+configured patch already applied. Both overrides are build inputs controlled
+by the caller; neither bypasses commit, patch, file, or symbol validation.
+Registry packages without `utexoNativeOverlay` continue to download artifacts
+from their matching GitHub release.
+
+Target preparation is platform scoped so an Android build does not require or
+replace iOS artifacts, and vice versa. On a normal macOS install the Apple
+targets are prepared. EAS selects the target group from `EAS_BUILD_PLATFORM`;
+local or custom build pipelines can select it explicitly:
+
+```sh
+node scripts/install-native-artifacts.js --platform ios
+node scripts/install-native-artifacts.js --platform android
+```
+
+`RLN_BARE_TARGETS` accepts an explicit comma-separated subset of configured
+targets for artifact CI. Provenance is incremental: preparing a second platform
+adds its hashes without discarding already verified hashes for the first.
+
+JavaScript-only CI jobs that will not link or load the native addon may opt out
+explicitly:
+
+```sh
+RLN_BARE_JS_ONLY_INSTALL=1 npm ci
+```
+
+The opt-out creates no native artifacts. A later app link or runtime step must
+still run the consumer's artifact and symbol checks, and therefore fails closed
+if a compatible addon was not installed. Source-building declared Apple
+targets requires macOS; non-macOS hosts receive a direct error instead of
+attempting an impossible cross-build. Android builds require the exact NDK
+revision declared by the overlay and produce `arm64-v8a`, `armeabi-v7a`, and
+`x86_64` addons from the same patched source and symbol contract as iOS.
 
 ## Build and release (maintainers)
 

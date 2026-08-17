@@ -69,8 +69,17 @@ class SdkNode {
 
   shutdown () {
     if (this._closed) return
-    binding.sdkNodeShutdown(this._handle)
-    this._closed = true
+    let failure
+    try {
+      binding.sdkNodeShutdown(this._handle)
+    } catch (error) {
+      failure = error
+    } finally {
+      binding.sdkNodeDestroy(this._handle)
+      this._handle = null
+      this._closed = true
+    }
+    if (failure) throw failure
   }
 
   /**
@@ -101,6 +110,10 @@ class SdkNode {
    */
   vssBackup () {
     return JSON.parse(binding.sdkNodeVssBackup(this._handle))
+  }
+
+  vssDeleteAll (request) {
+    return JSON.parse(binding.sdkNodeVssDeleteAll(this._handle, JSON.stringify(request)))
   }
 
   /**
@@ -158,6 +171,26 @@ class SdkNode {
     )
   }
 
+  startUnlockWithNativeExternalSigner (signer, request) {
+    return JSON.parse(binding.sdkNodeStartUnlockWithNativeExternalSigner(
+      this._handle,
+      signer._handle,
+      JSON.stringify(request)
+    ))
+  }
+
+  nativeOperationStatus (operationId) {
+    return JSON.parse(binding.sdkNodeNativeOperationStatus(this._handle, operationId))
+  }
+
+  adoptNativeOperation (operationId) {
+    return JSON.parse(binding.sdkNodeAdoptNativeOperation(this._handle, operationId))
+  }
+
+  cancelNativeOperation (operationId) {
+    return JSON.parse(binding.sdkNodeCancelNativeOperation(this._handle, operationId))
+  }
+
   /**
    * Initialise with a raw bootstrap dictionary. Used when the signer is
    * implemented by the host outside this binding (the foreign-signer
@@ -190,7 +223,14 @@ class SdkNode {
   nodeInfo () { return JSON.parse(binding.nodeInfo(this._handle)) }
   networkInfo () { return JSON.parse(binding.networkInfo(this._handle)) }
   sync () { return JSON.parse(binding.sync(this._handle)) }
+  syncWallet (request) {
+    return JSON.parse(binding.syncWallet(this._handle, JSON.stringify(request)))
+  }
+  walletSnapshot (request = {}) {
+    return JSON.parse(binding.walletSnapshot(this._handle, JSON.stringify(request)))
+  }
   address () { return JSON.parse(binding.address(this._handle)) }
+  getAddress () { return this.address() }
   rotateAddress () { return JSON.parse(binding.rotateAddress(this._handle)) }
 
   // -------- Channels --------
@@ -323,6 +363,28 @@ class SdkNode {
   sendRgb (request) {
     return JSON.parse(binding.sendRgb(this._handle, JSON.stringify(request)))
   }
+
+  importRgbTransferConsignment (request) {
+    return JSON.parse(binding.importRgbTransferConsignment(this._handle, JSON.stringify(request)))
+  }
+
+  importRgbContract (request) {
+    return JSON.parse(binding.importRgbContract(this._handle, JSON.stringify(request)))
+  }
+
+  prepareRgbSend (request) {
+    return JSON.parse(binding.prepareRgbSend(this._handle, JSON.stringify(request)))
+  }
+
+  commitPreparedRgbSend (request) {
+    return JSON.parse(binding.commitPreparedRgbSend(this._handle, JSON.stringify(request)))
+  }
+  cancelRgbSendPlan (request) {
+    return JSON.parse(binding.cancelRgbSendPlan(this._handle, JSON.stringify(request)))
+  }
+  listPendingRgbSendPlans () {
+    return JSON.parse(binding.listPendingRgbSendPlans(this._handle))
+  }
   inflate (request) {
     return JSON.parse(binding.inflate(this._handle, JSON.stringify(request)))
   }
@@ -342,6 +404,39 @@ class SdkNode {
   sendBtc (request) {
     return JSON.parse(binding.sendBtc(this._handle, JSON.stringify(request)))
   }
+
+  prepareBtcSend (request) {
+    return JSON.parse(binding.prepareBtcSend(this._handle, JSON.stringify(request)))
+  }
+
+  commitPreparedBtcSend (request) {
+    return JSON.parse(binding.commitPreparedBtcSend(this._handle, JSON.stringify(request)))
+  }
+
+  cancelBtcSendPlan (request) {
+    return JSON.parse(binding.cancelBtcSendPlan(this._handle, JSON.stringify(request)))
+  }
+
+  prepareCreateUtxos (request) {
+    return JSON.parse(binding.prepareCreateUtxos(this._handle, JSON.stringify(request)))
+  }
+
+  commitPreparedCreateUtxos (request) {
+    return JSON.parse(binding.commitPreparedCreateUtxos(this._handle, JSON.stringify(request)))
+  }
+
+  cancelCreateUtxosPlan (request) {
+    return JSON.parse(binding.cancelCreateUtxosPlan(this._handle, JSON.stringify(request)))
+  }
+
+  listPendingVanillaTransactions () {
+    return JSON.parse(binding.listPendingVanillaTransactions(this._handle))
+  }
+
+  listAddressReceipts (address) {
+    return JSON.parse(binding.listAddressReceipts(this._handle, address))
+  }
+
   listTransactions (skipSync = false) {
     return JSON.parse(binding.listTransactions(this._handle, !!skipSync))
   }
@@ -381,13 +476,13 @@ class SdkNode {
 exports.SdkNode = SdkNode
 
 /**
- * Host-provided in-memory VLS signer.
+ * Host-provided VLS signer.
  *
  * The seed never reaches RLN's persistence layer — the host (e.g. the
  * WDK secret manager) supplies a stable 32-byte BIP-32 seed at unlock
- * time, the VLS signer state lives entirely in process memory, and
- * everything cryptographic happens in-process via `signer-external` /
- * `vls-protocol-signer`.
+ * time. Production channel wallets must use `createWithStorage` so VLS
+ * commitment state survives process restarts. `create` is intentionally
+ * retained for stateless tooling and tests that do not preserve channels.
  *
  * Lifecycle:
  *   1. `NativeExternalSigner.create(seedHex, network)`
@@ -423,6 +518,34 @@ class NativeExternalSigner {
   }
 
   /**
+   * Construct a disk-backed signer whose channel validation state survives
+   * process restarts. The storage directory is signer-private state and must
+   * be stable for the wallet identity.
+   *
+   * @param {string} seedHex - 64-char hex string (32-byte BIP-32 entropy)
+   * @param {string} network - "mainnet" | "testnet" | "testnet4" | "signet" | "regtest"
+   * @param {string} storageDirPath - Stable, private signer-state directory
+   * @param {boolean} [permissivePolicy=false] - VLS policy filter
+   * @returns {NativeExternalSigner}
+   */
+  static createWithStorage (seedHex, network, storageDirPath, permissivePolicy = false) {
+    if (typeof seedHex !== 'string' || seedHex.length !== 64) {
+      throw new Error('NativeExternalSigner.createWithStorage: seedHex must be a 64-char hex string')
+    }
+    if (typeof storageDirPath !== 'string' || storageDirPath.length === 0) {
+      throw new Error('NativeExternalSigner.createWithStorage: storageDirPath is required')
+    }
+    return new NativeExternalSigner(
+      binding.nativeExternalSignerNewWithStorage(
+        seedHex,
+        network,
+        !!permissivePolicy,
+        storageDirPath
+      )
+    )
+  }
+
+  /**
    * Returns the bootstrap dictionary (node_id, account xpubs, master
    * fingerprint, protocol_version, api_level) — identifies the signer
    * to RLN without exposing the seed.
@@ -432,11 +555,11 @@ class NativeExternalSigner {
     return JSON.parse(binding.nativeExternalSignerBootstrap(this._handle))
   }
 
-  // Eager drop. Optional — the GC destructor handles it otherwise.
+  // Eager drop. The GC destructor remains as an idempotent fallback.
   destroy () {
-    // The native destructor runs on GC; nothing explicit to do here yet,
-    // but we keep this method so consumers can express intent and we
-    // can switch to an explicit-free C-FFI later without an API churn.
+    if (this._destroyed) return
+    binding.nativeExternalSignerDestroy(this._handle)
+    this._handle = null
     this._destroyed = true
   }
 }
