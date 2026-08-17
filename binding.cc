@@ -427,10 +427,29 @@ FN_NODE_JSON(issue_asset_ifa, rln_issue_asset_ifa)
 
 FN_NODE_JSON(list_assets, rln_list_assets)
 FN_NODE_STR(asset_balance, rln_asset_balance)
+FN_NODE_JSON(asset_link_create, rln_asset_link_create)
 FN_NODE_STR(asset_metadata, rln_asset_metadata)
 
-FN_NODE_STR(list_transfers, rln_list_transfers)
-FN_NODE_STR(list_transfers_by_txid, rln_list_transfers_by_txid)
+static js_value_t *fn_list_transfers(js_env_t *env, js_callback_info_t *info) {
+  js_value_t *args[2];
+  get_args(env, info, args, 2);
+  const struct COpaqueStruct *node = unwrap_sdk_node(env, args[0]);
+  char *asset_id = js_to_cstring(env, args[1]);
+  struct CResultString res = rln_list_transfers(node, asset_id, NULL);
+  free(asset_id);
+  return handle_result_string(env, res);
+}
+
+static js_value_t *fn_list_transfers_by_txid(js_env_t *env,
+                                              js_callback_info_t *info) {
+  js_value_t *args[2];
+  get_args(env, info, args, 2);
+  const struct COpaqueStruct *node = unwrap_sdk_node(env, args[0]);
+  char *txid = js_to_cstring(env, args[1]);
+  struct CResultString res = rln_list_transfers(node, NULL, txid);
+  free(txid);
+  return handle_result_string(env, res);
+}
 FN_NODE_JSON(refresh_transfers, rln_refresh_transfers)
 FN_NODE_JSON(fail_transfers, rln_fail_transfers)
 
@@ -447,7 +466,15 @@ FN_NODE_JSON(post_asset_media, rln_post_asset_media)
 
 FN_NODE_BOOL(btc_balance, rln_btc_balance)
 FN_NODE_JSON(send_btc, rln_send_btc)
-FN_NODE_BOOL(list_transactions, rln_list_transactions)
+static js_value_t *fn_list_transactions(js_env_t *env,
+                                         js_callback_info_t *info) {
+  js_value_t *args[2];
+  get_args(env, info, args, 2);
+  const struct COpaqueStruct *node = unwrap_sdk_node(env, args[0]);
+  bool skip_sync = js_to_bool(env, args[1]);
+  return handle_result_string(env,
+                              rln_list_transactions(node, skip_sync, NULL));
+}
 
 static js_value_t *fn_list_transactions_by_txid(js_env_t *env, js_callback_info_t *info) {
   js_value_t *args[3];
@@ -455,7 +482,7 @@ static js_value_t *fn_list_transactions_by_txid(js_env_t *env, js_callback_info_
   const struct COpaqueStruct *node = unwrap_sdk_node(env, args[0]);
   char *txid = js_to_cstring(env, args[1]);
   bool skip_sync = js_to_bool(env, args[2]);
-  struct CResultString res = rln_list_transactions_by_txid(node, txid, skip_sync);
+  struct CResultString res = rln_list_transactions(node, skip_sync, txid);
   free(txid);
   return handle_result_string(env, res);
 }
@@ -588,6 +615,7 @@ rgb_lightning_node_bare_exports(js_env_t *env, js_value_t *exports) {
   EXPORT("issueAssetIfa", issue_asset_ifa);
   EXPORT("listAssets", list_assets);
   EXPORT("assetBalance", asset_balance);
+  EXPORT("assetLinkCreate", asset_link_create);
   EXPORT("assetMetadata", asset_metadata);
   EXPORT("listTransfers", list_transfers);
   EXPORT("listTransfersByTxid", list_transfers_by_txid);

@@ -37,6 +37,9 @@ struct CResultString rln_address(const struct COpaqueStruct *node);
 
 struct CResultString rln_asset_balance(const struct COpaqueStruct *node, const char *asset_id);
 
+struct CResultString rln_asset_link_create(const struct COpaqueStruct *node,
+                                           const char *request_json);
+
 struct CResultString rln_asset_metadata(const struct COpaqueStruct *node, const char *asset_id);
 
 struct CResultString rln_btc_balance(const struct COpaqueStruct *node, bool skip_sync);
@@ -118,15 +121,13 @@ struct CResultString rln_list_peers(const struct COpaqueStruct *node);
 
 struct CResultString rln_list_swaps(const struct COpaqueStruct *node);
 
-struct CResultString rln_list_transactions(const struct COpaqueStruct *node, bool skip_sync);
+struct CResultString rln_list_transactions(const struct COpaqueStruct *node,
+                                           bool skip_sync,
+                                           const char *txid_opt);
 
-struct CResultString rln_list_transactions_by_txid(const struct COpaqueStruct *node,
-                                                   const char *txid,
-                                                   bool skip_sync);
-
-struct CResultString rln_list_transfers(const struct COpaqueStruct *node, const char *asset_id);
-
-struct CResultString rln_list_transfers_by_txid(const struct COpaqueStruct *node, const char *txid);
+struct CResultString rln_list_transfers(const struct COpaqueStruct *node,
+                                        const char *asset_id_opt,
+                                        const char *txid_opt);
 
 struct CResultString rln_list_unspents(const struct COpaqueStruct *node, bool skip_sync);
 
