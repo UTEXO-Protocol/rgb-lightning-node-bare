@@ -378,6 +378,23 @@ FN_NODE(sdk_node_vss_backup, rln_sdk_node_vss_backup)
 FN_NODE_JSON(sdk_node_vss_delete_all, rln_sdk_node_vss_delete_all)
 FN_NODE_STR(sdk_node_apay_new, rln_sdk_node_apay_new)
 
+static js_value_t *fn_sdk_node_apay_new_with_address(
+    js_env_t *env, js_callback_info_t *info) {
+  js_value_t *args[4];
+  get_args(env, info, args, 4);
+  const struct COpaqueStruct *node = require_sdk_node(env, args[0]);
+  if (node == NULL) return make_undefined(env);
+  char *host_node_id = js_to_cstring(env, args[1]);
+  char *username = js_to_cstring(env, args[2]);
+  char *domain = js_to_cstring(env, args[3]);
+  struct CResultString res = rln_sdk_node_apay_new_with_address(
+      node, host_node_id, username, domain);
+  free(host_node_id);
+  free(username);
+  free(domain);
+  return handle_result_string(env, res);
+}
+
 static js_value_t *fn_sdk_node_destroy(js_env_t *env, js_callback_info_t *info) {
   js_value_t *args[1];
   get_args(env, info, args, 1);
@@ -759,6 +776,7 @@ rgb_lightning_node_bare_exports(js_env_t *env, js_value_t *exports) {
   EXPORT("sdkNodeVssBackup", sdk_node_vss_backup);
   EXPORT("sdkNodeVssDeleteAll", sdk_node_vss_delete_all);
   EXPORT("sdkNodeApayNew", sdk_node_apay_new);
+  EXPORT("sdkNodeApayNewWithAddress", sdk_node_apay_new_with_address);
 
   // External signer (native — recommended)
   EXPORT("nativeExternalSignerNew", native_external_signer_new);
