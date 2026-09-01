@@ -27,6 +27,9 @@ while pre-`1.0`.
 ## [Unreleased]
 
 ### Added
+- `SdkNode.apayNewWithAddress(hostNodeId, username, domain)` with the generated
+  C-FFI entry point required for signed Lightning Address attestation. The
+  legacy `apayNew` method remains available for explicit compatibility use.
 - Reproducible Android overlay artifacts for `arm64-v8a`, `armeabi-v7a`,
   and `x86_64`, built from the same pinned native patch as iOS with exact
   Rust, NDK, API-level, cargo-ndk, and bindgen inputs.

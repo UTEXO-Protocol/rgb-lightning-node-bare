@@ -31,7 +31,7 @@ test('package overlay metadata is exact and checksum-pinned', () => {
   const config = readOverlayConfig(packageRoot)
 
   assert.equal(config.commit, 'f30a5393268de67c6bb5a1c525bc790c5b11afa2')
-  assert.equal(config.patchSha256, 'a765ad577bb0e0a88cd15136074357babffd61e2c3dffde624017a2a3cc8983d')
+  assert.equal(config.patchSha256, 'd0b6d4b057edd675e3d4385f2243b266020feeb1bee7714e7625e2f7bc0c945c')
   assert.equal(config.rustToolchain, '1.88.0')
   assert.equal(config.iosDeploymentTarget, '16.0')
   assert.equal(config.androidNdkVersion, '27.1.12297006')
@@ -62,6 +62,15 @@ test('overlay contains the complete native operation registry source', () => {
   assert.match(patch, /pub\(crate\) fn status\(/)
   assert.match(patch, /pub\(crate\) fn adopt\(/)
   assert.match(patch, /pub\(crate\) fn cancel\(/)
+})
+
+test('overlay exposes address-attested APay through the C ABI', () => {
+  const config = readOverlayConfig(path.resolve(__dirname, '..'))
+  const patch = fs.readFileSync(config.patchPath, 'utf8')
+
+  assert.match(patch, /pub\(crate\) fn sdk_node_apay_new_with_address\(/)
+  assert.match(patch, /pub extern "C" fn rln_sdk_node_apay_new_with_address\(/)
+  assert.ok(LIBRARY_SYMBOLS.includes('rln_sdk_node_apay_new_with_address'))
 })
 
 test('overlay contains the hardened shared RGB import implementation', () => {

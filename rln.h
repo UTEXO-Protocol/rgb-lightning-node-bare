@@ -220,6 +220,17 @@ struct CResultString rln_sdk_node_adopt_native_operation(const struct COpaqueStr
 struct CResultString rln_sdk_node_apay_new(const struct COpaqueStruct *node,
                                            const char *host_node_id);
 
+/**
+ * APay receiver-side registration with Lightning Address attestation.
+ * Arguments are the LSP node id plus the address's username and domain.
+ * Returns JSON of `AsyncOrderNewResponse` using the same ownership contract
+ * as `rln_sdk_node_apay_new`.
+ */
+struct CResultString rln_sdk_node_apay_new_with_address(const struct COpaqueStruct *node,
+                                                        const char *host_node_id,
+                                                        const char *username,
+                                                        const char *domain);
+
 struct CResultString rln_sdk_node_attach_native_external_signer(const struct COpaqueStruct *node,
                                                                 const struct COpaqueStruct *signer);
 

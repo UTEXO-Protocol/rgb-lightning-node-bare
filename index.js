@@ -129,6 +129,25 @@ class SdkNode {
     return JSON.parse(binding.sdkNodeApayNew(this._handle, hostNodeId))
   }
 
+  /**
+   * Register an APay hash batch and attest a Lightning Address to the LSP.
+   * RLN signs both the batch and `username@domain` attestation with the
+   * wallet node key; the native method enforces the same live-peer/channel
+   * requirements as `apayNew`.
+   *
+   * @param {string} hostNodeId
+   * @param {string} username
+   * @param {string} domain
+   */
+  apayNewWithAddress (hostNodeId, username, domain) {
+    return JSON.parse(binding.sdkNodeApayNewWithAddress(
+      this._handle,
+      hostNodeId,
+      username,
+      domain
+    ))
+  }
+
   // -------- External-signer lifecycle --------
 
   /**
