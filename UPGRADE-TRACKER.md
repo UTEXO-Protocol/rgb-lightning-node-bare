@@ -16,13 +16,13 @@ Status: implementation in progress. Draft PR, not release approval.
 | Work | Status | Required Evidence |
 | --- | --- | --- |
 | Dedicated upgrade branch | Done | `codex/rln-0.13.0-beta.3` |
-| Released native graph and bounded C-FFI adapter | Pending | Reviewed source, focused regression tests |
-| Wrapper types, unsupported capability rejection, exact numbers | Pending | No silent fallbacks; fail before mutation |
-| Source install/provenance/artifact workflow | Pending | Clean consumers and negative tests |
-| Unit/type/lint/package checks | Pending | Exact commands and results below |
-| Linked native/runtime conformance | Pending | Real artifacts, not only mocks |
-| Independent final diff review | Pending | Every plan item classified |
-| Cross-repository draft PR links | Pending | Add after creation |
+| Released native graph and bounded C-FFI adapter | Implemented | Identical Node adapter and generated header; locked host debug build passed |
+| Wrapper types, unsupported capability rejection, exact numbers | Verified locally | 29 JS/installer/root-resolution tests and declarations pass |
+| Source install/provenance/artifact workflow | Implemented | Source, lock, wrapper, ABI and binary checks; packed install pending |
+| Unit/type/lint/package checks | Partial | Types and JS contracts passed; native optimized and clean package tests underway |
+| Linked native/runtime conformance | Partial | Debug macOS arm64 canary passed; optimized rebuild underway; mobile gates remain |
+| Final diff review | In progress | Raw-handle, conversion and shutdown errors hardened; external maintainer review required |
+| Cross-repository draft PR links | Done | Links below |
 
 ## Explicit Release Gates
 
@@ -51,3 +51,25 @@ a weaker implementation.
 - Results below will distinguish mocked tests, linked host smoke, compile-only
   cross-builds, device tests and funded/network qualification.
 - No funded transaction or production wallet has been used.
+- `npm run check:types`: pass. `npm run test:installer`: 29 passed.
+- macOS arm64 debug canary passed: persistent signer/init/disposal/reopen plus
+  invalid raw handle, handle kind, string, bool and u16 argument cases.
+- A raw Bare getter crashed on a non-external argument before returning an error.
+  Reproduced and fixed by checking value type first, then validating ownership,
+  environment and handle kind in a registry. No unchecked UTF-8/malloc conversions.
+- Raw destroy now reports failed shutdown and retains its handle/teardown callback.
+  JS fault-injection tests cover shutdown/destroy retry; native shutdown-failure
+  and hard-kill durability still require network fixtures.
+- Streamed symbol inspection avoids the former 64 MiB buffer limit. Pinned
+  bare-headers 1.30.0 builds against Bare 1.30.3; package-export resolution tested.
+- Explicit Apple C/C++ deployment flags fix the 27/13 floor mismatch. Debug
+  builds reported a large unwind table; optimized qualification remains separate.
+- Native source builds are intentional. Tarballs exclude generated `lib/` and
+  `prebuilds/`; no debug binary is accidentally packaged. No npm publication.
+- Mobile SDK/NDK builds and device/emulator canaries are not yet qualified.
+
+## Coordinated Drafts
+
+- [Node #22](https://github.com/UTEXO-Protocol/rgb-lightning-node-nodejs/pull/22)
+- [Bare #20](https://github.com/UTEXO-Protocol/rgb-lightning-node-bare/pull/20)
+- [WDK #43](https://github.com/UTEXO-Protocol/wdk-rgb-lightning/pull/43)

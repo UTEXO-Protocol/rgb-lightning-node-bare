@@ -1,335 +1,75 @@
 # @utexo/rgb-lightning-node-bare
 
-[Bare]-runtime native addon for [`rgb-lightning-node`][rgb-lightning-node]
-(RLN) — the Lightning + RGB daemon built on LDK and [`rgb-lib`][rgb-lib].
-This package wraps RLN's C FFI in a `.bare` addon so the daemon can run
-**inside a Bare worklet** alongside the rest of the [Tether WDK] chain
-modules.
+Release-based Bare bindings for RLN **0.13.0-beta.3**. Candidate **0.2.0-beta.1**;
+not approved for migration or production rollout. See [UPGRADE-TRACKER.md](./UPGRADE-TRACKER.md).
 
-It is the mobile/worklet counterpart to
-[`@utexo/rgb-lightning-node-nodejs`][rgb-lightning-node-nodejs]: the same
-underlying Rust C-FFI (`librlncffi.a`) and the same `SdkNode` +
-`NativeExternalSigner` JavaScript surface, so the WDK layer
-([`@utexo/wdk-rgb-lightning`][wdk-rgb-lightning]) is identical across
-runtimes. It mirrors the [`@utexo/rgb-lib-bare`][rgb-lib-bare] build and
-release pattern (`cmake-bare` + static linking, prebuilds via GitHub
-Releases).
+## Installation Contract
 
-> Status: pre-1.0 beta. The API surface is stable across the 0.1.0-beta
-> line; native artifacts are distributed per release tag.
-
-## Contents
-
-- [Why Bare](#why-bare)
-- [Platform support](#platform-support)
-- [Requirements](#requirements)
-- [Installation](#installation)
-- [Usage](#usage)
-- [API surface](#api-surface)
-- [Seed handling](#seed-handling)
-- [Architecture](#architecture)
-- [Build and release (maintainers)](#build-and-release-maintainers)
-- [License](#license)
-
-## Why Bare
-
-The Node.js sibling covers desktop and server. This package exists for one
-specific consumer: [`@utexo/wdk-rgb-lightning`][wdk-rgb-lightning] running
-inside the [Tether WDK], which executes its chain-specific wallet logic in
-a [Bare] worklet — a sandboxed JS runtime hosted via
-[react-native-bare-kit] on mobile or as a subprocess on desktop.
-
-For RGB-over-Lightning to join WDK, RLN's daemon must be callable from
-inside that worklet, which means:
-
-- The native code **links statically** into a single `.bare` addon. Bare
-  worklets can't `dlopen` shared libraries the way Node can, and iOS App
-  Store policy forbids dynamic linking regardless.
-- The JS API has the **same shape** as the Node sibling, so the WDK package
-  writes one runtime-agnostic code path and selects the binding at
-  module-load time.
-
-Consumers don't import this package directly — they depend on
-`@utexo/wdk-rgb-lightning`, which loads this addon when it detects the Bare
-runtime.
-
-## Platform support
-
-Per-target static libs (`librlncffi.a`) and `.bare` prebuilds are attached
-to this repo's GitHub Releases; `postinstall` downloads the matching
-artifacts, and `cmake-bare` resolves the right one at load time.
-
-| Platform           | Target                       | Linking |
-|--------------------|------------------------------|---------|
-| macOS arm64        | `aarch64-apple-darwin`       | Static  |
-| iOS arm64          | `aarch64-apple-ios`          | Static  |
-| iOS arm64 sim      | `aarch64-apple-ios-sim`      | Static  |
-| iOS x64 sim        | `x86_64-apple-ios`           | Static  |
-| Android arm64      | `aarch64-linux-android`      | Static  |
-| Android armv7      | `armv7-linux-androideabi`    | Static  |
-| Android x64        | `x86_64-linux-android`       | Static  |
-
-Static linking is mandatory on iOS and yields a single self-contained
-`.bare` addon on Android and macOS.
-
-## Requirements
-
-- Node.js >= 20 (for `cmake-bare` and the postinstall script)
-- [Bare] runtime (to actually load and run the addon)
-
-## Installation
+Installation builds native artifacts from the exact source, submodule and adapter
+identities in `package.json`. This is **not a no-Rust prebuilt installation**.
+Requires Node 20+, Git, Rust 1.94.0, CMake 3.25+, a C/C++ toolchain, Xcode for Apple
+targets and Android NDK 27.1.12297006 for Android. Header package 1.30.0 is locked;
+desktop canaries run Bare 1.30.3. Header equality, required symbols, source graph,
+wrapper fingerprint and artifact checksums are verified.
 
 ```sh
-npm install @utexo/rgb-lightning-node-bare
+npm install @utexo/rgb-lightning-node-bare@0.2.0-beta.1
+# Explicit desktop qualification:
+RLN_BARE_TARGETS=darwin-arm64 npm run prepare-native
+# Select a mobile family:
+npm run prepare-native -- --platform ios
 ```
 
-The `postinstall` (`scripts/download-libs.sh`) downloads the matching
-static libs and `.bare` prebuilds from the GitHub Release for the installed
-version — no Rust toolchain or cross-compiler needed on the consumer
-machine.
+Default macOS builds Apple targets; Linux selects Android. Supported matrix:
+darwin-arm64, ios-arm64, ios-arm64-simulator, ios-x64-simulator,
+android-arm64, android-arm and android-x64. macOS x64 is not a released target.
+An unavailable target fails; no older binary is substituted.
 
-You don't normally depend on this package directly — it's an optional peer
-dependency of [`@utexo/wdk-rgb-lightning`][wdk-rgb-lightning]. Install it
-explicitly only when building something that runs inside a Bare worklet and
-calls RLN without the WDK layer.
+`RLN_BARE_JS_ONLY_INSTALL=1` is for JS-only tooling only (see the
+installer's exact environment contract). It does not supply a working wallet.
+`RLN_BARE_DEBUG=1` creates a debug-only qualification artifact with a distinct
+provenance identity. Candidate artifact workflows never publish or mutate tags.
 
-## Usage
+## Runtime
 
-The addon exposes two classes (`SdkNode`, `NativeExternalSigner`) plus
-module-level helpers. Requests and responses are plain JavaScript objects;
-JSON marshalling to/from the C-FFI happens at this layer.
-
-The example below uses the **external-signer** lifecycle — the mode the WDK
-ships with, where the host owns the seed.
-
-```js
-const rln = require('@utexo/rgb-lightning-node-bare')
-
-// 1. Module-level init (idempotent; sets up the process-global tokio runtime).
-rln.sdkInitialize({})
-
-// 2. Create the node handle (does not open the network yet).
-const node = rln.SdkNode.create({
-  storage_dir_path: '/path/to/persistent/dir',
-  daemon_listening_port: 0,
-  ldk_peer_listening_port: 0,
-  network: 'regtest',
-  max_media_upload_size_mb: 5,
-  enable_virtual_channels_v0: false
-})
-
-// 3. Build the in-process VLS signer from a host-owned 32-byte seed (64-char hex).
-const signer = rln.NativeExternalSigner.create(seedHex, 'regtest')
-
-// 4. First-launch init writes the key-source file to storage_dir_path.
-//    On every subsequent launch RLN throws Rln(Conflict) — swallow it.
-try {
-  node.initWithNativeExternalSigner(signer)
-} catch (e) {
-  if (!String(e.message).includes('Conflict')) throw e
-}
-
-// 5. Bring the node online.
-node.unlockWithNativeExternalSigner(signer, {
-  bitcoind_rpc_username: 'user',
-  bitcoind_rpc_password: 'pass',
-  bitcoind_rpc_host: '127.0.0.1',
-  bitcoind_rpc_port: 18443,
-  indexer_url: 'tcp://localhost:50001',
-  proxy_endpoint: 'rpc://localhost:3000/json-rpc',
-  announce_addresses: [],
-  announce_alias: 'my-node'
-})
-
-console.log(node.nodeInfo().pubkey)
-
-// ...later
-node.shutdown()
-```
-
-The addon also supports a **password / mnemonic** mode where RLN owns the
-seed and encrypts it on disk (`node.init(password, mnemonic?)` then
-`node.unlock({ ...rpcArgs, password })`). The WDK does not use this mode;
-see [`index.js`](./index.js) for the contract.
-
-## API surface
-
-Request bodies follow the JSON schemas in `rgb-lightning-node`'s
-`openapi.yaml`. Methods return parsed objects (or throw on the C-FFI error
-branch).
-
-**Module-level** — `uniffiHealthcheck()`, `uniffiIsInitialized()`,
-`sdkInitialize(request)`, `sdkShutdown()`. Call `sdkInitialize` once before
-creating any node.
-
-**`NativeExternalSigner`** — `create(seedHex, network, permissivePolicy = true)`,
-`bootstrap()`, `destroy()`.
-
-**`SdkNode`**
-
-| Group | Methods |
-|-------|---------|
-| Lifecycle | `create`, `init`, `unlock`, `shutdown` |
-| External signer | `initWithNativeExternalSigner`, `attachNativeExternalSigner`, `unlockWithNativeExternalSigner`, `initWithExternalSigner`, `unlockWithAttachedExternalSigner`, `detachExternalSigner` |
-| Info / sync | `nodeInfo`, `networkInfo`, `sync` (legacy), `syncWallet`, `walletSnapshot`, `address` / `getAddress`, `rotateAddress` |
-| Peers | `connectPeer`, `disconnectPeer`, `listPeers` |
-| Channels | `openChannel`, `closeChannel`, `listChannels`, `getChannelId` |
-| Invoices | `lnInvoice`, `decodeLnInvoice`, `invoiceStatus`, `rgbInvoice`, `decodeRgbInvoice`, `cancelHodlInvoice`, `claimHodlInvoice` |
-| Payments | `sendPayment`, `keysend`, `listPayments`, `getPayment` |
-| Swaps | `makerInit`, `makerExecute`, `taker`, `listSwaps`, `getSwap` |
-| RGB issuance | `issueAssetNia`, `issueAssetUda`, `issueAssetCfa`, `issueAssetIfa` |
-| RGB assets | `listAssets`, `assetBalance`, `assetLinkCreate`, `assetMetadata`, `sendRgb`, `prepareRgbSend`, `commitPreparedRgbSend`, `cancelRgbSendPlan`, `listPendingRgbSendPlans`, `importRgbTransferConsignment`, `importRgbContract`, `inflate`, `listTransfers`, `listTransfersByTxid`, `refreshTransfers`, `failTransfers`, `getAssetMedia`, `postAssetMedia` |
-| BTC | `btcBalance`, `sendBtc`, `prepareBtcSend`, `commitPreparedBtcSend`, `cancelBtcSendPlan`, `listTransactions`, `listTransactionsByTxid`, `listUnspents`, `createUtxos`, `prepareCreateUtxos`, `commitPreparedCreateUtxos`, `cancelCreateUtxosPlan`, `estimateFee` |
-| VSS | `vssClearFence`, `vssBackup` |
-| APay | `apayNew`, `apayNewWithAddress` |
-| Signing / onion / diagnostics | `signMessage`, `verifyMessage`, `sendOnionMessage`, `checkIndexerUrl`, `checkProxyEndpoint` |
-
-`syncWallet({ mode })` is the production synchronization contract. `routine`
-updates every revealed Vanilla and Colored script with `FullSync`; `recovery`
-discovers both keychains with `FullScan`. It reports each keychain separately
-instead of hiding a partial failure. `walletSnapshot(request)` then reads a
-versioned, bounded snapshot without another implicit sync. Every monetary
-amount is base-10 text, and Lightning claimable balances remain distinct from
-inbound/outbound routing capacities.
-
-The C-FFI symbols backing these are declared in [`rln.h`](./rln.h) and
-wrapped in [`binding.cc`](./binding.cc); see [`index.js`](./index.js) for
-the authoritative JS method list.
-
-## Seed handling
-
-RLN never sees the BIP-39 mnemonic. The host (WDK) derives a 32-byte
-BIP-32 entropy and passes it as `seedHex` to
-`NativeExternalSigner.createWithStorage`.
-`initWithNativeExternalSigner` writes only public identifying data (xpubs,
-node id, master fingerprint) to the key-source file on disk. The same
-mnemonic re-derives the same `seedHex` on every launch, so the LDK node
-identity stays stable across restarts. VLS channel-validation state is kept
-in the caller-provided private storage directory; production wallets must
-retain that directory for the lifetime of their channels. The seed remains
-host-owned and is never written there. All channel-state cryptography happens
-in-process via `signer-external` / `vls-protocol-signer`. The JS signer handle can be
-dropped (`destroy()` or GC) once RLN has cloned its `Arc` ref via
-attach/init/unlock.
-
-## Architecture
-
-```
-rgb-lightning-node (Rust)            ← source of truth, cloned per release tag
-  └── bindings/c-ffi/                ← cbindgen → rln.h
-        └── cargo rustc                → librlncffi.a (static, one per target)
-              ↑
-rgb-lightning-node-bare (this repo)  ← cmake-bare + binding.cc
-  └── binding.cc                     ← wraps the C FFI with Bare's <js.h> API
-  └── CMakeLists.txt                 ← links librlncffi.a statically
-        ↓
-      utexo__rgb-lightning-node-bare.bare   ← the loadable Bare addon
-```
-
-The difference from
-[`@utexo/rgb-lightning-node-nodejs`][rgb-lightning-node-nodejs]: napi-rs
-links dynamically at runtime (one `.node` per host), while `cmake-bare`
-links statically at build time, producing one self-contained `.bare` file
-usable inside any Bare worklet.
-
-## Git commit installs with a native overlay
-
-Git commits can expose C-FFI behavior that has not been promoted to a package
-release yet. Such commits declare `utexoNativeOverlay` in `package.json` with
-an exact upstream tag and commit, patch path and SHA-256, Rust toolchain, iOS
-deployment target, Android NDK/API/tool versions, and output target list.
-During `postinstall` the package:
-
-1. verifies the metadata and patch checksum;
-2. verifies any existing static libraries and Bare addons contain the required
-   wallet snapshot symbols;
-3. optionally imports artifacts from the explicitly trusted
-   `RLN_BARE_ARTIFACTS_DIR`; or
-4. clones the exact upstream commit, applies only the checksum-pinned patch,
-   installs the pinned Rust targets and Android build tools, builds the
-   platform-scoped outputs, strips Android debug sections, and verifies their
-   symbols before succeeding.
-
-`RLN_BARE_SOURCE_DIR` may point to an exact local checkout for development. It
-must be at the configured commit and either pristine or have the complete
-configured patch already applied. Both overrides are build inputs controlled
-by the caller; neither bypasses commit, patch, file, or symbol validation.
-Registry packages without `utexoNativeOverlay` continue to download artifacts
-from their matching GitHub release.
-
-Target preparation is platform scoped so an Android build does not require or
-replace iOS artifacts, and vice versa. On a normal macOS install the Apple
-targets are prepared. EAS selects the target group from `EAS_BUILD_PLATFORM`;
-local or custom build pipelines can select it explicitly:
+`getRuntimeInfo()` reads compiled provenance and capabilities, checked against
+the package's generated `runtime-contract.json`. Rebuild after source changes:
 
 ```sh
-node scripts/install-native-artifacts.js --platform ios
-node scripts/install-native-artifacts.js --platform android
+node scripts/runtime-contract.js
+npm run prepare-native
+npm test
 ```
 
-`RLN_BARE_TARGETS` accepts an explicit comma-separated subset of configured
-targets for artifact CI. Provenance is incremental: preparing a second platform
-adds its hashes without discarding already verified hashes for the first.
+Use `NativeExternalSigner.createWithStorage(seedHex, network, storageDir, false)`.
+Strict signing is the default. Persist the private signer directory together with
+the node state; seed-only or VSS-only recovery is not complete open-channel recovery.
 
-JavaScript-only CI jobs that will not link or load the native addon may opt out
-explicitly:
+Unlock uses `ldk_chain_sync: { mode: 'TransactionSync', config: { indexer_url } }`
+or `{ mode: 'BlockSync', config: { bitcoind_rpc_username,
+bitcoind_rpc_password, bitcoind_rpc_host, bitcoind_rpc_port } }`.
+The top-level `indexer_url` is independently available for RGB. External-signer
+unlock does not accept password or gossip configuration.
 
-```sh
-RLN_BARE_JS_ONLY_INSTALL=1 npm ci
-```
+`refreshTransfers({ skip_sync })` returns per-batch status/failure details.
+`listTransfers(assetId?, txid?)` supports asset-less and combined queries.
+Unspents expose `utxo.exists`; do not treat missing outputs as spendable.
 
-The opt-out creates no native artifacts. A later app link or runtime step must
-still run the consumer's artifact and symbol checks, and therefore fails closed
-if a compatible addon was not installed. Source-building declared Apple
-targets requires macOS; non-macOS hosts receive a direct error instead of
-attempting an impossible cross-build. Android builds require the exact NDK
-revision declared by the overlay and produce `arm64-v8a`, `armeabi-v7a`, and
-`x86_64` addons from the same patched source and symbol contract as iOS.
+JSON integer values beyond JavaScript's safe integer range fail explicitly.
+There is no claim of lossless full-u64 numeric JSON support.
 
-## Build and release (maintainers)
+## Excluded Capabilities and Migration
 
-Releases are cut by the **Build and Release (Bare)** GitHub Actions
-workflow ([`.github/workflows/release.yml`](./.github/workflows/release.yml)),
-triggered either by a `repository_dispatch` (`rln-release`) from
-`rgb-lightning-node` or manually via `workflow_dispatch` with an
-`rln_version` input (e.g. `v0.6.0-beta.1`). The workflow:
+Snapshot/sync overlays, prepared-send/UTXO plans, imports, native operation
+control and VSS namespace deletion are unavailable. Existing named stubs throw
+`ERR_RLN_UNSUPPORTED_CAPABILITY` before native access. Routing fee caps are not
+enforced by this RLN release and are rejected before payment submission.
 
-1. Clones `rgb-lightning-node` at the pinned tag and applies the C-FFI
-   patch series at [`patches/`](./patches) (a no-op when the tag already
-   carries the C-FFI surface upstream).
-2. Cross-compiles `librlncffi.a` for all seven targets.
-3. Builds the `.bare` prebuilds via `cmake-bare`.
-4. Attaches the static libs and prebuilds to a GitHub Release and runs
-   `npm publish`.
+Existing colored channels and pre-scrypt password-wallet mnemonic records have
+known release compatibility gates. Do not delete/recreate state, bypass refusal,
+or restore stale channel backups after new activity. Use the approved migration
+procedure only after exact old-artifact fixtures have passed; that gate is open.
 
-For a local build:
-
-```sh
-# Cross-compile the Rust C-FFI static lib (per platform group):
-bash scripts/build-cffi.sh darwin
-bash scripts/build-cffi.sh ios
-bash scripts/build-cffi.sh android
-
-# Build the .bare prebuilds via cmake-bare:
-bash scripts/build-prebuilds.sh darwin-arm64
-bash scripts/build-prebuilds.sh ios-arm64
-bash scripts/build-prebuilds.sh ios-arm64-simulator
-bash scripts/build-prebuilds.sh ios-x64-simulator
-bash scripts/build-prebuilds.sh android-arm64
-bash scripts/build-prebuilds.sh android-arm
-bash scripts/build-prebuilds.sh android-x64
-```
-
-## License
-
-Apache-2.0. See [`LICENSE`](./LICENSE).
-
-[Bare]: https://github.com/holepunchto/bare
-[cmake-bare]: https://github.com/holepunchto/cmake-bare
-[react-native-bare-kit]: https://github.com/holepunchto/react-native-bare-kit
-[Tether WDK]: https://github.com/tetherto/wdk
-[rgb-lightning-node]: https://github.com/UTEXO-Protocol/rgb-lightning-node
-[rgb-lightning-node-nodejs]: https://github.com/UTEXO-Protocol/rgb-lightning-node-nodejs
-[rgb-lib]: https://github.com/UTEXO-Protocol/rgb-lib
-[rgb-lib-bare]: https://github.com/UTEXO-Protocol/rgb-lib-bare
-[wdk-rgb-lightning]: https://github.com/UTEXO-Protocol/wdk-rgb-lightning
+Native mobile runtime, network, migration, VSS-failure and signed APay roundtrip
+qualification remain explicit release gates. The app's current overlay-dependent
+runtime is not compatible with this candidate and must not be repinned blindly.

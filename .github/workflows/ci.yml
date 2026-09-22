@@ -3,75 +3,42 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main, iris-wallet]
+    branches: [main, codex/rln-0.13.0-beta.3]
 
 permissions:
   contents: read
 
-env:
-  RLN_VERSION: v0.11.0-beta.3
-  RUST_TOOLCHAIN: '1.88.0'
-
 jobs:
   contract:
-    runs-on: macos-14
-    timeout-minutes: 120
+    runs-on: macos-15
+    timeout-minutes: 90
+    env:
+      RLN_BARE_TARGETS: darwin-arm64
+      RLN_BARE_DEBUG: '1'
+      CARGO_BUILD_JOBS: 3
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Clone pinned rgb-lightning-node source
-        run: |
-          set -euo pipefail
-          RLN_DIR="$(cd "$GITHUB_WORKSPACE/../.." && pwd)/rgb-lightning-node"
-          git clone --recurse-submodules --shallow-submodules --depth 1 \
-            --branch "$RLN_VERSION" \
-            https://github.com/UTEXO-Protocol/rgb-lightning-node.git "$RLN_DIR"
-          git -C "$RLN_DIR" apply --check \
-            "$GITHUB_WORKSPACE/patches/c-ffi-utexo-patches-$RLN_VERSION.patch"
-          git -C "$RLN_DIR" apply \
-            "$GITHUB_WORKSPACE/patches/c-ffi-utexo-patches-$RLN_VERSION.patch"
-
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          toolchain: ${{ env.RUST_TOOLCHAIN }}
-          components: rustfmt
-          # The pinned rust-lightning dependency emits one release-only warning.
-          # Keep it visible without converting third-party warnings into errors.
-          rustflags: ''
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
-
-      - name: Install JavaScript dependencies
-        run: npm ci --ignore-scripts
-
-      - name: Verify native patch integrity and contract tests
-        run: |
-          git -C ../../rgb-lightning-node diff --check
-          cargo test --locked --manifest-path ../../rgb-lightning-node/bindings/c-ffi/Cargo.toml wallet_snapshot
-          cargo test --locked --manifest-path ../../rgb-lightning-node/Cargo.toml wallet_sync_mode
-
-      - name: Build the host Bare addon and run the canary
-        run: |
-          case "$(uname -m)" in
-            arm64) HOST_TARGET=darwin-arm64 ;;
-            x86_64) HOST_TARGET=darwin-x64 ;;
-            *) echo "Unsupported host architecture: $(uname -m)"; exit 1 ;;
-          esac
-          npm run check:types
-          bash scripts/build-cffi.sh darwin
-          bash scripts/build-prebuilds.sh "$HOST_TARGET"
-          npm test
-
-      - name: Install pinned Android NDK
-        id: setup_ndk
-        run: |
-          echo "ndk-path=$(bash scripts/install-android-ndk.sh)" >> "$GITHUB_OUTPUT"
-
-      - name: Build and verify every supported Android addon
-        env:
-          ANDROID_NDK_HOME: ${{ steps.setup_ndk.outputs.ndk-path }}
-          RLN_BARE_SOURCE_DIR: ${{ github.workspace }}/../../rgb-lightning-node
-        run: node scripts/install-native-artifacts.js --platform android
+      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
+        with:
+          toolchain: '1.94.0'
+          rustflags: ''
+      - run: npm ci --ignore-scripts
+      - run: npm run check:types
+      - run: npm run test:installer
+      - name: Build pinned graph and verify provenance
+        run: npm run prepare-native
+      - name: Real native canary including invalid handle tests
+        run: npm test
+      - run: npm pack --ignore-scripts
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: bare-contract-${{ github.sha }}
+          path: |
+            *.tgz
+            .utexo-native-overlay.json
+          include-hidden-files: true
+          if-no-files-found: error

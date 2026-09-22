@@ -26,9 +26,8 @@ typedef struct CResult {
 } CResult;
 
 /**
- * Shut down and drop a `NativeExternalSigner` handle. Call only after node
- * shutdown has completed; shutdown invalidates every outstanding `Arc` clone
- * so the seed-bearing backend and persistent VLS store are released.
+ * Drop a `NativeExternalSigner` handle. Safe to call immediately after
+ * attach / init / unlock succeeds: RLN holds its own `Arc` clone.
  */
 void free_native_external_signer(struct COpaqueStruct obj);
 
@@ -43,19 +42,15 @@ struct CResultString rln_asset_link_create(const struct COpaqueStruct *node,
 
 struct CResultString rln_asset_metadata(const struct COpaqueStruct *node, const char *asset_id);
 
+/**
+ * Read-only identity compiled into this library, not supplied by JavaScript at runtime.
+ */
+struct CResultString rln_binding_build_info(void);
+
 struct CResultString rln_btc_balance(const struct COpaqueStruct *node, bool skip_sync);
-
-struct CResultString rln_cancel_btc_send_plan(const struct COpaqueStruct *node,
-                                              const char *request_json);
-
-struct CResultString rln_cancel_create_utxos_plan(const struct COpaqueStruct *node,
-                                                  const char *request_json);
 
 struct CResultString rln_cancel_hodl_invoice(const struct COpaqueStruct *node,
                                              const char *request_json);
-
-struct CResultString rln_cancel_rgb_send_plan(const struct COpaqueStruct *node,
-                                              const char *request_json);
 
 struct CResultString rln_check_indexer_url(const struct COpaqueStruct *node,
                                            const char *indexer_url);
@@ -67,15 +62,6 @@ struct CResultString rln_claim_hodl_invoice(const struct COpaqueStruct *node,
                                             const char *request_json);
 
 struct CResultString rln_close_channel(const struct COpaqueStruct *node, const char *request_json);
-
-struct CResultString rln_commit_prepared_btc_send(const struct COpaqueStruct *node,
-                                                  const char *request_json);
-
-struct CResultString rln_commit_prepared_create_utxos(const struct COpaqueStruct *node,
-                                                      const char *request_json);
-
-struct CResultString rln_commit_prepared_rgb_send(const struct COpaqueStruct *node,
-                                                  const char *request_json);
 
 struct CResultString rln_connect_peer(const struct COpaqueStruct *node,
                                       const char *peer_pubkey_and_addr);
@@ -111,12 +97,6 @@ struct CResultString rln_get_swap(const struct COpaqueStruct *node,
                                   const char *payment_hash,
                                   bool taker_flag);
 
-struct CResultString rln_import_rgb_contract(const struct COpaqueStruct *node,
-                                             const char *request_json);
-
-struct CResultString rln_import_rgb_transfer_consignment(const struct COpaqueStruct *node,
-                                                         const char *request_json);
-
 struct CResultString rln_inflate(const struct COpaqueStruct *node, const char *request_json);
 
 struct CResultString rln_invoice_status(const struct COpaqueStruct *node, const char *invoice);
@@ -135,9 +115,6 @@ struct CResultString rln_issue_asset_uda(const struct COpaqueStruct *node,
 
 struct CResultString rln_keysend(const struct COpaqueStruct *node, const char *request_json);
 
-struct CResultString rln_list_address_receipts(const struct COpaqueStruct *node,
-                                               const char *address);
-
 struct CResultString rln_list_assets(const struct COpaqueStruct *node,
                                      const char *filter_asset_schemas_json);
 
@@ -146,10 +123,6 @@ struct CResultString rln_list_channels(const struct COpaqueStruct *node);
 struct CResultString rln_list_payments(const struct COpaqueStruct *node);
 
 struct CResultString rln_list_peers(const struct COpaqueStruct *node);
-
-struct CResultString rln_list_pending_rgb_send_plans(const struct COpaqueStruct *node);
-
-struct CResultString rln_list_pending_vanilla_transactions(const struct COpaqueStruct *node);
 
 struct CResultString rln_list_swaps(const struct COpaqueStruct *node);
 
@@ -175,6 +148,9 @@ struct CResult rln_native_external_signer_new(const char *seed_hex,
                                               const char *network,
                                               bool permissive_policy);
 
+/**
+ * Forward to the released persistent signer constructor.
+ */
 struct CResult rln_native_external_signer_new_with_storage(const char *seed_hex,
                                                            const char *network,
                                                            bool permissive_policy,
@@ -189,15 +165,6 @@ struct CResultString rln_open_channel(const struct COpaqueStruct *node, const ch
 struct CResultString rln_post_asset_media(const struct COpaqueStruct *node,
                                           const char *request_json);
 
-struct CResultString rln_prepare_btc_send(const struct COpaqueStruct *node,
-                                          const char *request_json);
-
-struct CResultString rln_prepare_create_utxos(const struct COpaqueStruct *node,
-                                              const char *request_json);
-
-struct CResultString rln_prepare_rgb_send(const struct COpaqueStruct *node,
-                                          const char *request_json);
-
 struct CResultString rln_refresh_transfers(const struct COpaqueStruct *node,
                                            const char *request_json);
 
@@ -206,9 +173,6 @@ struct CResultString rln_rgb_invoice(const struct COpaqueStruct *node, const cha
 struct CResultString rln_rotate_address(const struct COpaqueStruct *node);
 
 struct CResultString rln_sdk_initialize(const char *request_json);
-
-struct CResultString rln_sdk_node_adopt_native_operation(const struct COpaqueStruct *node,
-                                                         const char *operation_id);
 
 /**
  * APay receiver-side registration with an LSP. Argument is the LSP's
@@ -221,10 +185,7 @@ struct CResultString rln_sdk_node_apay_new(const struct COpaqueStruct *node,
                                            const char *host_node_id);
 
 /**
- * APay receiver-side registration with Lightning Address attestation.
- * Arguments are the LSP node id plus the address's username and domain.
- * Returns JSON of `AsyncOrderNewResponse` using the same ownership contract
- * as `rln_sdk_node_apay_new`.
+ * Forward to the released address-attested APay registration API.
  */
 struct CResultString rln_sdk_node_apay_new_with_address(const struct COpaqueStruct *node,
                                                         const char *host_node_id,
@@ -233,9 +194,6 @@ struct CResultString rln_sdk_node_apay_new_with_address(const struct COpaqueStru
 
 struct CResultString rln_sdk_node_attach_native_external_signer(const struct COpaqueStruct *node,
                                                                 const struct COpaqueStruct *signer);
-
-struct CResultString rln_sdk_node_cancel_native_operation(const struct COpaqueStruct *node,
-                                                          const char *operation_id);
 
 struct CResultString rln_sdk_node_detach_external_signer(const struct COpaqueStruct *node);
 
@@ -249,16 +207,9 @@ struct CResultString rln_sdk_node_init_with_external_signer(const struct COpaque
 struct CResultString rln_sdk_node_init_with_native_external_signer(const struct COpaqueStruct *node,
                                                                    const struct COpaqueStruct *signer);
 
-struct CResultString rln_sdk_node_native_operation_status(const struct COpaqueStruct *node,
-                                                          const char *operation_id);
-
 struct CResult rln_sdk_node_new(const char *request_json);
 
 struct CResultString rln_sdk_node_shutdown(const struct COpaqueStruct *node);
-
-struct CResultString rln_sdk_node_start_unlock_with_native_external_signer(const struct COpaqueStruct *node,
-                                                                           const struct COpaqueStruct *signer,
-                                                                           const char *request_json);
 
 struct CResultString rln_sdk_node_unlock(const struct COpaqueStruct *node,
                                          const char *request_json);
@@ -293,14 +244,6 @@ struct CResultString rln_sdk_node_vss_backup(const struct COpaqueStruct *node);
 struct CResultString rln_sdk_node_vss_clear_fence(const struct COpaqueStruct *node,
                                                   const char *request_json);
 
-/**
- * Permanently delete every object in the authenticated VSS store.
- * Request JSON: `{"password":"..."}`. The node must be locked.
- * Returns `{"deleted_keys": u64}` after a verified empty re-list.
- */
-struct CResultString rln_sdk_node_vss_delete_all(const struct COpaqueStruct *node,
-                                                 const char *request_json);
-
 struct CResultString rln_sdk_shutdown(void);
 
 struct CResultString rln_send_btc(const struct COpaqueStruct *node, const char *request_json);
@@ -316,8 +259,6 @@ struct CResultString rln_sign_message(const struct COpaqueStruct *node, const ch
 
 struct CResultString rln_sync(const struct COpaqueStruct *node);
 
-struct CResultString rln_sync_wallet(const struct COpaqueStruct *node, const char *request_json);
-
 struct CResultString rln_taker(const struct COpaqueStruct *node, const char *request_json);
 
 struct CResultString rln_uniffi_healthcheck(void);
@@ -327,6 +268,3 @@ struct CResultString rln_uniffi_is_initialized(void);
 struct CResultString rln_verify_message(const struct COpaqueStruct *node,
                                         const char *message,
                                         const char *signature);
-
-struct CResultString rln_wallet_snapshot(const struct COpaqueStruct *node,
-                                         const char *request_json);
