@@ -1,6 +1,7 @@
 # RLN 0.13.0-beta.3 Upgrade Tracker
 
-Status: implementation in progress. Draft PR, not release approval.
+Status: local implementation verified on macOS arm64; source push blocked by
+GitHub workflow authorization. Draft PR, not release approval.
 
 ## Scope
 
@@ -16,11 +17,11 @@ Status: implementation in progress. Draft PR, not release approval.
 | Work | Status | Required Evidence |
 | --- | --- | --- |
 | Dedicated upgrade branch | Done | `codex/rln-0.13.0-beta.3` |
-| Released native graph and bounded C-FFI adapter | Implemented | Identical Node adapter and generated header; locked host debug build passed |
+| Released native graph and bounded C-FFI adapter | Implemented | Identical Node adapter and generated header; locked host debug and optimized builds passed |
 | Wrapper types, unsupported capability rejection, exact numbers | Verified locally | 29 JS/installer/root-resolution tests and declarations pass |
-| Source install/provenance/artifact workflow | Implemented | Source, lock, wrapper, ABI and binary checks; packed install pending |
-| Unit/type/lint/package checks | Partial | Types and JS contracts passed; native optimized and clean package tests underway |
-| Linked native/runtime conformance | Partial | Debug macOS arm64 canary passed; optimized rebuild underway; mobile gates remain |
+| Source install/provenance/artifact workflow | Verified on host | Source, lock, wrapper, ABI and binary checks; clean packed source install passed with isolated cache |
+| Unit/type/lint/package checks | Verified on host | 29 tests, declarations, optimized native canary and packed WDK consumer passed |
+| Linked native/runtime conformance | Partial | Debug/optimized macOS arm64 canaries passed; WDK consumer passed on Bare 1.32.0; mobile gates remain |
 | Final diff review | In progress | Raw-handle, conversion and shutdown errors hardened; external maintainer review required |
 | Cross-repository draft PR links | Done | Links below |
 
@@ -31,10 +32,13 @@ Status: implementation in progress. Draft PR, not release approval.
 | G1 | Existing colored-channel state can be refused by released 0.13; exact old-artifact migration qualification and operational drain/close procedure required | Blocked |
 | G2 | Old password-encrypted mnemonic records are not automatically supported; distinguish WDK external-signer key-source records | Blocked |
 | G3 | Full desktop/mobile build and runtime target matrix | Pending |
-| G4 | Controlled two-node/regtest and operator-coordinated LSP asset flow | Blocked: operator/environment evidence required |
+| G4 | Controlled two-node/regtest and operator-coordinated LSP asset flow | Regtest execution pending; operator LSP qualification blocked on coordination and deployed-build evidence |
 | G5 | Integrator zero-channel report root cause | Unproven: deployed build IDs and server provisioning logs required |
 | G6 | Current app depends on excluded overlay features | Separate adoption gate; do not change app pins |
 | G7 | Candidate publication, promotion and merge | Not authorized by this draft-PR task |
+| G8 | GitHub OAuth credential lacks workflow scope | Blocked: initial tracker is remote, full implementation commits remain local. Existing SSH key also rejected. Do not drop workflow safeguards to bypass authorization |
+| G9 | Rust type/trait mismatches after sharing Node Cargo target | Isolated build passed unchanged. Use a dedicated cache per package/source checkout; precise Cargo invalidation cause not established |
+| G10 | Full WDK transitive dependency graph requires newer Bare than native-only canary | Packed WDK failed on 1.30.3 because bare-type 1.3.0 requires >=1.32.0, then passed on pinned 1.32.0. Native-only canary still passes on 1.30.3 |
 
 Excluded capabilities: coherent wallet snapshot/FullSync, native operation registry,
 prepared-send plans and inventories, address receipts, RLN import APIs, VSS delete-all
@@ -67,6 +71,12 @@ a weaker implementation.
 - Native source builds are intentional. Tarballs exclude generated `lib/` and
   `prebuilds/`; no debug binary is accidentally packaged. No npm publication.
 - Mobile SDK/NDK builds and device/emulator canaries are not yet qualified.
+- Optimized build and final 29-test/native canary rerun passed. Optimized link
+  did not emit the debug unwind-table or deployment-floor warnings.
+- Clean packed native/WDK source installation passed on a dedicated Cargo cache;
+  complete WDK exports, compiled identity, persistent signer and offline lifecycle
+  passed on Bare 1.32.0. Source/dependency caches assisted installation; this was
+  not a prebuilt or network/migration qualification test.
 
 ## Coordinated Drafts
 

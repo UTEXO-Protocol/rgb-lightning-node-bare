@@ -30,6 +30,12 @@ installer's exact environment contract). It does not supply a working wallet.
 `RLN_BARE_DEBUG=1` creates a debug-only qualification artifact with a distinct
 provenance identity. Candidate artifact workflows never publish or mutate tags.
 
+Keep Cargo target caches separate from Node and other source checkouts. A reused
+Node target caused Rust type/trait mismatches; the identical source passed with
+an isolated Bare target. Prefer the default source-local target directory.
+The complete WDK dependency graph separately requires Bare >=1.32.0; its packed
+desktop canary passed on 1.32.0. That does not qualify a mobile embedded runtime.
+
 ## Runtime
 
 `getRuntimeInfo()` reads compiled provenance and capabilities, checked against

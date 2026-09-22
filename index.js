@@ -1,8 +1,8 @@
 /**
  * @utexo/rgb-lightning-node-bare — JS façade for the rgb-lightning-node C-FFI.
  *
- * Mirrors the SdkNode UniFFI surface 1:1 (methods that take/return JSON
- * are parsed/stringified at this layer; native always sees strings).
+ * Wraps the released SdkNode C-FFI surface. JSON methods are parsed/stringified
+ * here; compatibility stubs for excluded overlays fail before native access.
  *
  * Two seed-handling modes:
  *
@@ -105,9 +105,7 @@ class SdkNode {
    * checkpoints (e.g. "save state before app suspend") rather than
    * relying on the implicit on-write flush.
    *
-   * Backed by upstream `vss_backup()` UniFFI method (PR #50). Requires
-   * the C-FFI patch series at `rgb-lightning-node-bare/patches/` to be
-   * applied before the static lib is built.
+   * Backed by the released `vss_backup()` C-FFI method.
    *
    * @returns {{version: number}}
    */
