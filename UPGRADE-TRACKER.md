@@ -1,7 +1,7 @@
 # RLN 0.13.0-beta.3 Upgrade Tracker
 
-Status: local implementation verified on macOS arm64; source push blocked by
-GitHub workflow authorization. Draft PR, not release approval.
+Status: implementation pushed and verified locally on macOS arm64; GitHub CI
+qualification is in progress. Draft PR, not release approval.
 
 ## Scope
 
@@ -36,7 +36,7 @@ GitHub workflow authorization. Draft PR, not release approval.
 | G5 | Integrator zero-channel report root cause | Unproven: deployed build IDs and server provisioning logs required |
 | G6 | Current app depends on excluded overlay features | Separate adoption gate; do not change app pins |
 | G7 | Candidate publication, promotion and merge | Not authorized by this draft-PR task |
-| G8 | GitHub OAuth credential lacks workflow scope | Blocked: initial tracker is remote, full implementation commits remain local. Existing SSH key also rejected. Do not drop workflow safeguards to bypass authorization |
+| G8 | GitHub OAuth credential lacked workflow scope | Resolved: user refreshed authorization; implementation through 22ce493 pushed successfully on 2026-09-23. Draft #20 contains the implementation and CI has started. No safeguards removed |
 | G9 | Rust type/trait mismatches after sharing Node Cargo target | Isolated build passed unchanged. Use a dedicated cache per package/source checkout; precise Cargo invalidation cause not established |
 | G10 | Full WDK transitive dependency graph requires newer Bare than native-only canary | Packed WDK failed on 1.30.3 because bare-type 1.3.0 requires >=1.32.0, then passed on pinned 1.32.0. Native-only canary still passes on 1.30.3 |
 
