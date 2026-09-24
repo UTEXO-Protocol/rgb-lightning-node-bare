@@ -20,9 +20,9 @@ Draft PR, not release approval. CI applies only to its reported commit.
 | --- | --- | --- |
 | Dedicated upgrade branch | Done | `codex/rln-0.13.0-beta.3` |
 | Released native graph and bounded C-FFI adapter | Implemented | Identical Node adapter and generated header; locked host debug and optimized builds passed |
-| Wrapper types, unsupported capability rejection, exact numbers | Verified locally | 29 JS/installer/root-resolution tests and declarations pass |
+| Wrapper types, unsupported capability rejection, exact numbers | Verified locally | 33 JS/installer/root-resolution/ELF tests and declarations pass |
 | Source install/provenance/artifact workflow | Verified on host | Source, lock, wrapper, ABI and binary checks; clean packed source install passed with isolated cache |
-| Unit/type/lint/package checks | Verified on host | 29 tests, declarations, optimized native canary and packed WDK consumer passed |
+| Unit/type/lint/package checks | Verified on host | 33 tests, declarations, optimized native canary and packed WDK consumer passed |
 | Linked native/runtime conformance | Partial | Debug/optimized macOS arm64 canaries passed; WDK consumer passed on Bare 1.32.0; mobile gates remain |
 | Final diff review | In progress | Raw-handle, conversion and shutdown errors hardened; external maintainer review required |
 | Cross-repository draft PR links | Done | Links below |
