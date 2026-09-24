@@ -21,8 +21,12 @@ function facade (native = {}, overrides = {}) {
   return result
 }
 
-test('unsafe native JSON cannot become an exact wallet balance', () => {
-  assert.throws(() => boundary.parse('{"amount":9007199254740993}'), { code: 'ERR_RLN_UNSAFE_NUMBER' })
+test('native response integers preserve exact digits beyond the safe range', () => {
+  assert.equal(boundary.parse('{"amount":9007199254740993}').amount, '9007199254740993')
+  assert.equal(boundary.parse('{"channel_asset_max_amount":18446744073709551615}').channel_asset_max_amount, '18446744073709551615')
+  assert.equal(boundary.parse('{"short_channel_id":989560465031299073}').short_channel_id, '989560465031299073')
+  assert.deepEqual(boundary.parse('[-9223372036854775808,0,1.25,1e3]'), ['-9223372036854775808', 0, 1.25, 1000])
+  assert.throws(() => boundary.parse('[1e999]'), { code: 'ERR_RLN_UNSAFE_NUMBER' })
   assert.throws(() => boundary.stringify({ amount: Infinity }), { code: 'ERR_RLN_UNSAFE_NUMBER' })
 })
 

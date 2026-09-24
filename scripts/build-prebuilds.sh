@@ -74,6 +74,13 @@ build_target() {
     *) echo "Unsupported target: $TARGET_NAME" >&2; return 1 ;;
   esac
 
+  case "$TARGET_NAME" in
+    android-arm64|android-x64)
+      # NDK r27 requires both flags for LOAD and RELRO alignment on 16 KiB devices.
+      CMAKE_ARGS+=(-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON "-DCMAKE_SHARED_LINKER_FLAGS=-Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384")
+      ;;
+  esac
+
   cmake -B "$BUILD_DIR" -S . "${CMAKE_ARGS[@]}"
   cmake --build "$BUILD_DIR"
 

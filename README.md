@@ -61,8 +61,10 @@ unlock does not accept password or gossip configuration.
 `listTransfers(assetId?, txid?)` supports asset-less and combined queries.
 Unspents expose `utxo.exists`; do not treat missing outputs as spendable.
 
-JSON integer values beyond JavaScript's safe integer range fail explicitly.
-There is no claim of lossless full-u64 numeric JSON support.
+Native response integers outside JavaScript's safe range are exact decimal
+strings; safe integers remain numbers. This preserves released node limits and
+64-bit channel IDs. Unsafe numeric inputs, NaN and infinity still fail before
+native calls. Full-range u64 request inputs are not supported.
 
 ## Excluded Capabilities and Migration
 
@@ -71,11 +73,13 @@ control and VSS namespace deletion are unavailable. Existing named stubs throw
 `ERR_RLN_UNSUPPORTED_CAPABILITY` before native access. Routing fee caps are not
 enforced by this RLN release and are rejected before payment submission.
 
-Existing colored channels and pre-scrypt password-wallet mnemonic records have
-known release compatibility gates. Do not delete/recreate state, bypass refusal,
-or restore stale channel backups after new activity. Use the approved migration
-procedure only after exact old-artifact fixtures have passed; that gate is open.
+The deployment owner confirmed no live wallets; this candidate is fresh-wallet
+only and promises no legacy migration compatibility. Do not delete/recreate state
+to bypass refusal or restore stale channel backups after new activity.
 
-Native mobile runtime, network, migration, VSS-failure and signed APay roundtrip
-qualification remain explicit release gates. The app's current overlay-dependent
-runtime is not compatible with this candidate and must not be repinned blindly.
+Real local transfers and diagnostic Lightning/APay flows are recorded in
+`UPGRADE-TRACKER.md`. Strict outgoing signing and same-process reopen remain
+blockers. VSS is excluded from this qualification. All declared targets build;
+mobile runtime and adverse recovery qualification remain separate. Android 64-bit
+artifacts are checked for 16 KiB LOAD/RELRO alignment, not APK or device behavior.
+The current overlay-dependent app must not be repinned blindly.

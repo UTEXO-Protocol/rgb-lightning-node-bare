@@ -63,12 +63,13 @@
     "test": "npm run test:installer && node ./node_modules/bare-runtime/bin/bare ./test.js"
   },
   "dependencies": {
-    "bare-headers": "1.30.0",
     "bare-fs": "^4.7.1",
+    "bare-headers": "1.30.0",
     "bare-os": "^3.9.0",
     "bare-path": "^3.0.0",
     "cmake-bare": "^1.7.6",
     "cmake-npm": "^1.1.0",
+    "lossless-json": "4.3.1",
     "require-addon": "^1.2.0"
   },
   "devDependencies": {

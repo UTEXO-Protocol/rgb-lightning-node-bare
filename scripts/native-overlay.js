@@ -7,6 +7,7 @@ const path = require('node:path')
 const { spawnSync } = require('node:child_process')
 const releaseContract = require('./release-contract')
 const { verifyRuntimeContract } = require('./runtime-contract')
+const { validateAndroidElf } = require('./android-elf')
 
 const LIBRARY_SYMBOLS = Object.freeze([
   'rln_address',
@@ -535,6 +536,11 @@ function verifyArtifacts (root, targets, symbolReader = inspectSymbols, config) 
           fail(`${kind} artifact for ${target} is missing ${symbol}`)
         }
       }
+    }
+    if (target === 'android-arm64' || target === 'android-x64') {
+      const readobj = androidLlvmTool(resolveAndroidNdk(config), 'llvm-readobj')
+      const output = run(readobj, ['--elf-output-style=JSON', '--program-headers', artifacts.prebuild], { capture: true })
+      validateAndroidElf(output, target)
     }
   }
   if (config) verifyArtifactManifest(root, config, targets)
