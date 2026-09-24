@@ -1,7 +1,8 @@
 # RLN 0.13.0-beta.3 Upgrade Tracker
 
 Status: 2026-09-24 local released-runtime qualification completed within the
-recorded scope, with unresolved strict-signer and same-process reopen blockers.
+recorded scope, with strict-signer, same-process reopen, force-close recovery and
+Android 16-KiB packaging blockers.
 Draft PR, not release approval. CI applies only to its reported commit.
 
 ## Scope
@@ -32,7 +33,7 @@ Draft PR, not release approval. CI applies only to its reported commit.
 | --- | --- | --- |
 | G1 | Existing colored-channel migration | Out of scope: owner confirmed no live wallets on 2026-09-24; fresh wallets only, no migration compatibility promise |
 | G2 | Old password-encrypted mnemonic migration | Out of scope under the same owner decision; no reset or stale-state rollback workaround |
-| G3 | Full desktop/mobile build and runtime target matrix | Optimized build/header/symbol/hash checks pass for all seven declared targets. iOS/Android device/emulator and embedded React Native runtime tests remain unqualified |
+| G3 | Full desktop/mobile build and runtime target matrix | All seven declared artifacts compile/verify. iOS arm64 simulator and Android arm64 4-KiB emulator pass actual RN worklet checks. Android 16-KiB post-link ELF fails and crashes at import. Physical devices excluded, other mobile architectures compile-only |
 | G4 | Controlled two-node/regtest and operator-coordinated LSP asset flow | Real local Node/Bare flows executed; strict outgoing signer and same-process reopen blockers remain. Deployed Signet/mainnet LSP qualification is separate |
 | G5 | Integrator zero-channel report root cause | Unproven: deployed build IDs and server provisioning logs required |
 | G6 | Current app depends on excluded overlay features | Separate adoption gate; do not change app pins |
@@ -51,6 +52,30 @@ virtual-channel trust change, or replacement of an unsupported safety guarantee 
 a weaker implementation.
 
 ## Verification Log
+
+### 2026-09-24 Non-Device Follow-Up
+
+- Added `scripts/check-android-linked.js` and two regressions (33 tests total).
+  The candidate-artifact workflow now checks output after bare-link, not just the
+  input prebuild. Current published tooling fails this gate; it is not waived.
+- Original Android arm64/x64 prebuilds pass 16-KiB checks. bare-link 3.3.0 with
+  bare-lief 0.2.5 or 0.2.8 shifts RELRO incorrectly. The 16-KiB arm64 emulator
+  crashes during native build-info import; the same APK passes on 4-KiB pages.
+  The 0.2.8 arm64 and x64 outputs also fail the post-link check. ZIP alignment
+  alone passed the crashing APK. No ELF/RELRO patch or protection bypass added.
+- Expo 56 / RN 0.85.3 / Bare Kit 0.14.5 (embedded Bare 1.29.4) Release app passes
+  strict real wallet/send, Bare TLS certificate checks, lifecycle, cold restart
+  and teardown on iOS 26.5 simulator and Android API 36 4-KiB emulator. This
+  separate bundled profile does not lower WDK's standalone Bare 1.32 CLI floor.
+- Host Bare strict disk-full, dispatched-send interruption, longer-fork reorg and
+  complete-state cold-copy recovery pass. HODL double-process recovery and BTC
+  mature-output sweep plus re-spend pass under permissive diagnostics only.
+- Strict BTC sweep fails in the released native path. RGB force-close commitment
+  is rejected by Core signature verification on both native bindings, including
+  Node strict mode; the later RGB recovery steps are blocked. Exact component
+  root causes require upstream investigation, not invented package workarounds.
+- See WDK's linked qualification report for all run IDs, failed fixture attempts,
+  scope boundaries and retained private evidence. No physical device was used.
 
 ### 2026-09-24 Local Follow-Up
 

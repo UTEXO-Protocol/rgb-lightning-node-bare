@@ -37,6 +37,17 @@ jobs:
       - name: Desktop runtime canary
         if: matrix.platform == 'darwin-arm64'
         run: node node_modules/bare-runtime/bin/bare test.js
+      - name: Validate Android ELF after production packaging
+        if: matrix.platform == 'android-arm64' || matrix.platform == 'android-x64'
+        env:
+          TARGET: ${{ matrix.platform }}
+        run: |
+          npm install --prefix "$RUNNER_TEMP/android-link" --ignore-scripts --no-audit --no-fund bare-link@3.3.0 bare-lief@0.2.8
+          node "$RUNNER_TEMP/android-link/node_modules/bare-link/bin.js" . --host "$TARGET" --out "$RUNNER_TEMP/linked-android"
+          if [ "$TARGET" = android-arm64 ]; then ABI=arm64-v8a; else ABI=x86_64; fi
+          VERSION=$(node -p 'require("./package.json").version')
+          export LLVM_READOBJ="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-readobj"
+          node scripts/check-android-linked.js "$TARGET" "$RUNNER_TEMP/linked-android/$ABI/libutexo__rgb-lightning-node-bare.$VERSION.so"
       - name: Mobile qualification restriction
         if: matrix.platform != 'darwin-arm64'
         run: echo 'Compile-only. Device/emulator runtime qualification remains a release gate.' >> "$GITHUB_STEP_SUMMARY"

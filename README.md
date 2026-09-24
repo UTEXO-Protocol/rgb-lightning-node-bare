@@ -34,7 +34,10 @@ Keep Cargo target caches separate from Node and other source checkouts. A reused
 Node target caused Rust type/trait mismatches; the identical source passed with
 an isolated Bare target. Prefer the default source-local target directory.
 The complete WDK dependency graph separately requires Bare >=1.32.0; its packed
-desktop canary passed on 1.32.0. That does not qualify a mobile embedded runtime.
+desktop canary passed on 1.32.0. The separately tested Expo 56 / RN 0.85.3 /
+Bare Kit 0.14.5 bundle reports embedded Bare 1.29.4; it passed iOS arm64 simulator
+and Android arm64 4-KiB emulator checks. This does not lower the standalone CLI
+floor or qualify physical devices.
 
 ## Runtime
 
@@ -81,5 +84,21 @@ Real local transfers and diagnostic Lightning/APay flows are recorded in
 `UPGRADE-TRACKER.md`. Strict outgoing signing and same-process reopen remain
 blockers. VSS is excluded from this qualification. All declared targets build;
 mobile runtime and adverse recovery qualification remain separate. Android 64-bit
-artifacts are checked for 16 KiB LOAD/RELRO alignment, not APK or device behavior.
+artifacts are checked for 16 KiB LOAD/RELRO alignment. The input check alone is
+insufficient: bare-link 3.3.0 with bare-lief 0.2.5 or 0.2.8 shifts the linked
+Android library's RELRO end by 4 KiB. A 16-KiB arm64 emulator crashes at native
+import; the 4-KiB emulator passes. Android 16-KiB release remains blocked.
+
+Validate the final linked library as well as the prebuild, with NDK
+`llvm-readobj` on PATH or supplied via `LLVM_READOBJ`:
+
+```sh
+node scripts/check-android-linked.js android-arm64 /absolute/path/to/linked.so
+```
+
+Use `android-x64` for x86_64. Run this after Bare Kit linking and check extracted
+APK libraries too; `zipalign -c -P 16` alone cannot detect this ELF defect. The
+candidate-artifact workflow now fails closed on the post-link check. Do not
+disable RELRO, weaken validation, or describe a compile-only artifact as a mobile
+runtime pass. See the linked WDK qualification report for exact reproduction.
 The current overlay-dependent app must not be repinned blindly.
