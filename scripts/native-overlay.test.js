@@ -26,12 +26,21 @@ function fixtureRoot () {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'utexo-native-overlay-test-'))
 }
 
+test('adapter preserves native blinded receive reservation counts', () => {
+  const config = readOverlayConfig(path.resolve(__dirname, '..'))
+  const patch = fs.readFileSync(config.patchPath, 'utf8')
+  assert.match(patch, /\+\s+pub pending_blinded: u32/)
+  assert.match(patch, /\+\s+pending_blinded: u\.pending_blinded/)
+  assert.match(patch, /pending-blinded-v1/)
+  assert.match(patch, /preserves_pending_blinded_reservations/)
+})
+
 test('package overlay metadata is exact and checksum-pinned', () => {
   const packageRoot = path.resolve(__dirname, '..')
   const config = readOverlayConfig(packageRoot)
 
   assert.equal(config.commit, 'af03c7f1a65135a429f05a5820600338215954dc')
-  assert.equal(config.patchSha256, 'aedd173294d3583b20cce36889c153f8b18aada794e4a7c32f1135266a28df00')
+  assert.equal(config.patchSha256, '4a4272cb616ceb2f21e01677a24fe7b246c233408c22e6a103bd2db1cea30c94')
   assert.equal(config.rustToolchain, '1.94.0')
   assert.equal(config.iosDeploymentTarget, '16.0')
   assert.equal(config.androidNdkVersion, '27.1.12297006')

@@ -5,6 +5,25 @@ recorded scope, with strict-signer, same-process reopen, force-close recovery an
 Android 16-KiB packaging blockers.
 Draft PR, not release approval. CI applies only to its reported commit.
 
+## Reservation Adapter Follow-Up (2026-09-26)
+
+- Preserve released RGB-lib `pending_blinded` through the C-FFI JSON DTO and
+  TypeScript unspent type. Runtime capability: `pending-blinded-v1`.
+- Adapter SHA-256:
+  `4a4272cb616ceb2f21e01677a24fe7b246c233408c22e6a103bd2db1cea30c94`.
+  Identical to the NodeJS adapter; no wallet/signer behavior was patched.
+- Rust conversion regression passed for counts 0, 3 and u32::MAX. Bare installer
+  tests (34), declarations and optimized host native canary passed.
+- Funded WDK fixture `tests/regtest/address-policy.mjs --bare`, run
+  `wdk-rln-address-policy-tDsKgJ`: six checks passed under strict signing,
+  including counts 1/2, witness/setup script isolation and funded addresses after
+  process restart. Offline reopen is not proof of actual unlocked-node teardown.
+- Changed-artifact rebuild: darwin-arm64 and ios-arm64-simulator passed;
+  ios-arm64 is building. Remaining targets and mobile execution are pending.
+- Iris adoption is now in progress on its existing release PR. Qualification
+  gates are maintained in WDK `RELEASE-ADOPTION-TRACKER.md`; do not treat earlier
+  binary-identity results as qualification of this adapter.
+
 ## Scope
 
 - Target RLN `af03c7f1a65135a429f05a5820600338215954dc` (v0.13.0-beta.3).
@@ -18,7 +37,7 @@ Draft PR, not release approval. CI applies only to its reported commit.
 
 | Work | Status | Required Evidence |
 | --- | --- | --- |
-| Dedicated upgrade branch | Done | `codex/rln-0.13.0-beta.3` |
+| Dedicated upgrade branch | Done | `release/rln-0.13.0-beta.3` |
 | Released native graph and bounded C-FFI adapter | Implemented | Identical Node adapter and generated header; locked host debug and optimized builds passed |
 | Wrapper types, unsupported capability rejection, exact numbers | Verified locally | 33 JS/installer/root-resolution/ELF tests and declarations pass |
 | Source install/provenance/artifact workflow | Verified on host | Source, lock, wrapper, ABI and binary checks; clean packed source install passed with isolated cache |
@@ -99,7 +118,7 @@ a weaker implementation.
 - VSS is disabled in this profile; upstream VSS repair is outside this task.
   Existing-wallet migration is excluded by owner decision, not a remaining gate.
 - Full commands, run IDs, limitations and upstream evidence:
-  [WDK qualification](https://github.com/UTEXO-Protocol/wdk-rgb-lightning/blob/codex/rln-0.13.0-beta.3/tests/regtest/QUALIFICATION.md).
+  [WDK qualification](https://github.com/UTEXO-Protocol/wdk-rgb-lightning/blob/release/rln-0.13.0-beta.3/tests/regtest/QUALIFICATION.md).
 
 ### Target And Packaging Results
 
@@ -146,6 +165,6 @@ a weaker implementation.
 
 ## Coordinated Drafts
 
-- [Node #22](https://github.com/UTEXO-Protocol/rgb-lightning-node-nodejs/pull/22)
-- [Bare #20](https://github.com/UTEXO-Protocol/rgb-lightning-node-bare/pull/20)
-- [WDK #43](https://github.com/UTEXO-Protocol/wdk-rgb-lightning/pull/43)
+- [Node #23](https://github.com/UTEXO-Protocol/rgb-lightning-node-nodejs/pull/23)
+- [Bare #21](https://github.com/UTEXO-Protocol/rgb-lightning-node-bare/pull/21)
+- [WDK #44](https://github.com/UTEXO-Protocol/wdk-rgb-lightning/pull/44)
