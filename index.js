@@ -1,8 +1,8 @@
 /**
  * @utexo/rgb-lightning-node-bare — JS façade for the rgb-lightning-node C-FFI.
  *
- * Mirrors the SdkNode UniFFI surface 1:1 (methods that take/return JSON
- * are parsed/stringified at this layer; native always sees strings).
+ * Wraps the released SdkNode C-FFI surface. JSON methods are parsed/stringified
+ * here; compatibility stubs for excluded overlays fail before native access.
  *
  * Two seed-handling modes:
  *
@@ -26,6 +26,16 @@
  */
 
 const binding = require('./binding')
+const { parse, stringify, paymentRequest, unsupported, UnsupportedCapabilityError } = require('./json-boundary')
+const expectedRuntime = require('./runtime-contract.json')
+const runtimeInfo = parse(binding.getRuntimeInfo())
+for (const [key, expected] of Object.entries(expectedRuntime)) {
+  if (runtimeInfo[key] !== expected) throw new Error(`Native artifact identity mismatch: ${key}; rebuild the package`)
+}
+Object.freeze(runtimeInfo.capabilities)
+Object.freeze(runtimeInfo)
+exports.getRuntimeInfo = () => runtimeInfo
+exports.UnsupportedCapabilityError = UnsupportedCapabilityError
 
 // Module-level helpers (no SdkNode handle)
 
@@ -39,7 +49,7 @@ exports.uniffiIsInitialized = function () {
 }
 
 exports.sdkInitialize = function (request) {
-  return binding.sdkInitialize(JSON.stringify(request))
+  return binding.sdkInitialize(stringify(request))
 }
 
 exports.sdkShutdown = function () {
@@ -53,7 +63,7 @@ class SdkNode {
   }
 
   static create (request) {
-    return new SdkNode(binding.sdkNodeNew(JSON.stringify(request)))
+    return new SdkNode(binding.sdkNodeNew(stringify(request)))
   }
 
   // -------- Lifecycle --------
@@ -64,22 +74,15 @@ class SdkNode {
   }
 
   unlock (request) {
-    binding.sdkNodeUnlock(this._handle, JSON.stringify(request))
+    binding.sdkNodeUnlock(this._handle, stringify(request))
   }
 
   shutdown () {
     if (this._closed) return
-    let failure
-    try {
-      binding.sdkNodeShutdown(this._handle)
-    } catch (error) {
-      failure = error
-    } finally {
-      binding.sdkNodeDestroy(this._handle)
-      this._handle = null
-      this._closed = true
-    }
-    if (failure) throw failure
+    binding.sdkNodeShutdown(this._handle)
+    binding.sdkNodeDestroy(this._handle)
+    this._handle = null
+    this._closed = true
   }
 
   /**
@@ -91,7 +94,7 @@ class SdkNode {
    * @param {{ password: string }} request
    */
   vssClearFence (request) {
-    binding.sdkNodeVssClearFence(this._handle, JSON.stringify(request))
+    binding.sdkNodeVssClearFence(this._handle, stringify(request))
   }
 
   /**
@@ -102,19 +105,15 @@ class SdkNode {
    * checkpoints (e.g. "save state before app suspend") rather than
    * relying on the implicit on-write flush.
    *
-   * Backed by upstream `vss_backup()` UniFFI method (PR #50). Requires
-   * the C-FFI patch series at `rgb-lightning-node-bare/patches/` to be
-   * applied before the static lib is built.
+   * Backed by the released `vss_backup()` C-FFI method.
    *
    * @returns {{version: number}}
    */
   vssBackup () {
-    return JSON.parse(binding.sdkNodeVssBackup(this._handle))
+    return parse(binding.sdkNodeVssBackup(this._handle))
   }
 
-  vssDeleteAll (request) {
-    return JSON.parse(binding.sdkNodeVssDeleteAll(this._handle, JSON.stringify(request)))
-  }
+  vssDeleteAll (request) { unsupported('vssDeleteAll') }
 
   /**
    * APay receiver-side registration with an LSP. Pass the LSP's
@@ -126,7 +125,7 @@ class SdkNode {
    * @param {string} hostNodeId
    */
   apayNew (hostNodeId) {
-    return JSON.parse(binding.sdkNodeApayNew(this._handle, hostNodeId))
+    return parse(binding.sdkNodeApayNew(this._handle, hostNodeId))
   }
 
   /**
@@ -140,7 +139,7 @@ class SdkNode {
    * @param {string} domain
    */
   apayNewWithAddress (hostNodeId, username, domain) {
-    return JSON.parse(binding.sdkNodeApayNewWithAddress(
+    return parse(binding.sdkNodeApayNewWithAddress(
       this._handle,
       hostNodeId,
       username,
@@ -186,29 +185,17 @@ class SdkNode {
     binding.sdkNodeUnlockWithNativeExternalSigner(
       this._handle,
       signer._handle,
-      JSON.stringify(request)
+      stringify(request)
     )
   }
 
-  startUnlockWithNativeExternalSigner (signer, request) {
-    return JSON.parse(binding.sdkNodeStartUnlockWithNativeExternalSigner(
-      this._handle,
-      signer._handle,
-      JSON.stringify(request)
-    ))
-  }
+  startUnlockWithNativeExternalSigner (signer, request) { unsupported('startUnlockWithNativeExternalSigner') }
 
-  nativeOperationStatus (operationId) {
-    return JSON.parse(binding.sdkNodeNativeOperationStatus(this._handle, operationId))
-  }
+  nativeOperationStatus (operationId) { unsupported('nativeOperationStatus') }
 
-  adoptNativeOperation (operationId) {
-    return JSON.parse(binding.sdkNodeAdoptNativeOperation(this._handle, operationId))
-  }
+  adoptNativeOperation (operationId) { unsupported('adoptNativeOperation') }
 
-  cancelNativeOperation (operationId) {
-    return JSON.parse(binding.sdkNodeCancelNativeOperation(this._handle, operationId))
-  }
+  cancelNativeOperation (operationId) { unsupported('cancelNativeOperation') }
 
   /**
    * Initialise with a raw bootstrap dictionary. Used when the signer is
@@ -219,7 +206,7 @@ class SdkNode {
    * @param {Object} bootstrap - JsonSdkExternalSignerBootstrap
    */
   initWithExternalSigner (bootstrap) {
-    binding.sdkNodeInitWithExternalSigner(this._handle, JSON.stringify(bootstrap))
+    binding.sdkNodeInitWithExternalSigner(this._handle, stringify(bootstrap))
   }
 
   /** Drop the currently-attached external signer. */
@@ -233,262 +220,234 @@ class SdkNode {
   unlockWithAttachedExternalSigner (request) {
     binding.sdkNodeUnlockWithAttachedExternalSigner(
       this._handle,
-      JSON.stringify(request)
+      stringify(request)
     )
   }
 
   // -------- Node info / network / sync --------
 
-  nodeInfo () { return JSON.parse(binding.nodeInfo(this._handle)) }
-  networkInfo () { return JSON.parse(binding.networkInfo(this._handle)) }
-  sync () { return JSON.parse(binding.sync(this._handle)) }
-  syncWallet (request) {
-    return JSON.parse(binding.syncWallet(this._handle, JSON.stringify(request)))
-  }
-  walletSnapshot (request = {}) {
-    return JSON.parse(binding.walletSnapshot(this._handle, JSON.stringify(request)))
-  }
-  address () { return JSON.parse(binding.address(this._handle)) }
+  nodeInfo () { return parse(binding.nodeInfo(this._handle)) }
+  networkInfo () { return parse(binding.networkInfo(this._handle)) }
+  sync () { return parse(binding.sync(this._handle)) }
+  syncWallet (request) { unsupported('syncWallet') }
+  walletSnapshot (request = {}) { unsupported('walletSnapshot') }
+  address () { return parse(binding.address(this._handle)) }
   getAddress () { return this.address() }
-  rotateAddress () { return JSON.parse(binding.rotateAddress(this._handle)) }
+  rotateAddress () { return parse(binding.rotateAddress(this._handle)) }
 
   // -------- Channels --------
 
   openChannel (request) {
-    return JSON.parse(binding.openChannel(this._handle, JSON.stringify(request)))
+    return parse(binding.openChannel(this._handle, stringify(request)))
   }
   closeChannel (request) {
-    return JSON.parse(binding.closeChannel(this._handle, JSON.stringify(request)))
+    return parse(binding.closeChannel(this._handle, stringify(request)))
   }
   listChannels () {
-    return JSON.parse(binding.listChannels(this._handle))
+    return parse(binding.listChannels(this._handle))
   }
   getChannelId (temporaryChannelIdHex) {
-    return JSON.parse(binding.getChannelId(this._handle, temporaryChannelIdHex))
+    return parse(binding.getChannelId(this._handle, temporaryChannelIdHex))
   }
 
   // -------- Peers --------
 
   connectPeer (peerPubkeyAndAddr) {
-    return JSON.parse(binding.connectPeer(this._handle, peerPubkeyAndAddr))
+    return parse(binding.connectPeer(this._handle, peerPubkeyAndAddr))
   }
   disconnectPeer (request) {
-    return JSON.parse(binding.disconnectPeer(this._handle, JSON.stringify(request)))
+    return parse(binding.disconnectPeer(this._handle, stringify(request)))
   }
   listPeers () {
-    return JSON.parse(binding.listPeers(this._handle))
+    return parse(binding.listPeers(this._handle))
   }
 
   // -------- Invoices (BOLT11 + RGB) --------
 
   lnInvoice (request) {
-    return JSON.parse(binding.lnInvoice(this._handle, JSON.stringify(request)))
+    return parse(binding.lnInvoice(this._handle, stringify(request)))
   }
   decodeLnInvoice (invoice) {
-    return JSON.parse(binding.decodeLnInvoice(this._handle, invoice))
+    return parse(binding.decodeLnInvoice(this._handle, invoice))
   }
   invoiceStatus (invoice) {
-    return JSON.parse(binding.invoiceStatus(this._handle, invoice))
+    return parse(binding.invoiceStatus(this._handle, invoice))
   }
   rgbInvoice (request) {
-    return JSON.parse(binding.rgbInvoice(this._handle, JSON.stringify(request)))
+    return parse(binding.rgbInvoice(this._handle, stringify(request)))
   }
   decodeRgbInvoice (invoice) {
-    return JSON.parse(binding.decodeRgbInvoice(this._handle, invoice))
+    return parse(binding.decodeRgbInvoice(this._handle, invoice))
   }
   cancelHodlInvoice (request) {
-    return JSON.parse(binding.cancelHodlInvoice(this._handle, JSON.stringify(request)))
+    return parse(binding.cancelHodlInvoice(this._handle, stringify(request)))
   }
   claimHodlInvoice (request) {
-    return JSON.parse(binding.claimHodlInvoice(this._handle, JSON.stringify(request)))
+    return parse(binding.claimHodlInvoice(this._handle, stringify(request)))
   }
 
   // -------- Payments --------
 
   sendPayment (request) {
-    return JSON.parse(binding.sendPayment(this._handle, JSON.stringify(request)))
+    return parse(binding.sendPayment(this._handle, paymentRequest(request)))
   }
   keysend (request) {
-    return JSON.parse(binding.keysend(this._handle, JSON.stringify(request)))
+    return parse(binding.keysend(this._handle, stringify(request)))
   }
   listPayments () {
-    return JSON.parse(binding.listPayments(this._handle))
+    return parse(binding.listPayments(this._handle))
   }
   getPayment (paymentHashHex, paymentType) {
-    return JSON.parse(binding.getPayment(this._handle, paymentHashHex, paymentType))
+    return parse(binding.getPayment(this._handle, paymentHashHex, paymentType))
   }
 
   // -------- Swaps (atomic-swap maker/taker) --------
 
   makerInit (request) {
-    return JSON.parse(binding.makerInit(this._handle, JSON.stringify(request)))
+    return parse(binding.makerInit(this._handle, stringify(request)))
   }
   makerExecute (request) {
-    return JSON.parse(binding.makerExecute(this._handle, JSON.stringify(request)))
+    return parse(binding.makerExecute(this._handle, stringify(request)))
   }
   taker (request) {
-    return JSON.parse(binding.taker(this._handle, JSON.stringify(request)))
+    return parse(binding.taker(this._handle, stringify(request)))
   }
   listSwaps () {
-    return JSON.parse(binding.listSwaps(this._handle))
+    return parse(binding.listSwaps(this._handle))
   }
   getSwap (paymentHash, takerFlag) {
-    return JSON.parse(binding.getSwap(this._handle, paymentHash, !!takerFlag))
+    return parse(binding.getSwap(this._handle, paymentHash, !!takerFlag))
   }
 
   // -------- RGB asset issuance + transfers --------
 
   issueAssetNia (request) {
-    return JSON.parse(binding.issueAssetNia(this._handle, JSON.stringify(request)))
+    return parse(binding.issueAssetNia(this._handle, stringify(request)))
   }
   issueAssetUda (request) {
-    return JSON.parse(binding.issueAssetUda(this._handle, JSON.stringify(request)))
+    return parse(binding.issueAssetUda(this._handle, stringify(request)))
   }
   issueAssetCfa (request) {
-    return JSON.parse(binding.issueAssetCfa(this._handle, JSON.stringify(request)))
+    return parse(binding.issueAssetCfa(this._handle, stringify(request)))
   }
   issueAssetIfa (request) {
-    return JSON.parse(binding.issueAssetIfa(this._handle, JSON.stringify(request)))
+    return parse(binding.issueAssetIfa(this._handle, stringify(request)))
   }
 
   listAssets (filterAssetSchemas) {
     // filterAssetSchemas is an array | undefined → JSON-encoded
-    const filter = JSON.stringify(filterAssetSchemas ?? [])
-    return JSON.parse(binding.listAssets(this._handle, filter))
+    const filter = stringify(filterAssetSchemas ?? [])
+    return parse(binding.listAssets(this._handle, filter))
   }
   assetBalance (assetId) {
-    return JSON.parse(binding.assetBalance(this._handle, assetId))
+    return parse(binding.assetBalance(this._handle, assetId))
   }
   assetLinkCreate (request) {
-    return JSON.parse(binding.assetLinkCreate(this._handle, JSON.stringify(request)))
+    return parse(binding.assetLinkCreate(this._handle, stringify(request)))
   }
   assetMetadata (assetId) {
-    return JSON.parse(binding.assetMetadata(this._handle, assetId))
+    return parse(binding.assetMetadata(this._handle, assetId))
   }
 
-  listTransfers (assetId) {
-    return JSON.parse(binding.listTransfers(this._handle, assetId))
+  listTransfers (assetId, txid) {
+    if (assetId && typeof assetId === 'object') {
+      return parse(binding.listTransfers(this._handle, assetId.asset_id ?? null, assetId.txid ?? null))
+    }
+    return parse(binding.listTransfers(this._handle, assetId ?? null, txid ?? null))
   }
   listTransfersByTxid (txid) {
-    return JSON.parse(binding.listTransfersByTxid(this._handle, txid))
+    return parse(binding.listTransfersByTxid(this._handle, txid))
   }
   refreshTransfers (request) {
-    return JSON.parse(binding.refreshTransfers(this._handle, JSON.stringify(request)))
+    return parse(binding.refreshTransfers(this._handle, stringify(request)))
   }
   failTransfers (request) {
-    return JSON.parse(binding.failTransfers(this._handle, JSON.stringify(request)))
+    return parse(binding.failTransfers(this._handle, stringify(request)))
   }
 
   sendRgb (request) {
-    return JSON.parse(binding.sendRgb(this._handle, JSON.stringify(request)))
+    return parse(binding.sendRgb(this._handle, stringify(request)))
   }
 
-  importRgbTransferConsignment (request) {
-    return JSON.parse(binding.importRgbTransferConsignment(this._handle, JSON.stringify(request)))
-  }
+  importRgbTransferConsignment (request) { unsupported('importRgbTransferConsignment') }
 
-  importRgbContract (request) {
-    return JSON.parse(binding.importRgbContract(this._handle, JSON.stringify(request)))
-  }
+  importRgbContract (request) { unsupported('importRgbContract') }
 
-  prepareRgbSend (request) {
-    return JSON.parse(binding.prepareRgbSend(this._handle, JSON.stringify(request)))
-  }
+  prepareRgbSend (request) { unsupported('prepareRgbSend') }
 
-  commitPreparedRgbSend (request) {
-    return JSON.parse(binding.commitPreparedRgbSend(this._handle, JSON.stringify(request)))
-  }
-  cancelRgbSendPlan (request) {
-    return JSON.parse(binding.cancelRgbSendPlan(this._handle, JSON.stringify(request)))
-  }
-  listPendingRgbSendPlans () {
-    return JSON.parse(binding.listPendingRgbSendPlans(this._handle))
-  }
+  commitPreparedRgbSend (request) { unsupported('commitPreparedRgbSend') }
+  cancelRgbSendPlan (request) { unsupported('cancelRgbSendPlan') }
+  listPendingRgbSendPlans () { unsupported('listPendingRgbSendPlans') }
   inflate (request) {
-    return JSON.parse(binding.inflate(this._handle, JSON.stringify(request)))
+    return parse(binding.inflate(this._handle, stringify(request)))
   }
 
   getAssetMedia (digest) {
-    return JSON.parse(binding.getAssetMedia(this._handle, digest))
+    return parse(binding.getAssetMedia(this._handle, digest))
   }
   postAssetMedia (request) {
-    return JSON.parse(binding.postAssetMedia(this._handle, JSON.stringify(request)))
+    return parse(binding.postAssetMedia(this._handle, stringify(request)))
   }
 
   // -------- BTC ops --------
 
   btcBalance (skipSync = false) {
-    return JSON.parse(binding.btcBalance(this._handle, !!skipSync))
+    return parse(binding.btcBalance(this._handle, !!skipSync))
   }
   sendBtc (request) {
-    return JSON.parse(binding.sendBtc(this._handle, JSON.stringify(request)))
+    return parse(binding.sendBtc(this._handle, stringify(request)))
   }
 
-  prepareBtcSend (request) {
-    return JSON.parse(binding.prepareBtcSend(this._handle, JSON.stringify(request)))
-  }
+  prepareBtcSend (request) { unsupported('prepareBtcSend') }
 
-  commitPreparedBtcSend (request) {
-    return JSON.parse(binding.commitPreparedBtcSend(this._handle, JSON.stringify(request)))
-  }
+  commitPreparedBtcSend (request) { unsupported('commitPreparedBtcSend') }
 
-  cancelBtcSendPlan (request) {
-    return JSON.parse(binding.cancelBtcSendPlan(this._handle, JSON.stringify(request)))
-  }
+  cancelBtcSendPlan (request) { unsupported('cancelBtcSendPlan') }
 
-  prepareCreateUtxos (request) {
-    return JSON.parse(binding.prepareCreateUtxos(this._handle, JSON.stringify(request)))
-  }
+  prepareCreateUtxos (request) { unsupported('prepareCreateUtxos') }
 
-  commitPreparedCreateUtxos (request) {
-    return JSON.parse(binding.commitPreparedCreateUtxos(this._handle, JSON.stringify(request)))
-  }
+  commitPreparedCreateUtxos (request) { unsupported('commitPreparedCreateUtxos') }
 
-  cancelCreateUtxosPlan (request) {
-    return JSON.parse(binding.cancelCreateUtxosPlan(this._handle, JSON.stringify(request)))
-  }
+  cancelCreateUtxosPlan (request) { unsupported('cancelCreateUtxosPlan') }
 
-  listPendingVanillaTransactions () {
-    return JSON.parse(binding.listPendingVanillaTransactions(this._handle))
-  }
+  listPendingVanillaTransactions () { unsupported('listPendingVanillaTransactions') }
 
-  listAddressReceipts (address) {
-    return JSON.parse(binding.listAddressReceipts(this._handle, address))
-  }
+  listAddressReceipts (address) { unsupported('listAddressReceipts') }
 
   listTransactions (skipSync = false) {
-    return JSON.parse(binding.listTransactions(this._handle, !!skipSync))
+    return parse(binding.listTransactions(this._handle, !!skipSync))
   }
   listTransactionsByTxid (txid, skipSync = false) {
-    return JSON.parse(binding.listTransactionsByTxid(this._handle, txid, !!skipSync))
+    return parse(binding.listTransactionsByTxid(this._handle, txid, !!skipSync))
   }
   listUnspents (skipSync = false) {
-    return JSON.parse(binding.listUnspents(this._handle, !!skipSync))
+    return parse(binding.listUnspents(this._handle, !!skipSync))
   }
   createUtxos (request) {
-    return JSON.parse(binding.createUtxos(this._handle, JSON.stringify(request)))
+    return parse(binding.createUtxos(this._handle, stringify(request)))
   }
   // blocks: u16 (1..=65535)
   estimateFee (blocks) {
-    return JSON.parse(binding.estimateFee(this._handle, blocks >>> 0))
+    if (!Number.isInteger(blocks) || blocks < 1 || blocks > 0xffff) throw new RangeError('blocks must be a positive u16')
+    return parse(binding.estimateFee(this._handle, blocks))
   }
 
   // -------- Onion / signing / diagnostics --------
 
   sendOnionMessage (request) {
-    return JSON.parse(binding.sendOnionMessage(this._handle, JSON.stringify(request)))
+    return parse(binding.sendOnionMessage(this._handle, stringify(request)))
   }
   signMessage (message) {
-    return JSON.parse(binding.signMessage(this._handle, message))
+    return parse(binding.signMessage(this._handle, message))
   }
   verifyMessage (message, signature) {
-    return JSON.parse(binding.verifyMessage(this._handle, message, signature))
+    return parse(binding.verifyMessage(this._handle, message, signature))
   }
   checkIndexerUrl (indexerUrl) {
-    return JSON.parse(binding.checkIndexerUrl(this._handle, indexerUrl))
+    return parse(binding.checkIndexerUrl(this._handle, indexerUrl))
   }
   checkProxyEndpoint (proxyEndpoint) {
-    return JSON.parse(binding.checkProxyEndpoint(this._handle, proxyEndpoint))
+    return parse(binding.checkProxyEndpoint(this._handle, proxyEndpoint))
   }
 }
 
@@ -521,14 +480,15 @@ class NativeExternalSigner {
   /**
    * @param {string} seedHex - 64-char hex string (32-byte BIP-32 entropy)
    * @param {string} network - "mainnet" | "testnet" | "testnet4" | "signet" | "regtest"
-   * @param {boolean} [permissivePolicy=true] - VLS policy filter; pass
+   * @param {boolean} [permissivePolicy=false] - VLS policy filter; pass
    *   `false` to enforce the full simple policy. Defaults to permissive
    *   for in-process use, mirroring RLN's `NativeExternalSigner::new`
    *   default of `Some(true)`.
    * @returns {NativeExternalSigner}
    */
-  static create (seedHex, network, permissivePolicy = true) {
-    if (typeof seedHex !== 'string' || seedHex.length !== 64) {
+  static create (seedHex, network, permissivePolicy = false) {
+    if (typeof permissivePolicy !== 'boolean') throw new TypeError('permissivePolicy must be boolean')
+    if (typeof seedHex !== 'string' || !/^[0-9a-fA-F]{64}$/.test(seedHex)) {
       throw new Error('NativeExternalSigner.create: seedHex must be a 64-char hex string')
     }
     return new NativeExternalSigner(
@@ -548,7 +508,8 @@ class NativeExternalSigner {
    * @returns {NativeExternalSigner}
    */
   static createWithStorage (seedHex, network, storageDirPath, permissivePolicy = false) {
-    if (typeof seedHex !== 'string' || seedHex.length !== 64) {
+    if (typeof permissivePolicy !== 'boolean') throw new TypeError('permissivePolicy must be boolean')
+    if (typeof seedHex !== 'string' || !/^[0-9a-fA-F]{64}$/.test(seedHex)) {
       throw new Error('NativeExternalSigner.createWithStorage: seedHex must be a 64-char hex string')
     }
     if (typeof storageDirPath !== 'string' || storageDirPath.length === 0) {
@@ -571,7 +532,7 @@ class NativeExternalSigner {
    */
   bootstrap () {
     if (this._destroyed) throw new Error('NativeExternalSigner already destroyed')
-    return JSON.parse(binding.nativeExternalSignerBootstrap(this._handle))
+    return parse(binding.nativeExternalSignerBootstrap(this._handle))
   }
 
   // Eager drop. The GC destructor remains as an idempotent fallback.

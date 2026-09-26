@@ -33,8 +33,8 @@ build_target() {
   local BUILD_DIR="build-prebuild-$TARGET_NAME"
 
   if [ ! -f "lib/$TARGET_NAME/librlncffi.a" ]; then
-    echo "  ↷ skipping $TARGET_NAME (no static lib)"
-    return 0
+    echo "Missing required static library for $TARGET_NAME" >&2
+    return 1
   fi
 
   echo ""
@@ -71,12 +71,18 @@ build_target() {
       CMAKE_ARGS+=(-DCMAKE_TOOLCHAIN_FILE="$ANDROID_TOOLCHAIN" -DANDROID_ABI=armeabi-v7a -DANDROID_PLATFORM="android-$ANDROID_API_LEVEL") ;;
     android-x64)
       CMAKE_ARGS+=(-DCMAKE_TOOLCHAIN_FILE="$ANDROID_TOOLCHAIN" -DANDROID_ABI=x86_64 -DANDROID_PLATFORM="android-$ANDROID_API_LEVEL") ;;
-    android-ia32)
-      CMAKE_ARGS+=(-DCMAKE_TOOLCHAIN_FILE="$ANDROID_TOOLCHAIN" -DANDROID_ABI=x86 -DANDROID_PLATFORM="android-$ANDROID_API_LEVEL") ;;
+    *) echo "Unsupported target: $TARGET_NAME" >&2; return 1 ;;
   esac
 
-  cmake -B "$BUILD_DIR" -S . "${CMAKE_ARGS[@]}" 2>&1 | tail -5
-  cmake --build "$BUILD_DIR" 2>&1 | tail -10
+  case "$TARGET_NAME" in
+    android-arm64|android-x64)
+      # NDK r27 requires both flags for LOAD and RELRO alignment on 16 KiB devices.
+      CMAKE_ARGS+=(-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON "-DCMAKE_SHARED_LINKER_FLAGS=-Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384")
+      ;;
+  esac
+
+  cmake -B "$BUILD_DIR" -S . "${CMAKE_ARGS[@]}"
+  cmake --build "$BUILD_DIR"
 
   BARE_FILE=$(find "$BUILD_DIR" -name "*.bare" -type f | head -1)
 
@@ -112,8 +118,8 @@ build_target() {
 if [ $# -ge 1 ]; then
   build_target "$1"
 else
-  for target in darwin-arm64 darwin-x64 ios-arm64 ios-arm64-simulator ios-x64-simulator \
-                android-arm64 android-arm android-x64 android-ia32; do
+  for target in darwin-arm64 ios-arm64 ios-arm64-simulator ios-x64-simulator \
+                android-arm64 android-arm android-x64; do
     build_target "$target"
   done
 fi

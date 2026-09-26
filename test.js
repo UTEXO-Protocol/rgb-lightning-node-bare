@@ -1,193 +1,43 @@
-/**
- * Canary 1 smoke test. Run with: bare test.js
- *
- * 1. Calls uniffiHealthcheck() and uniffiIsInitialized() — exercises the
- *    extern "C" boundary without standing up a node.
- * 2. Creates an SdkNode against a temp dir and shuts it down — exercises
- *    NodeHandle::new + the tokio runtime + clean shutdown.
- * 3. Builds a NativeExternalSigner, reads its bootstrap, initialises a
- *    fresh SdkNode against it, then shuts the node down — proves the
- *    external-signer boundary (VLS in-process signer + Arc handoff)
- *    works through the C-FFI on bare.
- */
+'use strict'
 
+const assert = {
+  equal (a, b) { if (a !== b) throw new Error('Values differ: ' + a + ' != ' + b) },
+  ok (value) { if (!value) throw new Error('Expected truthy value') },
+  match (value, pattern) { if (!pattern.test(value)) throw new Error('Pattern mismatch') },
+  deepEqual (a, b) { this.equal(JSON.stringify(a), JSON.stringify(b)) },
+  throws (fn, expected) {
+    let caught
+    try { fn() } catch (error) { caught = error }
+    if (!caught) throw new Error('Expected failure')
+    if (expected instanceof RegExp && !expected.test(caught.message)) throw caught
+    if (expected?.code && expected.code !== caught.code) throw caught
+  }
+}
 const fs = require('bare-fs')
 const os = require('bare-os')
 const path = require('bare-path')
+const { NativeExternalSigner, SdkNode, getRuntimeInfo } = require('./index')
+const expected = require('./runtime-contract.json')
+const info = getRuntimeInfo()
+assert.equal(info.rln_commit, expected.rln_commit)
+assert.equal(info.adapter_sha256, expected.adapter_sha256)
+assert.equal(info.wrapper_sha256, expected.wrapper_sha256)
+assert.equal(info.lock_sha256, expected.lock_sha256)
+assert.ok(info.capabilities.includes('persistent-native-signer'))
 
-const {
-  uniffiHealthcheck,
-  uniffiIsInitialized,
-  SdkNode,
-  NativeExternalSigner
-} = require('./index')
-
-function fail (msg) {
-  console.error('✗', msg)
-  process.exit(1)
-}
-
-console.log('=== Canary 1: rgb-lightning-node-bare smoke test ===')
-
-// ─── Step 1: extern "C" boundary ──────────────────────────────────────────
-const hc = uniffiHealthcheck()
-console.log('healthcheck:', hc)
-if (hc !== 'rgb_lightning_node_uniffi_ready') fail('unexpected healthcheck output')
-
-const initialised = uniffiIsInitialized()
-console.log('isInitialized:', initialised)
-if (typeof initialised !== 'boolean') fail('isInitialized should return bool')
-
-// ─── Step 2: spin up an SdkNode (tokio + LDK boot) ────────────────────────
-const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rln-canary-'))
-console.log('dataDir:', dataDir)
-
-let node
-try {
-  node = SdkNode.create({
-    storage_dir_path: dataDir,
-    daemon_listening_port: 0,        // 0 = let OS pick (we don't unlock here)
-    ldk_peer_listening_port: 0,
-    network: 'regtest',
-    max_media_upload_size_mb: 5,
-    enable_virtual_channels_v0: false,
-    reuse_addresses: true
-  })
-  for (const method of [
-    'rotateAddress',
-    'assetLinkCreate',
-    'listTransactions',
-    'listTransfers',
-    'syncWallet',
-    'walletSnapshot',
-    'prepareBtcSend',
-    'commitPreparedBtcSend',
-    'cancelBtcSendPlan',
-    'prepareCreateUtxos',
-    'commitPreparedCreateUtxos',
-    'cancelCreateUtxosPlan',
-    'listPendingVanillaTransactions',
-    'listAddressReceipts',
-    'prepareRgbSend',
-    'commitPreparedRgbSend',
-    'cancelRgbSendPlan',
-    'listPendingRgbSendPlans',
-    'listTransactionsByTxid',
-    'listTransfersByTxid',
-    'importRgbTransferConsignment',
-    'importRgbContract',
-    'apayNew',
-    'apayNewWithAddress',
-    'verifyMessage'
-  ]) {
-    if (typeof node[method] !== 'function') fail(`SdkNode.${method} is missing`)
-  }
-
-  let lockedApayError
-  try {
-    node.apayNewWithAddress('02'.repeat(33), 'canary', 'example.com')
-  } catch (error) {
-    lockedApayError = error
-  }
-  if (!String(lockedApayError && lockedApayError.message
-    ? lockedApayError.message
-    : lockedApayError).includes('NotInitialized')) {
-    fail(`address-attested APay did not reach the locked native node: ${lockedApayError}`)
-  }
-
-  let invalidSyncRequest
-  try {
-    node.syncWallet({ mode: 'routine', typo: true })
-  } catch (error) {
-    invalidSyncRequest = error
-  }
-  if (!String(invalidSyncRequest && invalidSyncRequest.message
-    ? invalidSyncRequest.message
-    : invalidSyncRequest).includes('unknown field')) {
-    fail(`syncWallet accepted an unknown request field: ${invalidSyncRequest}`)
-  }
-
-  let invalidSnapshotLimit
-  try {
-    node.walletSnapshot({ max_assets: 0 })
-  } catch (error) {
-    invalidSnapshotLimit = error
-  }
-  if (!String(invalidSnapshotLimit && invalidSnapshotLimit.message
-    ? invalidSnapshotLimit.message
-    : invalidSnapshotLimit).includes('max_assets')) {
-    fail(`walletSnapshot accepted max_assets=0: ${invalidSnapshotLimit}`)
-  }
-  console.log('✓ SdkNode created')
-} catch (e) {
-  fail(`SdkNode.create threw: ${e.message}`)
-}
-
-try {
-  node.shutdown()
-  console.log('✓ SdkNode shutdown clean')
-} catch (e) {
-  fail(`shutdown threw: ${e.message}`)
-}
-
-let closedNodeError
-try {
-  node.nativeOperationStatus('closed-node-canary')
-} catch (error) {
-  closedNodeError = error
-}
-const closedNodeMessage = String(closedNodeError && closedNodeError.message
-  ? closedNodeError.message
-  : closedNodeError)
-if (
-  !closedNodeMessage.includes('node handle is unavailable') &&
-  !closedNodeMessage.includes('node is already closed')
-) {
-  fail(`closed SdkNode call did not fail safely: ${closedNodeError}`)
-}
-console.log('✓ closed SdkNode calls fail safely')
-
-// ─── Step 3: external-signer boundary ─────────────────────────────────────
-// A throwaway 32-byte seed (all-zero is rejected by some VLS validators, so
-// use a deterministic non-zero pattern instead).
-const SEED_HEX = '01'.repeat(32)
+const root = fs.mkdtempSync(path.join(os.tmpdir(), 'rln-bare-release-canary-'))
+const signerDir = path.join(root, 'signer')
+const nodeDir = path.join(root, 'node')
 let signer
-let signerDataDir
-try {
-  signerDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rln-canary-vls-'))
-  signer = NativeExternalSigner.createWithStorage(
-    SEED_HEX,
-    'regtest',
-    signerDataDir,
-    true
-  )
-  console.log('✓ persistent NativeExternalSigner created')
-} catch (e) {
-  fail(`NativeExternalSigner.createWithStorage threw: ${e.message}`)
-}
-
+let node
 let bootstrap
 try {
+  // Public deterministic fixture seed: this wallet must never be funded.
+  signer = NativeExternalSigner.createWithStorage('01'.repeat(32), 'regtest', signerDir)
   bootstrap = signer.bootstrap()
-  console.log('✓ bootstrap()',
-    `node_id=${bootstrap.node_id.slice(0, 16)}…`,
-    `xpub_van=${bootstrap.account_xpub_vanilla.slice(0, 16)}…`,
-    `api_level=${bootstrap.api_level}`)
-  for (const key of [
-    'node_id', 'account_xpub_vanilla', 'account_xpub_colored',
-    'master_fingerprint', 'protocol_version', 'api_level'
-  ]) {
-    if (bootstrap[key] === undefined) fail(`bootstrap missing field: ${key}`)
-  }
-} catch (e) {
-  fail(`bootstrap() threw: ${e.message}`)
-}
-
-const dataDir2 = fs.mkdtempSync(path.join(os.tmpdir(), 'rln-canary-signer-'))
-let node2
-try {
-  node2 = SdkNode.create({
-    storage_dir_path: dataDir2,
+  assert.match(bootstrap.node_id, /^(02|03)[a-f0-9]{64}$/)
+  node = SdkNode.create({
+    storage_dir_path: nodeDir,
     daemon_listening_port: 0,
     ldk_peer_listening_port: 0,
     network: 'regtest',
@@ -195,68 +45,44 @@ try {
     enable_virtual_channels_v0: false,
     reuse_addresses: true
   })
-  console.log('✓ SdkNode created for signer canary')
-} catch (e) {
-  fail(`SdkNode.create (signer canary) threw: ${e.message}`)
-}
-
-try {
-  node2.initWithNativeExternalSigner(signer)
-  console.log('✓ initWithNativeExternalSigner — key source written to disk')
-} catch (e) {
-  fail(`initWithNativeExternalSigner threw: ${e.message}`)
-}
-
-try {
-  const wrongSigner = NativeExternalSigner.create('02'.repeat(32), 'regtest')
-  let mismatch
-  try {
-    node2.unlockWithNativeExternalSigner(wrongSigner, {})
-  } catch (error) {
-    mismatch = error
-  } finally {
-    wrongSigner.destroy()
+  assert.throws(() => node.apayNewWithAddress('02'.repeat(33), 'canary', 'example.com'), /NotInitialized/)
+  for (const method of ['syncWallet', 'walletSnapshot', 'prepareBtcSend', 'vssDeleteAll']) {
+    assert.throws(() => node[method]({}), { code: 'ERR_RLN_UNSUPPORTED_CAPABILITY' })
   }
-  if (!String(mismatch && mismatch.message ? mismatch.message : mismatch).includes('Rln(ExternalSignerMismatch)')) {
-    fail(`unexpected signer mismatch error: ${mismatch}`)
+  const raw = require('./binding')
+  for (const invalid of [undefined, null, {}, 1, 'node']) {
+    assert.throws(() => raw.nodeInfo(invalid))
+    assert.throws(() => raw.nativeExternalSignerDestroy(invalid))
   }
-  console.log('✓ signer mismatch retains the typed C-FFI error tag')
-} catch (e) {
-  fail(`signer mismatch check threw: ${e.message}`)
-}
-
-try {
-  const result = node2.verifyMessage(
-    'is this compatible?',
-    'rbgfioj114mh48d8egqx8o9qxqw4fmhe8jbeeabdioxnjk8z3t1ma1hu1fiswpakgucwwzwo6ofycffbsqusqdimugbh41n1g698hr9t'
-  )
-  if (!result || typeof result.valid !== 'boolean') {
-    fail('verifyMessage should return { valid: boolean }')
+  assert.throws(() => raw.nodeInfo(signer._handle))
+  assert.throws(() => raw.nativeExternalSignerBootstrap(node._handle))
+  assert.throws(() => raw.nativeExternalSignerDestroy(node._handle))
+  assert.throws(() => raw.sdkNodeDestroy(signer._handle))
+  assert.throws(() => raw.nativeExternalSignerNew('01'.repeat(32), 'regtest', 'false'))
+  assert.throws(() => raw.signMessage(node._handle, 42))
+  assert.throws(() => raw.signMessage(node._handle, 'bad\\0value'))
+  assert.throws(() => raw.btcBalance(node._handle, 0))
+  for (const value of [-1, 0, 65536, 1.5, NaN, Infinity, '1']) {
+    assert.throws(() => raw.estimateFee(node._handle, value))
   }
-  console.log('✓ verifyMessage works while the external-signer node is locked')
-} catch (e) {
-  fail(`verifyMessage threw: ${e.message}`)
-}
-
-try {
-  node2.shutdown()
-  console.log('✓ signer canary SdkNode shutdown clean')
-} catch (e) {
-  fail(`signer canary shutdown threw: ${e.message}`)
-}
-
-try {
+  node.initWithNativeExternalSigner(signer)
+  assert.throws(() => node.unlockWithNativeExternalSigner(signer, {}), /ldk_chain_sync/)
+  assert.throws(() => node.sendPayment({ invoice: 'unused', max_total_routing_fee_msat: 0 }), {
+    code: 'ERR_RLN_UNSUPPORTED_CAPABILITY'
+  })
+  node.shutdown()
+  node.shutdown()
+  node = undefined
   signer.destroy()
-  const reopenedSigner = NativeExternalSigner.createWithStorage(
-    SEED_HEX,
-    'regtest',
-    signerDataDir,
-    true
-  )
-  reopenedSigner.destroy()
-  console.log('✓ explicit cleanup releases the persistent signer database')
-} catch (e) {
-  fail(`persistent signer reopen after cleanup threw: ${e.message}`)
+  signer.destroy()
+  assert.throws(() => signer.bootstrap(), /destroyed/)
+  signer = NativeExternalSigner.createWithStorage('01'.repeat(32), 'regtest', signerDir)
+  assert.deepEqual(signer.bootstrap(), bootstrap)
+  assert.equal(fs.statSync(signerDir).mode & 0o777, 0o700)
+  assert.throws(() => NativeExternalSigner.create('01'.repeat(32), 'mainnet', true))
+} finally {
+  if (node) node.shutdown()
+  if (signer) signer.destroy()
+  fs.rmSync(root, { recursive: true, force: true })
 }
-
-console.log('\n✅ Canary 1 PASSED — bare ↔ C-FFI ↔ tokio ↔ LDK boot + external signer OK')
+console.log('Native identity, offline init, errors, disposal and persistent signer reopen passed.')

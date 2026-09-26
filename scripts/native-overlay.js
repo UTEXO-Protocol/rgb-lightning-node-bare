@@ -5,32 +5,88 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const { spawnSync } = require('node:child_process')
+const releaseContract = require('./release-contract')
+const { verifyRuntimeContract } = require('./runtime-contract')
+const { validateAndroidElf } = require('./android-elf')
 
 const LIBRARY_SYMBOLS = Object.freeze([
-  'rln_cancel_btc_send_plan',
-  'rln_cancel_create_utxos_plan',
-  'rln_cancel_rgb_send_plan',
-  'rln_commit_prepared_btc_send',
-  'rln_commit_prepared_create_utxos',
-  'rln_commit_prepared_rgb_send',
-  'rln_import_rgb_transfer_consignment',
-  'rln_import_rgb_contract',
-  'rln_list_address_receipts',
-  'rln_list_pending_rgb_send_plans',
-  'rln_list_pending_vanilla_transactions',
+  'rln_address',
+  'rln_asset_balance',
+  'rln_asset_link_create',
+  'rln_asset_metadata',
+  'rln_binding_build_info',
+  'rln_btc_balance',
+  'rln_cancel_hodl_invoice',
+  'rln_check_indexer_url',
+  'rln_check_proxy_endpoint',
+  'rln_claim_hodl_invoice',
+  'rln_close_channel',
+  'rln_connect_peer',
+  'rln_create_utxos',
+  'rln_decode_ln_invoice',
+  'rln_decode_rgb_invoice',
+  'rln_disconnect_peer',
+  'rln_estimate_fee',
+  'rln_fail_transfers',
+  'rln_free_string',
+  'rln_get_asset_media',
+  'rln_get_channel_id',
+  'rln_get_payment',
+  'rln_get_swap',
+  'rln_inflate',
+  'rln_invoice_status',
+  'rln_issue_asset_cfa',
+  'rln_issue_asset_ifa',
+  'rln_issue_asset_nia',
+  'rln_issue_asset_uda',
+  'rln_keysend',
+  'rln_list_assets',
+  'rln_list_channels',
+  'rln_list_payments',
+  'rln_list_peers',
+  'rln_list_swaps',
+  'rln_list_transactions',
+  'rln_list_transfers',
+  'rln_list_unspents',
+  'rln_ln_invoice',
+  'rln_maker_execute',
+  'rln_maker_init',
+  'rln_native_external_signer_bootstrap',
+  'rln_native_external_signer_new',
   'rln_native_external_signer_new_with_storage',
-  'rln_prepare_btc_send',
-  'rln_prepare_create_utxos',
-  'rln_prepare_rgb_send',
-  'rln_send_payment',
-  'rln_sdk_node_adopt_native_operation',
+  'rln_network_info',
+  'rln_node_info',
+  'rln_open_channel',
+  'rln_post_asset_media',
+  'rln_refresh_transfers',
+  'rln_rgb_invoice',
+  'rln_rotate_address',
+  'rln_sdk_initialize',
+  'rln_sdk_node_apay_new',
   'rln_sdk_node_apay_new_with_address',
-  'rln_sdk_node_cancel_native_operation',
-  'rln_sdk_node_native_operation_status',
-  'rln_sdk_node_start_unlock_with_native_external_signer',
-  'rln_sdk_node_vss_delete_all',
-  'rln_sync_wallet',
-  'rln_wallet_snapshot'
+  'rln_sdk_node_attach_native_external_signer',
+  'rln_sdk_node_detach_external_signer',
+  'rln_sdk_node_init',
+  'rln_sdk_node_init_with_external_signer',
+  'rln_sdk_node_init_with_native_external_signer',
+  'rln_sdk_node_new',
+  'rln_sdk_node_shutdown',
+  'rln_sdk_node_unlock',
+  'rln_sdk_node_unlock_with_attached_external_signer',
+  'rln_sdk_node_unlock_with_native_external_signer',
+  'rln_sdk_node_vss_backup',
+  'rln_sdk_node_vss_clear_fence',
+  'rln_sdk_shutdown',
+  'rln_send_btc',
+  'rln_send_onion_message',
+  'rln_send_payment',
+  'rln_send_rgb',
+  'rln_sign_message',
+  'rln_sync',
+  'rln_taker',
+  'rln_uniffi_healthcheck',
+  'rln_uniffi_is_initialized',
+  'rln_verify_message'
 ])
 
 const PREBUILD_SYMBOLS = Object.freeze([
@@ -159,13 +215,18 @@ function overlayIdentity (config) {
     repository: config.repository,
     ref: config.ref,
     commit: config.commit,
+    lightningCommit: config.lightningCommit,
     patchSha256: config.patchSha256,
+    cffiLockSha256: config.cffiLockSha256,
+    wrapperSha256: config.wrapperSha256,
     rustToolchain: config.rustToolchain,
+    buildProfile: config.buildProfile,
     iosDeploymentTarget: config.iosDeploymentTarget,
     androidNdkVersion: config.androidNdkVersion,
     androidApiLevel: config.androidApiLevel,
     cargoNdkVersion: config.cargoNdkVersion,
     bindgenCliVersion: config.bindgenCliVersion,
+    bareHeadersVersion: config.bareHeadersVersion,
     targets: [...config.targets]
   })
 }
@@ -276,7 +337,10 @@ function readOverlayConfig (packageRoot) {
     fail('native overlay patch checksum does not match package metadata')
   }
 
-  return Object.freeze({ ...config, patchPath, targets: Object.freeze(targets) })
+  releaseContract.validateAdapter({ ...config, patchPath })
+  const runtime = verifyRuntimeContract(packageRoot, config)
+  return Object.freeze({ ...config, patchPath, wrapperSha256: runtime.wrapper_sha256,
+    buildProfile: process.env.RLN_BARE_DEBUG === '1' ? 'debug' : 'release', targets: Object.freeze(targets) })
 }
 
 function artifactPaths (root, target) {
@@ -379,11 +443,14 @@ function inspectSymbols (filePath, target, config) {
   const args = isAndroid
     ? ['-g', '--defined-only', '--just-symbol-name', filePath]
     : ['-gjU', filePath]
-  const result = spawnSync(command, args, {
+  const worker = spawnSync(process.execPath, [path.join(__dirname, 'inspect-symbols.js'), command, JSON.stringify(args)], {
     encoding: 'utf8',
-    maxBuffer: 64 * 1024 * 1024,
+    maxBuffer: 2 * 1024 * 1024,
     stdio: 'pipe'
   })
+  if (worker.error) throw worker.error
+  if (worker.status !== 0) fail('symbol inspection worker failed')
+  const result = JSON.parse(worker.stdout)
   return normalizedSymbols(validatedNmOutput(result))
 }
 
@@ -470,6 +537,11 @@ function verifyArtifacts (root, targets, symbolReader = inspectSymbols, config) 
         }
       }
     }
+    if (target === 'android-arm64' || target === 'android-x64') {
+      const readobj = androidLlvmTool(resolveAndroidNdk(config), 'llvm-readobj')
+      const output = run(readobj, ['--elf-output-style=JSON', '--program-headers', artifacts.prebuild], { capture: true })
+      validateAndroidElf(output, target)
+    }
   }
   if (config) verifyArtifactManifest(root, config, targets)
 }
@@ -492,20 +564,7 @@ function exactHead (sourceRoot) {
 }
 
 function applyOverlay (sourceRoot, config) {
-  if (exactHead(sourceRoot) !== config.commit) {
-    fail(`native source must resolve to ${config.commit}`)
-  }
-
-  const forward = runProbe('git', ['-C', sourceRoot, 'apply', '--check', config.patchPath])
-  if (forward.status === 0) {
-    run('git', ['-C', sourceRoot, 'apply', config.patchPath])
-    return
-  }
-
-  const reverse = runProbe('git', ['-C', sourceRoot, 'apply', '--reverse', '--check', config.patchPath])
-  if (reverse.status !== 0) {
-    fail('native source is neither pristine nor an exact application of the configured overlay')
-  }
+  releaseContract.prepareSource(sourceRoot, config)
 }
 
 function cloneSource (config) {
@@ -548,11 +607,15 @@ function ensureCargoTool (command, args, packageName, expectedVersion) {
 function buildArtifacts (packageRoot, sourceRoot, config, targets) {
   assertSupportedBuildHost(config, process.platform, targets)
   const cffiDir = path.join(sourceRoot, 'bindings', 'c-ffi')
+  releaseContract.verifyCargoGraph(path.join(cffiDir, 'Cargo.toml'), sourceRoot)
   const environment = {
     ...process.env,
     CFFI_DIR: cffiDir,
     IPHONEOS_DEPLOYMENT_TARGET: config.iosDeploymentTarget,
-    RUSTUP_TOOLCHAIN: config.rustToolchain
+    RUSTUP_TOOLCHAIN: config.rustToolchain,
+    RLN_ADAPTER_SHA256: config.patchSha256,
+    RLN_WRAPPER_SHA256: config.wrapperSha256,
+    RLN_LOCK_SHA256: config.cffiLockSha256
   }
   const scriptsRoot = path.join(packageRoot, 'scripts')
   const hasAndroid = targets.some((target) => target.startsWith('android-'))
@@ -594,6 +657,10 @@ function buildArtifacts (packageRoot, sourceRoot, config, targets) {
       cwd: packageRoot,
       env: environment
     })
+  }
+  const builtIdentity = verifyRuntimeContract(packageRoot, config)
+  if (builtIdentity.wrapper_sha256 !== config.wrapperSha256) {
+    fail('wrapper changed during native build; refusing to stamp artifacts')
   }
   writeArtifactManifest(packageRoot, config, targets)
 }

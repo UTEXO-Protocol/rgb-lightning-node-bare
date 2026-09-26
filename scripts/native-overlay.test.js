@@ -26,19 +26,29 @@ function fixtureRoot () {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'utexo-native-overlay-test-'))
 }
 
+test('adapter preserves native blinded receive reservation counts', () => {
+  const config = readOverlayConfig(path.resolve(__dirname, '..'))
+  const patch = fs.readFileSync(config.patchPath, 'utf8')
+  assert.match(patch, /\+\s+pub pending_blinded: u32/)
+  assert.match(patch, /\+\s+pending_blinded: u\.pending_blinded/)
+  assert.match(patch, /pending-blinded-v1/)
+  assert.match(patch, /preserves_pending_blinded_reservations/)
+})
+
 test('package overlay metadata is exact and checksum-pinned', () => {
   const packageRoot = path.resolve(__dirname, '..')
   const config = readOverlayConfig(packageRoot)
 
-  assert.equal(config.commit, 'f30a5393268de67c6bb5a1c525bc790c5b11afa2')
-  assert.equal(config.patchSha256, 'd0b6d4b057edd675e3d4385f2243b266020feeb1bee7714e7625e2f7bc0c945c')
-  assert.equal(config.rustToolchain, '1.88.0')
+  assert.equal(config.commit, 'af03c7f1a65135a429f05a5820600338215954dc')
+  assert.equal(config.patchSha256, '4a4272cb616ceb2f21e01677a24fe7b246c233408c22e6a103bd2db1cea30c94')
+  assert.equal(config.rustToolchain, '1.94.0')
   assert.equal(config.iosDeploymentTarget, '16.0')
   assert.equal(config.androidNdkVersion, '27.1.12297006')
   assert.equal(config.androidApiLevel, 29)
   assert.equal(config.cargoNdkVersion, '4.1.2')
   assert.equal(config.bindgenCliVersion, '0.72.1')
   assert.deepEqual(config.targets, [
+    'darwin-arm64',
     'ios-arm64',
     'ios-arm64-simulator',
     'ios-x64-simulator',
@@ -48,20 +58,11 @@ test('package overlay metadata is exact and checksum-pinned', () => {
   ])
 })
 
-test('overlay contains the complete native operation registry source', () => {
-  const packageRoot = path.resolve(__dirname, '..')
-  const config = readOverlayConfig(packageRoot)
-  const patch = fs.readFileSync(config.patchPath, 'utf8')
-
-  assert.match(
-    patch,
-    /diff --git a\/bindings\/c-ffi\/src\/native_operations\.rs b\/bindings\/c-ffi\/src\/native_operations\.rs/
-  )
-  assert.match(patch, /new file mode 100644/)
-  assert.match(patch, /pub\(crate\) fn start_unlock\(/)
-  assert.match(patch, /pub\(crate\) fn status\(/)
-  assert.match(patch, /pub\(crate\) fn adopt\(/)
-  assert.match(patch, /pub\(crate\) fn cancel\(/)
+test('unsupported operation symbols are absent from this release adapter', () => {
+  const patch = fs.readFileSync(readOverlayConfig(path.resolve(__dirname, '..')).patchPath, 'utf8')
+  assert.doesNotMatch(patch, /native_operations\.rs|rln_wallet_snapshot|rln_prepare_btc_send/)
+  assert.ok(!LIBRARY_SYMBOLS.includes('rln_wallet_snapshot'))
+  assert.ok(LIBRARY_SYMBOLS.includes('rln_binding_build_info'))
 })
 
 test('overlay exposes address-attested APay through the C ABI', () => {
@@ -73,48 +74,27 @@ test('overlay exposes address-attested APay through the C ABI', () => {
   assert.ok(LIBRARY_SYMBOLS.includes('rln_sdk_node_apay_new_with_address'))
 })
 
-test('overlay contains the hardened shared RGB import implementation', () => {
-  const config = readOverlayConfig(path.resolve(__dirname, '..'))
-  const patch = fs.readFileSync(config.patchPath, 'utf8')
-
-  assert.match(patch, /diff --git a\/src\/rgb_import\.rs b\/src\/rgb_import\.rs/)
-  assert.match(patch, /MAX_RGB_IMPORT_BASE64_CHARACTERS/)
-  assert.match(patch, /MAX_RGB_IMPORT_BODY_BYTES/)
-  assert.match(patch, /RgbTxid::from_str/)
-  assert.match(patch, /let task = tokio::spawn/)
-  assert.match(patch, /save_new_asset\(consignment, offchain_txid\)\?;/)
-  assert.match(patch, /95332c41fd715939ac6e078ad859d474b1f6fa9b/)
+test('the adapter does not restore unreleased RLN imports', () => {
+  const patch = fs.readFileSync(readOverlayConfig(path.resolve(__dirname, '..')).patchPath, 'utf8')
+  assert.doesNotMatch(patch, /src\/rgb_import\.rs|rln_import_rgb_contract|95332c41/)
 })
 
-test('overlay enforces deterministic node ownership and teardown', () => {
-  const packageRoot = path.resolve(__dirname, '..')
-  const config = readOverlayConfig(packageRoot)
+test('adapter allowlist excludes upstream runtime behavior changes', () => {
+  const { validateAdapter, ALLOWED_FILES } = require('./release-contract')
+  const config = readOverlayConfig(path.resolve(__dirname, '..'))
+  validateAdapter(config)
   const patch = fs.readFileSync(config.patchPath, 'utf8')
-
-  assert.match(patch, /NodeInstanceAlreadyActive/)
-  assert.match(patch, /node_instance_lease_rejects_duplicate_storage_ownership/)
-  assert.match(patch, /prepared_rgb_utxos_are_isolated_from_existing_and_future_witness_invoices/)
-  assert.match(patch, /pub extern "C" fn free_sdk_node/)
-  assert.match(patch, /node\.shutdown\(\)/)
-  assert.match(patch, /load_or_create_writer_id/)
-  assert.match(patch, /vss_same_installation_reclaims_fence_after_restart/)
-  const joinTasks = patch.indexOf('for task in std::mem::take\(&mut handles.service_tasks\)')
-  const disconnectPeers = patch.indexOf('handles.peer_manager.disconnect_all_peers\(\)')
-  const waitForPersistence = patch.indexOf('BP_SHUTDOWN_FLUSH_TIMEOUT, &mut join_handle')
-  assert.ok(joinTasks >= 0, 'overlay must join aborted service tasks')
-  assert.ok(disconnectPeers > joinTasks, 'final peer disconnect must follow task quiescence')
-  assert.ok(waitForPersistence > disconnectPeers, 'persistence flush must follow final disconnect')
+  const files = [...patch.matchAll(/^diff --git a\/(\S+) b\/(\S+)$/gm)]
+  assert.equal(files.length, ALLOWED_FILES.length)
+  assert.ok(files.every(([, a, b]) => a === b && ALLOWED_FILES.includes(a)))
 })
 
-test('overlay preserves wallet discovery, RGB payment identity, and inbound channel semantics', () => {
-  const config = readOverlayConfig(path.resolve(__dirname, '..'))
-  const patch = fs.readFileSync(config.patchPath, 'utf8')
-
-  assert.match(patch, /does not match the revealed wallet address/)
-  assert.match(patch, /payment_info_persists_rgb_identity_with_its_payment_status/)
-  assert.match(patch, /standard_inbound_channel_is_not_reclassified_when_virtual_support_is_enabled/)
-  assert.match(patch, /INVOICE_EXPIRED/)
-  assert.match(patch, /utexo-wallet-v3/)
+test('generated runtime contract is tied to the wrapper source', () => {
+  const { runtimeIdentity, verifyRuntimeContract } = require('./runtime-contract')
+  const root = path.resolve(__dirname, '..')
+  const config = readOverlayConfig(root)
+  assert.deepEqual(verifyRuntimeContract(root, config), runtimeIdentity(root, config))
+  assert.throws(() => verifyRuntimeContract(root, { ...config, commit: 'wrong' }), /stale/)
 })
 
 test('Bare node handles shut down exactly once and are destroyed during teardown', () => {
@@ -160,6 +140,7 @@ test('install target selection is platform scoped and explicit', () => {
   const config = readOverlayConfig(path.resolve(__dirname, '..'))
 
   assert.deepEqual(resolveInstallTargets(config, {}, 'darwin'), [
+    'darwin-arm64',
     'ios-arm64',
     'ios-arm64-simulator',
     'ios-x64-simulator'

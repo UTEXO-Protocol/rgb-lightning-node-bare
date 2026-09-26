@@ -10,6 +10,9 @@
 #include <js.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
+#include <math.h>
+#include <mutex>
 
 extern "C" {
 #include "rln.h"
@@ -19,17 +22,86 @@ extern "C" {
 // Helpers
 // ============================================================================
 
-static char *js_to_cstring(js_env_t *env, js_value_t *val) {
-  js_value_type_t type;
-  js_typeof(env, val, &type);
-  if (type == js_null || type == js_undefined) return NULL;
+enum class HandleKind { Node, Signer };
+struct HandleEntry {
+  js_env_t *env;
+  HandleKind kind;
+  HandleEntry *next;
+};
+static std::mutex handles_mutex;
+static HandleEntry *handles = NULL;
 
-  size_t len;
-  js_get_value_string_utf8(env, val, NULL, 0, &len);
-  utf8_t *buf = (utf8_t *)malloc(len + 1);
-  js_get_value_string_utf8(env, val, buf, len + 1, NULL);
-  return (char *)buf;
+static void register_handle(HandleEntry *entry, js_env_t *env, HandleKind kind) {
+  std::lock_guard<std::mutex> guard(handles_mutex);
+  entry->env = env;
+  entry->kind = kind;
+  entry->next = handles;
+  handles = entry;
 }
+
+static bool owns_handle(js_env_t *env, void *data, HandleKind kind) {
+  std::lock_guard<std::mutex> guard(handles_mutex);
+  for (HandleEntry *entry = handles; entry != NULL; entry = entry->next) {
+    if ((void *)entry == data) return entry->env == env && entry->kind == kind;
+  }
+  return false;
+}
+
+static bool read_external(js_env_t *env, js_value_t *value, void **data) {
+  js_value_type_t type;
+  return js_typeof(env, value, &type) == 0 && type == js_external &&
+         js_get_value_external(env, value, data) == 0;
+}
+
+static void unregister_handle(HandleEntry *entry) {
+  std::lock_guard<std::mutex> guard(handles_mutex);
+  for (HandleEntry **cursor = &handles; *cursor != NULL; cursor = &(*cursor)->next) {
+    if (*cursor == entry) {
+      *cursor = entry->next;
+      return;
+    }
+  }
+}
+
+class CStringArg {
+ public:
+  char *value = NULL;
+  bool valid = false;
+
+  CStringArg(js_env_t *env, js_value_t *input, bool nullable = false) {
+    js_value_type_t type;
+    if (js_typeof(env, input, &type) != 0) return;
+    if (nullable && (type == js_null || type == js_undefined)) {
+      valid = true;
+      return;
+    }
+    if (type != js_string) {
+      js_throw_type_error(env, "ERR_RLN_ARGUMENT", "Expected a string argument");
+      return;
+    }
+    size_t length = 0;
+    if (js_get_value_string_utf8(env, input, NULL, 0, &length) != 0 || length == SIZE_MAX) {
+      js_throw_error(env, "ERR_RLN_ARGUMENT", "Unable to read string argument");
+      return;
+    }
+    value = (char *)malloc(length + 1);
+    if (value == NULL) {
+      js_throw_error(env, "ERR_RLN_ALLOCATION", "Unable to allocate string argument");
+      return;
+    }
+    if (js_get_value_string_utf8(env, input, (utf8_t *)value, length + 1, NULL) != 0) return;
+    if (memchr(value, 0, length) != NULL) {
+      js_throw_type_error(env, "ERR_RLN_ARGUMENT", "String argument contains a NUL byte");
+      return;
+    }
+    valid = true;
+  }
+
+  ~CStringArg() { free(value); }
+  CStringArg(const CStringArg &) = delete;
+  CStringArg &operator=(const CStringArg &) = delete;
+  operator const char *() const { return value; }
+};
 
 static js_value_t *cstring_to_js(js_env_t *env, const char *str) {
   if (!str) {
@@ -63,16 +135,14 @@ static js_value_t *handle_result_string(js_env_t *env, struct CResultString res)
   }
 }
 
-static bool js_to_bool(js_env_t *env, js_value_t *val) {
-  bool b = false;
-  js_get_value_bool(env, val, &b);
-  return b;
-}
-
-static uint32_t js_to_uint32(js_env_t *env, js_value_t *val) {
-  uint32_t n = 0;
-  js_get_value_uint32(env, val, &n);
-  return n;
+static bool read_bool(js_env_t *env, js_value_t *val, bool *out) {
+  js_value_type_t type;
+  if (js_typeof(env, val, &type) != 0) return false;
+  if (type != js_boolean) {
+    js_throw_type_error(env, "ERR_RLN_ARGUMENT", "Expected a boolean argument");
+    return false;
+  }
+  return js_get_value_bool(env, val, out) == 0;
 }
 
 // ============================================================================
@@ -80,6 +150,7 @@ static uint32_t js_to_uint32(js_env_t *env, js_value_t *val) {
 // ============================================================================
 
 struct SdkNodeRef {
+  HandleEntry handle;
   struct COpaqueStruct opaque;
   bool freed;
   bool shutdown_attempted;
@@ -89,11 +160,13 @@ struct SdkNodeRef {
 static void shutdown_and_free_sdk_node(SdkNodeRef *ref) {
   if (!ref->freed) {
     if (!ref->shutdown_attempted) {
-      ref->shutdown_attempted = true;
       struct CResultString shutdown_result = rln_sdk_node_shutdown(&ref->opaque);
       if (shutdown_result.inner != NULL) {
         rln_free_string(shutdown_result.inner);
       }
+      // Retain native state if shutdown failed; live tasks can still own it.
+      if (shutdown_result.result != Ok) return;
+      ref->shutdown_attempted = true;
     }
     free_sdk_node(ref->opaque);
     ref->opaque.ptr = NULL;
@@ -109,6 +182,7 @@ static void sdk_node_teardown(void *data) {
 
 static void sdk_node_destructor(js_env_t *env, void *data, void *hint) {
   SdkNodeRef *ref = (SdkNodeRef *)data;
+  unregister_handle(&ref->handle);
   if (ref->teardown_registered) {
     js_remove_teardown_callback(env, sdk_node_teardown, ref);
     ref->teardown_registered = false;
@@ -119,6 +193,11 @@ static void sdk_node_destructor(js_env_t *env, void *data, void *hint) {
 
 static js_value_t *wrap_sdk_node(js_env_t *env, struct COpaqueStruct opaque) {
   SdkNodeRef *ref = (SdkNodeRef *)malloc(sizeof(SdkNodeRef));
+  if (ref == NULL) {
+    free_sdk_node(opaque);
+    js_throw_error(env, "ERR_RLN_ALLOCATION", "Unable to allocate node handle");
+    return NULL;
+  }
   ref->opaque = opaque;
   ref->freed = false;
   ref->shutdown_attempted = false;
@@ -143,13 +222,14 @@ static js_value_t *wrap_sdk_node(js_env_t *env, struct COpaqueStruct opaque) {
     js_throw_error(env, NULL, "Unable to create rgb-lightning-node handle");
     return NULL;
   }
+  register_handle(&ref->handle, env, HandleKind::Node);
   return external;
 }
 
 static const struct COpaqueStruct *require_sdk_node(js_env_t *env,
                                                     js_value_t *val) {
   void *data = NULL;
-  if (js_get_value_external(env, val, &data) != 0 || data == NULL) {
+  if (!read_external(env, val, &data) || !owns_handle(env, data, HandleKind::Node)) {
     js_throw_error(env, "ERR_RLN_NODE_CLOSED",
                    "RGB Lightning node handle is unavailable");
     return NULL;
@@ -165,7 +245,7 @@ static const struct COpaqueStruct *require_sdk_node(js_env_t *env,
 
 static SdkNodeRef *unwrap_sdk_node_ref(js_env_t *env, js_value_t *val) {
   void *data = NULL;
-  if (js_get_value_external(env, val, &data) != 0 || data == NULL) return NULL;
+  if (!read_external(env, val, &data) || !owns_handle(env, data, HandleKind::Node)) return NULL;
   return (SdkNodeRef *)data;
 }
 
@@ -176,6 +256,7 @@ static js_value_t *handle_result_node(js_env_t *env, struct CResult res) {
     const char *msg = res.inner.ptr ? (const char *)res.inner.ptr
                                     : "Unknown rgb-lightning-node error";
     js_throw_error(env, NULL, msg);
+    if (res.inner.ptr) rln_free_string((char *)res.inner.ptr);
     js_value_t *undef;
     js_get_undefined(env, &undef);
     return undef;
@@ -194,12 +275,14 @@ static js_value_t *handle_result_node(js_env_t *env, struct CResult res) {
 // ============================================================================
 
 struct SignerRef {
+  HandleEntry handle;
   struct COpaqueStruct opaque;
   bool freed;
 };
 
 static void signer_destructor(js_env_t *env, void *data, void *hint) {
   SignerRef *ref = (SignerRef *)data;
+  unregister_handle(&ref->handle);
   if (!ref->freed) {
     free_native_external_signer(ref->opaque);
     ref->freed = true;
@@ -209,18 +292,29 @@ static void signer_destructor(js_env_t *env, void *data, void *hint) {
 
 static js_value_t *wrap_signer(js_env_t *env, struct COpaqueStruct opaque) {
   SignerRef *ref = (SignerRef *)malloc(sizeof(SignerRef));
+  if (ref == NULL) {
+    free_native_external_signer(opaque);
+    js_throw_error(env, "ERR_RLN_ALLOCATION", "Unable to allocate signer handle");
+    return NULL;
+  }
   ref->opaque = opaque;
   ref->freed = false;
 
   js_value_t *external;
-  js_create_external(env, ref, signer_destructor, NULL, &external);
+  if (js_create_external(env, ref, signer_destructor, NULL, &external) != 0) {
+    free_native_external_signer(opaque);
+    free(ref);
+    js_throw_error(env, "ERR_RLN_ALLOCATION", "Unable to create signer handle");
+    return NULL;
+  }
+  register_handle(&ref->handle, env, HandleKind::Signer);
   return external;
 }
 
 static const struct COpaqueStruct *require_signer(js_env_t *env,
                                                   js_value_t *val) {
   void *data = NULL;
-  if (js_get_value_external(env, val, &data) != 0 || data == NULL) {
+  if (!read_external(env, val, &data) || !owns_handle(env, data, HandleKind::Signer)) {
     js_throw_error(env, "ERR_RLN_SIGNER_CLOSED",
                    "RGB Lightning signer handle is unavailable");
     return NULL;
@@ -235,8 +329,8 @@ static const struct COpaqueStruct *require_signer(js_env_t *env,
 }
 
 static SignerRef *unwrap_signer_ref(js_env_t *env, js_value_t *val) {
-  void *data;
-  js_get_value_external(env, val, &data);
+  void *data = NULL;
+  if (!read_external(env, val, &data) || !owns_handle(env, data, HandleKind::Signer)) return NULL;
   return (SignerRef *)data;
 }
 
@@ -247,6 +341,7 @@ static js_value_t *handle_result_signer(js_env_t *env, struct CResult res) {
     const char *msg = res.inner.ptr ? (const char *)res.inner.ptr
                                     : "Unknown rgb-lightning-node error";
     js_throw_error(env, NULL, msg);
+    if (res.inner.ptr) rln_free_string((char *)res.inner.ptr);
     js_value_t *undef;
     js_get_undefined(env, &undef);
     return undef;
@@ -256,6 +351,7 @@ static js_value_t *handle_result_signer(js_env_t *env, struct CResult res) {
 static int get_args(js_env_t *env, js_callback_info_t *info,
                     js_value_t **args, size_t expected) {
   size_t argc = expected;
+  for (size_t i = 0; i < expected; i++) js_get_undefined(env, &args[i]);
   js_get_callback_info(env, info, &argc, args, NULL, NULL);
   return (int)argc;
 }
@@ -285,9 +381,9 @@ static int get_args(js_env_t *env, js_callback_info_t *info,
     get_args(env, info, args, 2);                                          \
     const struct COpaqueStruct *node = require_sdk_node(env, args[0]);     \
     if (node == NULL) return make_undefined(env);                          \
-    char *s = js_to_cstring(env, args[1]);                                 \
+    CStringArg s(env, args[1]); \
+    if (!s.valid) return make_undefined(env); \
     struct CResultString res = RLN_FN(node, s);                            \
-    free(s);                                                               \
     return handle_result_string(env, res);                                 \
   }
 
@@ -299,13 +395,18 @@ static int get_args(js_env_t *env, js_callback_info_t *info,
     get_args(env, info, args, 2);                                          \
     const struct COpaqueStruct *node = require_sdk_node(env, args[0]);     \
     if (node == NULL) return make_undefined(env);                          \
-    bool b = js_to_bool(env, args[1]);                                     \
+    bool b = false; \
+    if (!read_bool(env, args[1], &b)) return make_undefined(env);                                      \
     return handle_result_string(env, RLN_FN(node, b));                     \
   }
 
 // ============================================================================
 // Module-level (no node)
 // ============================================================================
+
+static js_value_t *fn_get_runtime_info(js_env_t *env, js_callback_info_t *info) {
+  return handle_result_string(env, rln_binding_build_info());
+}
 
 static js_value_t *fn_uniffi_healthcheck(js_env_t *env, js_callback_info_t *info) {
   return handle_result_string(env, rln_uniffi_healthcheck());
@@ -318,9 +419,9 @@ static js_value_t *fn_uniffi_is_initialized(js_env_t *env, js_callback_info_t *i
 static js_value_t *fn_sdk_initialize(js_env_t *env, js_callback_info_t *info) {
   js_value_t *args[1];
   get_args(env, info, args, 1);
-  char *request_json = js_to_cstring(env, args[0]);
+  CStringArg request_json(env, args[0]);
+  if (!request_json.valid) return make_undefined(env);
   struct CResultString res = rln_sdk_initialize(request_json);
-  free(request_json);
   return handle_result_string(env, res);
 }
 
@@ -335,9 +436,9 @@ static js_value_t *fn_sdk_shutdown(js_env_t *env, js_callback_info_t *info) {
 static js_value_t *fn_sdk_node_new(js_env_t *env, js_callback_info_t *info) {
   js_value_t *args[1];
   get_args(env, info, args, 1);
-  char *request_json = js_to_cstring(env, args[0]);
+  CStringArg request_json(env, args[0]);
+  if (!request_json.valid) return make_undefined(env);
   struct CResult res = rln_sdk_node_new(request_json);
-  free(request_json);
   return handle_result_node(env, res);
 }
 
@@ -346,11 +447,11 @@ static js_value_t *fn_sdk_node_init(js_env_t *env, js_callback_info_t *info) {
   get_args(env, info, args, 3);
   const struct COpaqueStruct *node = require_sdk_node(env, args[0]);
   if (node == NULL) return make_undefined(env);
-  char *password = js_to_cstring(env, args[1]);
-  char *mnemonic = js_to_cstring(env, args[2]);
+  CStringArg password(env, args[1]);
+  if (!password.valid) return make_undefined(env);
+  CStringArg mnemonic(env, args[2], true);
+  if (!mnemonic.valid) return make_undefined(env);
   struct CResultString res = rln_sdk_node_init(node, password, mnemonic);
-  free(password);
-  free(mnemonic);
   return handle_result_string(env, res);
 }
 
@@ -367,15 +468,13 @@ static js_value_t *fn_sdk_node_shutdown(js_env_t *env,
   }
   if (ref->shutdown_attempted) return make_undefined(env);
 
-  // Mark the attempt before entering native code. A failed or panicking
-  // shutdown can leave partially released resources and must not be retried
-  // implicitly by destroy() or the environment teardown callback.
-  ref->shutdown_attempted = true;
-  return handle_result_string(env, rln_sdk_node_shutdown(&ref->opaque));
+  struct CResultString result = rln_sdk_node_shutdown(&ref->opaque);
+  if (result.result == Ok) ref->shutdown_attempted = true;
+  return handle_result_string(env, result);
 }
 FN_NODE_JSON(sdk_node_vss_clear_fence, rln_sdk_node_vss_clear_fence)
 FN_NODE(sdk_node_vss_backup, rln_sdk_node_vss_backup)
-FN_NODE_JSON(sdk_node_vss_delete_all, rln_sdk_node_vss_delete_all)
+
 FN_NODE_STR(sdk_node_apay_new, rln_sdk_node_apay_new)
 
 static js_value_t *fn_sdk_node_apay_new_with_address(
@@ -384,14 +483,14 @@ static js_value_t *fn_sdk_node_apay_new_with_address(
   get_args(env, info, args, 4);
   const struct COpaqueStruct *node = require_sdk_node(env, args[0]);
   if (node == NULL) return make_undefined(env);
-  char *host_node_id = js_to_cstring(env, args[1]);
-  char *username = js_to_cstring(env, args[2]);
-  char *domain = js_to_cstring(env, args[3]);
+  CStringArg host_node_id(env, args[1]);
+  if (!host_node_id.valid) return make_undefined(env);
+  CStringArg username(env, args[2]);
+  if (!username.valid) return make_undefined(env);
+  CStringArg domain(env, args[3]);
+  if (!domain.valid) return make_undefined(env);
   struct CResultString res = rln_sdk_node_apay_new_with_address(
       node, host_node_id, username, domain);
-  free(host_node_id);
-  free(username);
-  free(domain);
   return handle_result_string(env, res);
 }
 
@@ -406,6 +505,11 @@ static js_value_t *fn_sdk_node_destroy(js_env_t *env, js_callback_info_t *info) 
   }
   if (!ref->freed) {
     shutdown_and_free_sdk_node(ref);
+    if (!ref->freed) {
+      js_throw_error(env, "ERR_RLN_SHUTDOWN",
+                     "Node shutdown failed; handle retained for retry");
+      return make_undefined(env);
+    }
   }
   if (ref->teardown_registered) {
     js_remove_teardown_callback(env, sdk_node_teardown, ref);
@@ -423,12 +527,13 @@ static js_value_t *fn_sdk_node_destroy(js_env_t *env, js_callback_info_t *info) 
 static js_value_t *fn_native_external_signer_new(js_env_t *env, js_callback_info_t *info) {
   js_value_t *args[3];
   get_args(env, info, args, 3);
-  char *seed_hex = js_to_cstring(env, args[0]);
-  char *network = js_to_cstring(env, args[1]);
-  bool permissive_policy = js_to_bool(env, args[2]);
+  CStringArg seed_hex(env, args[0]);
+  if (!seed_hex.valid) return make_undefined(env);
+  CStringArg network(env, args[1]);
+  if (!network.valid) return make_undefined(env);
+  bool permissive_policy = false;
+  if (!read_bool(env, args[2], &permissive_policy)) return make_undefined(env);
   struct CResult res = rln_native_external_signer_new(seed_hex, network, permissive_policy);
-  free(seed_hex);
-  free(network);
   return handle_result_signer(env, res);
 }
 
@@ -436,19 +541,20 @@ static js_value_t *fn_native_external_signer_new_with_storage(js_env_t *env,
                                                               js_callback_info_t *info) {
   js_value_t *args[4];
   get_args(env, info, args, 4);
-  char *seed_hex = js_to_cstring(env, args[0]);
-  char *network = js_to_cstring(env, args[1]);
-  bool permissive_policy = js_to_bool(env, args[2]);
-  char *storage_dir_path = js_to_cstring(env, args[3]);
+  CStringArg seed_hex(env, args[0]);
+  if (!seed_hex.valid) return make_undefined(env);
+  CStringArg network(env, args[1]);
+  if (!network.valid) return make_undefined(env);
+  bool permissive_policy = false;
+  if (!read_bool(env, args[2], &permissive_policy)) return make_undefined(env);
+  CStringArg storage_dir_path(env, args[3]);
+  if (!storage_dir_path.valid) return make_undefined(env);
   struct CResult res = rln_native_external_signer_new_with_storage(
     seed_hex,
     network,
     permissive_policy,
     storage_dir_path
   );
-  free(seed_hex);
-  free(network);
-  free(storage_dir_path);
   return handle_result_signer(env, res);
 }
 
@@ -465,6 +571,10 @@ static js_value_t *fn_native_external_signer_destroy(js_env_t *env,
   js_value_t *args[1];
   get_args(env, info, args, 1);
   SignerRef *ref = unwrap_signer_ref(env, args[0]);
+  if (ref == NULL) {
+    js_throw_error(env, "ERR_RLN_SIGNER_CLOSED", "Native signer handle is unavailable");
+    return make_undefined(env);
+  }
   if (!ref->freed) {
     free_native_external_signer(ref->opaque);
     ref->opaque.ptr = NULL;
@@ -502,31 +612,13 @@ static js_value_t *fn_sdk_node_unlock_with_native_external_signer(js_env_t *env,
   if (node == NULL) return make_undefined(env);
   const struct COpaqueStruct *signer = require_signer(env, args[1]);
   if (signer == NULL) return make_undefined(env);
-  char *request_json = js_to_cstring(env, args[2]);
+  CStringArg request_json(env, args[2]);
+  if (!request_json.valid) return make_undefined(env);
   struct CResultString res =
     rln_sdk_node_unlock_with_native_external_signer(node, signer, request_json);
-  free(request_json);
   return handle_result_string(env, res);
 }
 
-static js_value_t *fn_sdk_node_start_unlock_with_native_external_signer(
-    js_env_t *env, js_callback_info_t *info) {
-  js_value_t *args[3];
-  get_args(env, info, args, 3);
-  const struct COpaqueStruct *node = require_sdk_node(env, args[0]);
-  if (node == NULL) return make_undefined(env);
-  const struct COpaqueStruct *signer = require_signer(env, args[1]);
-  if (signer == NULL) return make_undefined(env);
-  char *request_json = js_to_cstring(env, args[2]);
-  struct CResultString res =
-    rln_sdk_node_start_unlock_with_native_external_signer(node, signer, request_json);
-  free(request_json);
-  return handle_result_string(env, res);
-}
-
-FN_NODE_STR(sdk_node_native_operation_status, rln_sdk_node_native_operation_status)
-FN_NODE_STR(sdk_node_adopt_native_operation, rln_sdk_node_adopt_native_operation)
-FN_NODE_STR(sdk_node_cancel_native_operation, rln_sdk_node_cancel_native_operation)
 
 // `node` + `bootstrap_json` / `unlock_request_json` — host-implemented
 // signer path. Reuse the FN_NODE_JSON shape.
@@ -542,8 +634,7 @@ FN_NODE_JSON(sdk_node_unlock_with_attached_external_signer,
 FN_NODE(node_info, rln_node_info)
 FN_NODE(network_info, rln_network_info)
 FN_NODE(sync, rln_sync)
-FN_NODE_JSON(sync_wallet, rln_sync_wallet)
-FN_NODE_JSON(wallet_snapshot, rln_wallet_snapshot)
+
 FN_NODE(address, rln_address)
 FN_NODE(rotate_address, rln_rotate_address)
 
@@ -591,11 +682,11 @@ static js_value_t *fn_get_payment(js_env_t *env, js_callback_info_t *info) {
   get_args(env, info, args, 3);
   const struct COpaqueStruct *node = require_sdk_node(env, args[0]);
   if (node == NULL) return make_undefined(env);
-  char *hash = js_to_cstring(env, args[1]);
-  char *type = js_to_cstring(env, args[2]);
+  CStringArg hash(env, args[1]);
+  if (!hash.valid) return make_undefined(env);
+  CStringArg type(env, args[2]);
+  if (!type.valid) return make_undefined(env);
   struct CResultString res = rln_get_payment(node, hash, type);
-  free(hash);
-  free(type);
   return handle_result_string(env, res);
 }
 
@@ -613,10 +704,11 @@ static js_value_t *fn_get_swap(js_env_t *env, js_callback_info_t *info) {
   get_args(env, info, args, 3);
   const struct COpaqueStruct *node = require_sdk_node(env, args[0]);
   if (node == NULL) return make_undefined(env);
-  char *hash = js_to_cstring(env, args[1]);
-  bool taker_flag = js_to_bool(env, args[2]);
+  CStringArg hash(env, args[1]);
+  if (!hash.valid) return make_undefined(env);
+  bool taker_flag = false;
+  if (!read_bool(env, args[2], &taker_flag)) return make_undefined(env);
   struct CResultString res = rln_get_swap(node, hash, taker_flag);
-  free(hash);
   return handle_result_string(env, res);
 }
 
@@ -635,13 +727,15 @@ FN_NODE_JSON(asset_link_create, rln_asset_link_create)
 FN_NODE_STR(asset_metadata, rln_asset_metadata)
 
 static js_value_t *fn_list_transfers(js_env_t *env, js_callback_info_t *info) {
-  js_value_t *args[2];
-  get_args(env, info, args, 2);
+  js_value_t *args[3];
+  get_args(env, info, args, 3);
   const struct COpaqueStruct *node = require_sdk_node(env, args[0]);
   if (node == NULL) return make_undefined(env);
-  char *asset_id = js_to_cstring(env, args[1]);
-  struct CResultString res = rln_list_transfers(node, asset_id, NULL);
-  free(asset_id);
+  CStringArg asset_id(env, args[1], true);
+  if (!asset_id.valid) return make_undefined(env);
+  CStringArg txid(env, args[2], true);
+  if (!txid.valid) return make_undefined(env);
+  struct CResultString res = rln_list_transfers(node, asset_id, txid);
   return handle_result_string(env, res);
 }
 
@@ -651,21 +745,16 @@ static js_value_t *fn_list_transfers_by_txid(js_env_t *env,
   get_args(env, info, args, 2);
   const struct COpaqueStruct *node = require_sdk_node(env, args[0]);
   if (node == NULL) return make_undefined(env);
-  char *txid = js_to_cstring(env, args[1]);
+  CStringArg txid(env, args[1]);
+  if (!txid.valid) return make_undefined(env);
   struct CResultString res = rln_list_transfers(node, NULL, txid);
-  free(txid);
   return handle_result_string(env, res);
 }
 FN_NODE_JSON(refresh_transfers, rln_refresh_transfers)
 FN_NODE_JSON(fail_transfers, rln_fail_transfers)
 
 FN_NODE_JSON(send_rgb, rln_send_rgb)
-FN_NODE_JSON(import_rgb_transfer_consignment, rln_import_rgb_transfer_consignment)
-FN_NODE_JSON(import_rgb_contract, rln_import_rgb_contract)
-FN_NODE_JSON(prepare_rgb_send, rln_prepare_rgb_send)
-FN_NODE_JSON(commit_prepared_rgb_send, rln_commit_prepared_rgb_send)
-FN_NODE_JSON(cancel_rgb_send_plan, rln_cancel_rgb_send_plan)
-FN_NODE(list_pending_rgb_send_plans, rln_list_pending_rgb_send_plans)
+
 FN_NODE_JSON(inflate, rln_inflate)
 
 // Asset media
@@ -678,21 +767,15 @@ FN_NODE_JSON(post_asset_media, rln_post_asset_media)
 
   FN_NODE_BOOL(btc_balance, rln_btc_balance)
   FN_NODE_JSON(send_btc, rln_send_btc)
-  FN_NODE_JSON(prepare_btc_send, rln_prepare_btc_send)
-FN_NODE_JSON(commit_prepared_btc_send, rln_commit_prepared_btc_send)
-FN_NODE_JSON(cancel_btc_send_plan, rln_cancel_btc_send_plan)
-FN_NODE_JSON(prepare_create_utxos, rln_prepare_create_utxos)
-FN_NODE_JSON(commit_prepared_create_utxos, rln_commit_prepared_create_utxos)
-FN_NODE_JSON(cancel_create_utxos_plan, rln_cancel_create_utxos_plan)
-FN_NODE(list_pending_vanilla_transactions, rln_list_pending_vanilla_transactions)
-  FN_NODE_STR(list_address_receipts, rln_list_address_receipts)
+
 static js_value_t *fn_list_transactions(js_env_t *env,
                                          js_callback_info_t *info) {
   js_value_t *args[2];
   get_args(env, info, args, 2);
   const struct COpaqueStruct *node = require_sdk_node(env, args[0]);
   if (node == NULL) return make_undefined(env);
-  bool skip_sync = js_to_bool(env, args[1]);
+  bool skip_sync = false;
+  if (!read_bool(env, args[1], &skip_sync)) return make_undefined(env);
   return handle_result_string(env,
                               rln_list_transactions(node, skip_sync, NULL));
 }
@@ -702,10 +785,11 @@ static js_value_t *fn_list_transactions_by_txid(js_env_t *env, js_callback_info_
   get_args(env, info, args, 3);
   const struct COpaqueStruct *node = require_sdk_node(env, args[0]);
   if (node == NULL) return make_undefined(env);
-  char *txid = js_to_cstring(env, args[1]);
-  bool skip_sync = js_to_bool(env, args[2]);
+  CStringArg txid(env, args[1]);
+  if (!txid.valid) return make_undefined(env);
+  bool skip_sync = false;
+  if (!read_bool(env, args[2], &skip_sync)) return make_undefined(env);
   struct CResultString res = rln_list_transactions(node, skip_sync, txid);
-  free(txid);
   return handle_result_string(env, res);
 }
 
@@ -717,8 +801,15 @@ static js_value_t *fn_estimate_fee(js_env_t *env, js_callback_info_t *info) {
   get_args(env, info, args, 2);
   const struct COpaqueStruct *node = require_sdk_node(env, args[0]);
   if (node == NULL) return make_undefined(env);
-  uint32_t blocks_u32 = js_to_uint32(env, args[1]);
-  uint16_t blocks = (uint16_t)(blocks_u32 & 0xFFFF);
+  double value = 0;
+  js_value_type_t type;
+  if (js_typeof(env, args[1], &type) != 0 || type != js_number ||
+      js_get_value_double(env, args[1], &value) != 0 || !isfinite(value) ||
+      value < 1 || value > UINT16_MAX || floor(value) != value) {
+    js_throw_type_error(env, "ERR_RLN_ARGUMENT", "Fee target must be a positive u16 integer");
+    return make_undefined(env);
+  }
+  uint16_t blocks = (uint16_t)value;
   return handle_result_string(env, rln_estimate_fee(node, blocks));
 }
 
@@ -734,11 +825,11 @@ static js_value_t *fn_verify_message(js_env_t *env, js_callback_info_t *info) {
   get_args(env, info, args, 3);
   const struct COpaqueStruct *node = require_sdk_node(env, args[0]);
   if (node == NULL) return make_undefined(env);
-  char *message = js_to_cstring(env, args[1]);
-  char *signature = js_to_cstring(env, args[2]);
+  CStringArg message(env, args[1]);
+  if (!message.valid) return make_undefined(env);
+  CStringArg signature(env, args[2]);
+  if (!signature.valid) return make_undefined(env);
   struct CResultString res = rln_verify_message(node, message, signature);
-  free(message);
-  free(signature);
   return handle_result_string(env, res);
 }
 
@@ -761,6 +852,7 @@ static void set_fn(js_env_t *env, js_value_t *exports, const char *name,
 static js_value_t *
 rgb_lightning_node_bare_exports(js_env_t *env, js_value_t *exports) {
   // Module-level
+  EXPORT("getRuntimeInfo", get_runtime_info);
   EXPORT("uniffiHealthcheck", uniffi_healthcheck);
   EXPORT("uniffiIsInitialized", uniffi_is_initialized);
   EXPORT("sdkInitialize", sdk_initialize);
@@ -774,7 +866,6 @@ rgb_lightning_node_bare_exports(js_env_t *env, js_value_t *exports) {
   EXPORT("sdkNodeDestroy", sdk_node_destroy);
   EXPORT("sdkNodeVssClearFence", sdk_node_vss_clear_fence);
   EXPORT("sdkNodeVssBackup", sdk_node_vss_backup);
-  EXPORT("sdkNodeVssDeleteAll", sdk_node_vss_delete_all);
   EXPORT("sdkNodeApayNew", sdk_node_apay_new);
   EXPORT("sdkNodeApayNewWithAddress", sdk_node_apay_new_with_address);
 
@@ -789,11 +880,6 @@ rgb_lightning_node_bare_exports(js_env_t *env, js_value_t *exports) {
          sdk_node_attach_native_external_signer);
   EXPORT("sdkNodeUnlockWithNativeExternalSigner",
          sdk_node_unlock_with_native_external_signer);
-  EXPORT("sdkNodeStartUnlockWithNativeExternalSigner",
-         sdk_node_start_unlock_with_native_external_signer);
-  EXPORT("sdkNodeNativeOperationStatus", sdk_node_native_operation_status);
-  EXPORT("sdkNodeAdoptNativeOperation", sdk_node_adopt_native_operation);
-  EXPORT("sdkNodeCancelNativeOperation", sdk_node_cancel_native_operation);
 
   // External signer (host-implemented — bootstrap dict only;
   // foreign-signer callback transport not yet exposed)
@@ -806,8 +892,6 @@ rgb_lightning_node_bare_exports(js_env_t *env, js_value_t *exports) {
   EXPORT("nodeInfo", node_info);
   EXPORT("networkInfo", network_info);
   EXPORT("sync", sync);
-  EXPORT("syncWallet", sync_wallet);
-  EXPORT("walletSnapshot", wallet_snapshot);
   EXPORT("address", address);
   EXPORT("rotateAddress", rotate_address);
 
@@ -858,12 +942,6 @@ rgb_lightning_node_bare_exports(js_env_t *env, js_value_t *exports) {
   EXPORT("refreshTransfers", refresh_transfers);
   EXPORT("failTransfers", fail_transfers);
   EXPORT("sendRgb", send_rgb);
-  EXPORT("importRgbTransferConsignment", import_rgb_transfer_consignment);
-  EXPORT("importRgbContract", import_rgb_contract);
-  EXPORT("prepareRgbSend", prepare_rgb_send);
-  EXPORT("commitPreparedRgbSend", commit_prepared_rgb_send);
-  EXPORT("cancelRgbSendPlan", cancel_rgb_send_plan);
-  EXPORT("listPendingRgbSendPlans", list_pending_rgb_send_plans);
   EXPORT("inflate", inflate);
   EXPORT("getAssetMedia", get_asset_media);
   EXPORT("postAssetMedia", post_asset_media);
@@ -871,14 +949,6 @@ rgb_lightning_node_bare_exports(js_env_t *env, js_value_t *exports) {
   // BTC ops
   EXPORT("btcBalance", btc_balance);
   EXPORT("sendBtc", send_btc);
-  EXPORT("prepareBtcSend", prepare_btc_send);
-  EXPORT("commitPreparedBtcSend", commit_prepared_btc_send);
-  EXPORT("cancelBtcSendPlan", cancel_btc_send_plan);
-  EXPORT("prepareCreateUtxos", prepare_create_utxos);
-  EXPORT("commitPreparedCreateUtxos", commit_prepared_create_utxos);
-  EXPORT("cancelCreateUtxosPlan", cancel_create_utxos_plan);
-  EXPORT("listPendingVanillaTransactions", list_pending_vanilla_transactions);
-  EXPORT("listAddressReceipts", list_address_receipts);
   EXPORT("listTransactions", list_transactions);
   EXPORT("listTransactionsByTxid", list_transactions_by_txid);
   EXPORT("listUnspents", list_unspents);
