@@ -26,9 +26,21 @@ Draft PR, not release approval. CI applies only to its reported commit.
 - 36 installer regressions, declarations and the host native canary pass.
   Old Android arm64 artifact fails the new lifetime gate; rebuilt artifact
   passes it and the existing 16-KiB LOAD/RELRO checks.
-- Rebuilt Iris APK and real worklet reload repetition remain required before
-  classifying the observed crash as fixed. No Release-build reproduction or
-  physical-device pass is claimed.
+- Iris pins native source `642572d`. Rebuilt arm64 Debug APK SHA256
+  `6b393da5ef68701510a85c4e13ee0d0d2ef397f55e1768178390d25839ca286d`;
+  packaged addon `31e4ee51794c3e76c3c92a10b6f102f3a4a7d782fdb492a8e6eb26105e924859`.
+  Retention survives APK stripping; all 72 ELF and 4/16-KiB ZIP checks pass.
+  Installed hash and live 16-KiB mappings/read-only RELRO were correlated.
+- Normal device-PIN authentication restores the funded test wallet. Two normal
+  development-menu Reload cycles replace threads 12260 -> 12661 -> 12808 in
+  surviving PID 12169; no Java/native crash-buffer entries. The observed Rust
+  TLS SIGSEGV is fixed in this tested path. The independent signer database
+  lock remains after re-authentication, with app restart guidance.
+- The old development-client deep link instead hits a distinct Expo debug
+  launcher React-context exception. That path is not reported as passing.
+  No Release-build reproduction, physical-device pass, indefinite reload or
+  general native resource-lifecycle guarantee is claimed.
+- Remote contract CI passes for `642572d` (run 36315817847).
 
 ## Reservation Adapter Follow-Up (2026-09-26)
 
