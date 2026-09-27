@@ -18,8 +18,21 @@ Draft PR, not release approval. CI applies only to its reported commit.
   `wdk-rln-address-policy-tDsKgJ`: six checks passed under strict signing,
   including counts 1/2, witness/setup script isolation and funded addresses after
   process restart. Offline reopen is not proof of actual unlocked-node teardown.
-- Changed-artifact rebuild: darwin-arm64 and ios-arm64-simulator passed;
-  ios-arm64 is building. Remaining targets and mobile execution are pending.
+- Changed-artifact rebuild completed for all seven targets: darwin-arm64,
+  ios-arm64, ios-arm64-simulator, ios-x64-simulator, android-arm64, android-arm
+  and android-x64. Aggregate identity and required-symbol verification passes.
+- Extended strict funded fixture `wdk-rln-address-policy-G85b3k` passes all
+  seven checks, including settlement of three witness invoices around UTXO
+  setup and persisted balances after process restart.
+- Updated host disk-full `wdk-rln-storage-DV69PE` and interrupted-send
+  `wdk-rln-interrupted-tkKNn8` fixtures pass. Bounded disk exhaustion and
+  dispatch-relative interruptions do not establish arbitrary native commit
+  atomicity; no automatic resend or state replacement is used.
+- Iris imports the new artifacts with provenance checks. Its iOS Debug build
+  and cold launch pass to the locked screen; authenticated funded app checks
+  remain open. Android input staging passes all three ABIs; APK assembly timed
+  out fetching Kotlin from Maven. This does not qualify the final APK or
+  resolve the historical default bare-link 16-KiB packaging defect.
 - Iris adoption is now in progress on its existing release PR. Qualification
   gates are maintained in WDK `RELEASE-ADOPTION-TRACKER.md`; do not treat earlier
   binary-identity results as qualification of this adapter.
