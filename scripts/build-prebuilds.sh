@@ -77,7 +77,11 @@ build_target() {
   case "$TARGET_NAME" in
     android-arm64|android-x64)
       # NDK r27 requires both flags for LOAD and RELRO alignment on 16 KiB devices.
-      CMAKE_ARGS+=(-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON "-DCMAKE_SHARED_LINKER_FLAGS=-Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384")
+      # Rust pthread TLS destructors outlive Bare teardown; do not unmap their code.
+      CMAKE_ARGS+=(-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON "-DCMAKE_SHARED_LINKER_FLAGS=-Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384 -Wl,-z,nodelete")
+      ;;
+    android-arm)
+      CMAKE_ARGS+=("-DCMAKE_SHARED_LINKER_FLAGS=-Wl,-z,nodelete")
       ;;
   esac
 

@@ -5,6 +5,31 @@ recorded scope, with strict-signer, same-process reopen, force-close recovery an
 Android 16-KiB packaging blockers.
 Draft PR, not release approval. CI applies only to its reported commit.
 
+## Android Addon Lifetime (2026-09-27)
+
+- Iris Android 16-KiB Debug worklet reload reproduced SIGSEGV twice at native
+  thread exit. The second fault, correlated with captured pre-unload mappings,
+  resolves to addon offset `0x6c2f1ac`, Rust
+  `std::sys::thread_local::os::destroy_value`, invoked by Android
+  `pthread_key_clean_all` after the addon code was unmapped.
+- Android prebuilds now link with `-z,nodelete`: keep native code mapped until
+  process exit so thread-local cleanup remains callable after worklet disposal.
+  This does not disable node/signer teardown, retain JavaScript authorization,
+  fix the signer database lock, or change released RLN/RGB/LDK behavior.
+- Installer and post-link gates reject Android addons lacking DF_1_NODELETE.
+  The 32/64-bit dynamic reader is bounded, requires DT_NULL, and rejects
+  duplicate flags, invalid encoding and truncated input. Artifact provenance
+  now includes the prebuild-recipe hash, invalidating prior link-recipe caches.
+- All seven prebuilds relinked and verified. Reused Rust archive hashes match
+  their recorded release/adapter/wrapper/toolchain provenance. Runtime contract
+  and adapter hashes are unchanged; no upstream source patch was added.
+- 36 installer regressions, declarations and the host native canary pass.
+  Old Android arm64 artifact fails the new lifetime gate; rebuilt artifact
+  passes it and the existing 16-KiB LOAD/RELRO checks.
+- Rebuilt Iris APK and real worklet reload repetition remain required before
+  classifying the observed crash as fixed. No Release-build reproduction or
+  physical-device pass is claimed.
+
 ## Reservation Adapter Follow-Up (2026-09-26)
 
 - Preserve released RGB-lib `pending_blinded` through the C-FFI JSON DTO and

@@ -2,7 +2,10 @@
 
 const assert = require('node:assert/strict')
 const test = require('node:test')
-const { validateAndroidElf } = require('./android-elf')
+const fs = require('node:fs')
+const os = require('node:os')
+const path = require('node:path')
+const { validateAndroidElf, validateAndroidLifetime } = require('./android-elf')
 
 function fixture (arch = 'aarch64') {
   return [{
@@ -60,4 +63,54 @@ test('linked validator rejects invalid targets and missing files before launchin
   assert.throws(() => checkLinked('android-arm', 'unused', '/nonexistent'), /Usage/)
   assert.throws(() => checkLinked('android-arm64', '', '/nonexistent'), /Usage/)
   assert.throws(() => checkLinked('android-arm64', '/nonexistent', '/nonexistent'), /ENOENT/)
+})
+
+test('Android addons retain Rust TLS destructor code for 32-bit and 64-bit worklets', (context) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'rln-elf-lifetime-'))
+  context.after(() => fs.rmSync(root, { recursive: true, force: true }))
+  for (const bits of [32, 64]) {
+    const width = bits === 64 ? 16 : 8
+    const file = path.join(root, `${bits}.so`)
+    const metadata = [{
+      FileSummary: { AddressSize: `${bits}bit` },
+      ProgramHeaders: [{ ProgramHeader: { Type: { Name: 'PT_DYNAMIC' }, Offset: 64, FileSize: width * 3 } }]
+    }]
+    const bytes = Buffer.alloc(64 + width * 3)
+    bytes.writeUInt32BE(0x7f454c46)
+    bytes[4] = bits === 64 ? 2 : 1
+    bytes[5] = 1
+    function write (offset, tag, value) {
+      if (bits === 64) {
+        bytes.writeBigUInt64LE(tag, offset)
+        bytes.writeBigUInt64LE(value, offset + 8)
+      } else {
+        bytes.writeUInt32LE(Number(tag), offset)
+        bytes.writeUInt32LE(Number(value), offset + 4)
+      }
+    }
+    function validate () {
+      fs.writeFileSync(file, bytes)
+      validateAndroidLifetime(JSON.stringify(metadata), file)
+    }
+    write(64, 0x6ffffffbn, 9n)
+    assert.doesNotThrow(validate)
+    write(64, 0x6ffffffbn, 1n)
+    assert.throws(validate, /NODELETE/)
+    write(64, 0n, 0n)
+    assert.throws(validate, /NODELETE/)
+    write(64, 0x6ffffffbn, 9n)
+    write(64 + width, 0x6ffffffbn, 9n)
+    assert.throws(validate, /Duplicate/)
+    write(64 + width, 1n, 1n)
+    write(64 + width * 2, 1n, 1n)
+    assert.throws(validate, /DT_NULL/)
+    write(64 + width, 0n, 0n)
+    bytes[5] = 2
+    assert.throws(validate, /encoding/)
+    bytes[5] = 1
+    metadata[0].ProgramHeaders[0].ProgramHeader.FileSize += width
+    assert.throws(validate, /Truncated/)
+    metadata[0].ProgramHeaders[0].ProgramHeader.FileSize = 1024 * 1024 + width
+    assert.throws(validate, /bounds/)
+  }
 })

@@ -97,6 +97,24 @@ test('generated runtime contract is tied to the wrapper source', () => {
   assert.throws(() => verifyRuntimeContract(root, { ...config, commit: 'wrong' }), /stale/)
 })
 
+test('native artifact provenance changes when the prebuild recipe changes', (context) => {
+  const root = fixtureRoot()
+  context.after(() => fs.rmSync(root, { force: true, recursive: true }))
+  const config = readOverlayConfig(path.resolve(__dirname, '..'))
+  assert.match(config.prebuildRecipeSha256, /^[a-f0-9]{64}$/)
+  const target = config.targets[0]
+  const artifacts = artifactPaths(root, target)
+  for (const file of Object.values(artifacts)) {
+    fs.mkdirSync(path.dirname(file), { recursive: true })
+    fs.writeFileSync(file, 'fixture')
+  }
+  writeArtifactManifest(root, config, [target])
+  const symbols = file => (file.endsWith('.a') ? LIBRARY_SYMBOLS : PREBUILD_SYMBOLS).join('\n')
+  assert.throws(() => verifyArtifacts(root, [target], symbols, {
+    ...config, prebuildRecipeSha256: '0'.repeat(64)
+  }), /prebuildRecipeSha256/)
+})
+
 test('Bare node handles shut down exactly once and are destroyed during teardown', () => {
   const packageRoot = path.resolve(__dirname, '..')
   const binding = fs.readFileSync(path.join(packageRoot, 'binding.cc'), 'utf8')

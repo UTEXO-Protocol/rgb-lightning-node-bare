@@ -7,7 +7,7 @@ const path = require('node:path')
 const { spawnSync } = require('node:child_process')
 const releaseContract = require('./release-contract')
 const { verifyRuntimeContract } = require('./runtime-contract')
-const { validateAndroidElf } = require('./android-elf')
+const { validateAndroidElf, validateAndroidLifetime } = require('./android-elf')
 
 const LIBRARY_SYMBOLS = Object.freeze([
   'rln_address',
@@ -219,6 +219,7 @@ function overlayIdentity (config) {
     patchSha256: config.patchSha256,
     cffiLockSha256: config.cffiLockSha256,
     wrapperSha256: config.wrapperSha256,
+    prebuildRecipeSha256: config.prebuildRecipeSha256,
     rustToolchain: config.rustToolchain,
     buildProfile: config.buildProfile,
     iosDeploymentTarget: config.iosDeploymentTarget,
@@ -340,6 +341,7 @@ function readOverlayConfig (packageRoot) {
   releaseContract.validateAdapter({ ...config, patchPath })
   const runtime = verifyRuntimeContract(packageRoot, config)
   return Object.freeze({ ...config, patchPath, wrapperSha256: runtime.wrapper_sha256,
+    prebuildRecipeSha256: sha256(path.join(packageRoot, 'scripts', 'build-prebuilds.sh')),
     buildProfile: process.env.RLN_BARE_DEBUG === '1' ? 'debug' : 'release', targets: Object.freeze(targets) })
 }
 
@@ -537,10 +539,11 @@ function verifyArtifacts (root, targets, symbolReader = inspectSymbols, config) 
         }
       }
     }
-    if (target === 'android-arm64' || target === 'android-x64') {
+    if (target.startsWith('android-')) {
       const readobj = androidLlvmTool(resolveAndroidNdk(config), 'llvm-readobj')
       const output = run(readobj, ['--elf-output-style=JSON', '--program-headers', artifacts.prebuild], { capture: true })
-      validateAndroidElf(output, target)
+      if (target !== 'android-arm') validateAndroidElf(output, target)
+      validateAndroidLifetime(output, artifacts.prebuild)
     }
   }
   if (config) verifyArtifactManifest(root, config, targets)

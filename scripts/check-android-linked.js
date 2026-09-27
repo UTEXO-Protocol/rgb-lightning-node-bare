@@ -2,7 +2,7 @@
 'use strict'
 
 const { execFileSync } = require('node:child_process')
-const { validateAndroidElf } = require('./android-elf')
+const { validateAndroidElf, validateAndroidLifetime } = require('./android-elf')
 
 // bare-link rewrites ELF metadata. Validate its output, not just the input .bare.
 function checkLinked (target, file, readobj = process.env.LLVM_READOBJ || 'llvm-readobj') {
@@ -11,6 +11,7 @@ function checkLinked (target, file, readobj = process.env.LLVM_READOBJ || 'llvm-
   }
   const output = execFileSync(readobj, ['--elf-output-style=JSON', '--program-headers', file], { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 })
   validateAndroidElf(output, target)
+  validateAndroidLifetime(output, file)
 }
 
 if (require.main === module) {
