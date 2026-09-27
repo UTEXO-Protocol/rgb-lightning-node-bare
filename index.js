@@ -369,9 +369,13 @@ class SdkNode {
     return parse(binding.sendRgb(this._handle, stringify(request)))
   }
 
-  importRgbTransferConsignment (request) { unsupported('importRgbTransferConsignment') }
+  importRgbTransferConsignment (request) {
+    return parse(binding.importRgbTransferConsignment(this._handle, stringify(request)))
+  }
 
-  importRgbContract (request) { unsupported('importRgbContract') }
+  importRgbContract (request) {
+    return parse(binding.importRgbContract(this._handle, stringify(request)))
+  }
 
   prepareRgbSend (request) { unsupported('prepareRgbSend') }
 

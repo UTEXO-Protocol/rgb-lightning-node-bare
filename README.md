@@ -71,7 +71,11 @@ native calls. Full-range u64 request inputs are not supported.
 
 ## Excluded Capabilities and Migration
 
-Snapshot/sync overlays, prepared-send/UTXO plans, imports, native operation
+Contract and transfer-consignment metadata imports use the approved, release-rebased
+RLN PR #128. They grant no balance and do not bypass native receive/settlement.
+The exact import revision is part of the native runtime identity; see `patches/README.md`.
+
+Snapshot/sync overlays, prepared-send/UTXO plans, native operation
 control and VSS namespace deletion are unavailable. Existing named stubs throw
 `ERR_RLN_UNSUPPORTED_CAPABILITY` before native access. Routing fee caps are not
 enforced by this RLN release and are rejected before payment submission.
@@ -82,7 +86,8 @@ to bypass refusal or restore stale channel backups after new activity.
 
 Real local transfers and diagnostic Lightning/APay flows are recorded in
 `UPGRADE-TRACKER.md`. Strict outgoing signing and same-process reopen remain
-blockers. VSS is excluded from this qualification. All declared targets build;
+blockers. VSS is excluded from this qualification. Historical artifacts for all declared targets built; the new import patch requires
+its own target requalification (see the current tracker).
 mobile runtime and adverse recovery qualification remain separate. Android 64-bit
 artifacts are checked for 16 KiB LOAD/RELRO alignment. The input check alone is
 insufficient: bare-link 3.3.0 with bare-lief 0.2.5 or 0.2.8 shifts the linked

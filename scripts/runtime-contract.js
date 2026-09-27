@@ -11,6 +11,7 @@ function runtimeIdentity (root, config) {
     abi_version: 1,
     rln_version: config.ref.slice(1),
     rln_commit: config.commit,
+    import_commit: config.importCommit,
     lightning_commit: config.lightningCommit,
     adapter_sha256: config.patchSha256,
     wrapper_sha256: contract.wrapperSha256(root, WRAPPER_FILES),

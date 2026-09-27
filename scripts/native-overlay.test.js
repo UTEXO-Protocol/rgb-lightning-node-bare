@@ -40,7 +40,7 @@ test('package overlay metadata is exact and checksum-pinned', () => {
   const config = readOverlayConfig(packageRoot)
 
   assert.equal(config.commit, 'af03c7f1a65135a429f05a5820600338215954dc')
-  assert.equal(config.patchSha256, '4a4272cb616ceb2f21e01677a24fe7b246c233408c22e6a103bd2db1cea30c94')
+  assert.equal(config.patchSha256, 'aaca114a52611d7fa909846690d7545424a81b09e3c7f072d8e9932e1d52f15a')
   assert.equal(config.rustToolchain, '1.94.0')
   assert.equal(config.iosDeploymentTarget, '16.0')
   assert.equal(config.androidNdkVersion, '27.1.12297006')
@@ -74,12 +74,14 @@ test('overlay exposes address-attested APay through the C ABI', () => {
   assert.ok(LIBRARY_SYMBOLS.includes('rln_sdk_node_apay_new_with_address'))
 })
 
-test('the adapter does not restore unreleased RLN imports', () => {
+test('the adapter includes the narrowly approved import rebase', () => {
   const patch = fs.readFileSync(readOverlayConfig(path.resolve(__dirname, '..')).patchPath, 'utf8')
-  assert.doesNotMatch(patch, /src\/rgb_import\.rs|rln_import_rgb_contract|95332c41/)
+  assert.match(patch, /rln_import_rgb_contract/)
+  assert.match(patch, /rln_import_rgb_transfer_consignment/)
+  assert.doesNotMatch(patch, /95332c41|rln_prepare_btc_send|vss_delete_all/)
 })
 
-test('adapter allowlist excludes upstream runtime behavior changes', () => {
+test('adapter allowlist excludes unrelated upstream runtime changes', () => {
   const { validateAdapter, ALLOWED_FILES } = require('./release-contract')
   const config = readOverlayConfig(path.resolve(__dirname, '..'))
   validateAdapter(config)

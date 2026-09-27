@@ -43,7 +43,7 @@ test('all excluded Bare methods fail without a native implementation', () => {
     'cancelNativeOperation', 'vssDeleteAll', 'syncWallet', 'walletSnapshot', 'prepareBtcSend',
     'commitPreparedBtcSend', 'cancelBtcSendPlan', 'prepareCreateUtxos', 'commitPreparedCreateUtxos',
     'cancelCreateUtxosPlan', 'listPendingVanillaTransactions', 'listAddressReceipts',
-    'importRgbTransferConsignment', 'importRgbContract', 'prepareRgbSend',
+    'prepareRgbSend',
     'commitPreparedRgbSend', 'cancelRgbSendPlan', 'listPendingRgbSendPlans'
   ]) assert.throws(() => node[method]({}), UnsupportedCapabilityError, method)
 })
@@ -90,4 +90,23 @@ test('Bare shutdown and destroy failures preserve retryable handles', () => {
   assert.equal(node._closed, true)
   assert.equal(node._handle, null)
   assert.equal(shutdowns, 3)
+})
+
+test('approved RGB imports preserve payloads, exact metadata and native failures', () => {
+  for (const method of ['importRgbContract', 'importRgbTransferConsignment']) {
+    let received
+    const native = { [method]: (_handle, request) => {
+      received = JSON.parse(request)
+      return '{"asset_id":"rgb:expected","already_imported":false,"metadata":{"max_supply":18446744073709551615}}'
+    } }
+    const node = new (facade(native).SdkNode)({})
+    const request = method === 'importRgbContract'
+      ? { contract_base64: 'YQ==', expected_asset_id: 'rgb:expected' }
+      : { consignment_base64: 'YQ==', offchain_txid: 'a'.repeat(64), expected_asset_id: 'rgb:expected' }
+    assert.equal(node[method](request).metadata.max_supply, '18446744073709551615')
+    assert.deepEqual(received, request)
+    native[method] = () => { throw new Error('invalid contract') }
+    const failed = new (facade(native).SdkNode)({})
+    assert.throws(() => failed[method](request), /invalid contract/)
+  }
 })

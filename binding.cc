@@ -725,6 +725,8 @@ FN_NODE_JSON(list_assets, rln_list_assets)
 FN_NODE_STR(asset_balance, rln_asset_balance)
 FN_NODE_JSON(asset_link_create, rln_asset_link_create)
 FN_NODE_STR(asset_metadata, rln_asset_metadata)
+FN_NODE_JSON(import_rgb_contract, rln_import_rgb_contract)
+FN_NODE_JSON(import_rgb_transfer_consignment, rln_import_rgb_transfer_consignment)
 
 static js_value_t *fn_list_transfers(js_env_t *env, js_callback_info_t *info) {
   js_value_t *args[3];
@@ -937,6 +939,8 @@ rgb_lightning_node_bare_exports(js_env_t *env, js_value_t *exports) {
   EXPORT("assetBalance", asset_balance);
   EXPORT("assetLinkCreate", asset_link_create);
   EXPORT("assetMetadata", asset_metadata);
+  EXPORT("importRgbContract", import_rgb_contract);
+  EXPORT("importRgbTransferConsignment", import_rgb_transfer_consignment);
   EXPORT("listTransfers", list_transfers);
   EXPORT("listTransfersByTxid", list_transfers_by_txid);
   EXPORT("refreshTransfers", refresh_transfers);
