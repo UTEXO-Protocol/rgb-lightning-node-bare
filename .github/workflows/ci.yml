@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main, release/rln-0.13.0-beta.3]
+    branches: [main, release/rln-0.15.0-beta.3]
 
 permissions:
   contents: read
@@ -30,7 +30,9 @@ jobs:
       - run: npm run check:types
       - run: npm run test:installer
       - name: Build pinned graph and verify provenance
-        run: npm run prepare-native
+        env:
+          ORG_READ_TOKEN: ${{ secrets.ORG_READ_TOKEN }}
+        run: node scripts/with-source-access.js npm run prepare-native
       - name: Real native canary including invalid handle tests
         run: npm test
       - run: npm pack --ignore-scripts

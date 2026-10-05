@@ -19,12 +19,32 @@ const {
   resolveInstallTargets,
   validatedNmOutput,
   writeArtifactManifest,
-  verifyArtifacts
+  verifyArtifacts,
+  verifyPackedPrebuilds
 } = require('./native-overlay')
 
 function fixtureRoot () {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'utexo-native-overlay-test-'))
 }
+
+test('packed prebuild verification needs no archives or platform toolchain', context => {
+  const root = fixtureRoot()
+  context.after(() => fs.rmSync(root, { recursive: true, force: true }))
+  const config = readOverlayConfig(path.resolve(__dirname, '..'))
+  const target = config.targets[0]
+  const artifacts = artifactPaths(root, target)
+  for (const file of Object.values(artifacts)) {
+    fs.mkdirSync(path.dirname(file), { recursive: true })
+    fs.writeFileSync(file, 'fixture')
+  }
+  writeArtifactManifest(root, config, [target])
+  fs.unlinkSync(artifacts.library)
+  assert.doesNotThrow(() => verifyPackedPrebuilds(root, config, [target]))
+  assert.throws(() => verifyPackedPrebuilds(root, config, config.targets), /prebuild hash/)
+  assert.throws(() => verifyPackedPrebuilds(root, { ...config, patchSha256: 'bad' }, [target]), /identity/)
+  fs.appendFileSync(artifacts.prebuild, 'modified')
+  assert.throws(() => verifyPackedPrebuilds(root, config, [target]), /prebuild hash/)
+})
 
 test('adapter preserves native blinded receive reservation counts', () => {
   const config = readOverlayConfig(path.resolve(__dirname, '..'))
@@ -39,8 +59,8 @@ test('package overlay metadata is exact and checksum-pinned', () => {
   const packageRoot = path.resolve(__dirname, '..')
   const config = readOverlayConfig(packageRoot)
 
-  assert.equal(config.commit, 'af03c7f1a65135a429f05a5820600338215954dc')
-  assert.equal(config.patchSha256, 'aaca114a52611d7fa909846690d7545424a81b09e3c7f072d8e9932e1d52f15a')
+  assert.equal(config.commit, 'e2b39d5ae8da74525eafb58bc39b9a614c756a73')
+  assert.equal(config.patchSha256, '1e73269080a7a4e62026b72358175be15c1d7f31b1e3004cc09b7e3062da06b7')
   assert.equal(config.rustToolchain, '1.94.0')
   assert.equal(config.iosDeploymentTarget, '16.0')
   assert.equal(config.androidNdkVersion, '27.1.12297006')
@@ -74,10 +94,12 @@ test('overlay exposes address-attested APay through the C ABI', () => {
   assert.ok(LIBRARY_SYMBOLS.includes('rln_sdk_node_apay_new_with_address'))
 })
 
-test('the adapter includes the narrowly approved import rebase', () => {
+test('imports are released upstream, not a core implementation backport', () => {
   const patch = fs.readFileSync(readOverlayConfig(path.resolve(__dirname, '..')).patchPath, 'utf8')
-  assert.match(patch, /rln_import_rgb_contract/)
-  assert.match(patch, /rln_import_rgb_transfer_consignment/)
+  const header = fs.readFileSync(path.join(__dirname, '..', 'rln.h'), 'utf8')
+  assert.match(header, /rln_import_rgb_contract/)
+  assert.match(header, /rln_import_rgb_transfer_consignment/)
+  assert.doesNotMatch(patch, /diff --git a\/src\//)
   assert.doesNotMatch(patch, /95332c41|rln_prepare_btc_send|vss_delete_all/)
 })
 

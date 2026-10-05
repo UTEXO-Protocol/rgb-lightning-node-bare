@@ -377,6 +377,14 @@ class SdkNode {
     return parse(binding.importRgbContract(this._handle, stringify(request)))
   }
 
+  getConsignment (assetId, txid) {
+    return parse(binding.getConsignment(this._handle, assetId, txid))
+  }
+
+  getConsignmentPath (assetId, txid) {
+    return parse(binding.getConsignmentPath(this._handle, assetId, txid))
+  }
+
   prepareRgbSend (request) { unsupported('prepareRgbSend') }
 
   commitPreparedRgbSend (request) { unsupported('commitPreparedRgbSend') }

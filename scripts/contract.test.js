@@ -35,6 +35,30 @@ test('compiled identity is checked before Bare handles are created', () => {
   assert.ok(Object.isFrozen(facade().getRuntimeInfo()))
 })
 
+test('local export preserves hex bytes, native paths and errors', () => {
+  const calls = []
+  const error = new Error('Rln(UnknownTransfer): missing consignment')
+  const native = {
+    getConsignment: (_node, ...args) => {
+      if (args[1] === 'missing') throw error
+      calls.push(args)
+      return '{"bytes_hex":"00ff80"}'
+    },
+    getConsignmentPath: () => '{"path":"/local/wallet/transfer/consignment.rgb"}'
+  }
+  const node = new (facade(native).SdkNode)({})
+  assert.deepEqual(node.getConsignment('asset', 'txid'), { bytes_hex: '00ff80' })
+  assert.deepEqual(calls, [['asset', 'txid']])
+  assert.equal(node.getConsignmentPath('asset', 'txid').path, '/local/wallet/transfer/consignment.rgb')
+  assert.throws(() => node.getConsignment('asset', 'missing'), error)
+})
+
+test('released mainnet rejection propagates through Bare', () => {
+  const error = new Error('Rln(LightningUnsupportedOnMainnet): Lightning unsupported on mainnet')
+  const node = new (facade({ sendPayment: () => { throw error } }).SdkNode)({})
+  assert.throws(() => node.sendPayment({ invoice: 'invoice' }), error)
+})
+
 test('all excluded Bare methods fail without a native implementation', () => {
   const { SdkNode, UnsupportedCapabilityError } = facade()
   const node = new SdkNode({})

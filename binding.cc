@@ -728,6 +728,30 @@ FN_NODE_STR(asset_metadata, rln_asset_metadata)
 FN_NODE_JSON(import_rgb_contract, rln_import_rgb_contract)
 FN_NODE_JSON(import_rgb_transfer_consignment, rln_import_rgb_transfer_consignment)
 
+static js_value_t *fn_get_consignment(js_env_t *env, js_callback_info_t *info) {
+  js_value_t *args[3];
+  get_args(env, info, args, 3);
+  const struct COpaqueStruct *node = require_sdk_node(env, args[0]);
+  if (node == NULL) return make_undefined(env);
+  CStringArg asset(env, args[1]);
+  if (!asset.valid) return make_undefined(env);
+  CStringArg txid(env, args[2]);
+  if (!txid.valid) return make_undefined(env);
+  return handle_result_string(env, rln_get_consignment(node, asset, txid));
+}
+
+static js_value_t *fn_get_consignment_path(js_env_t *env, js_callback_info_t *info) {
+  js_value_t *args[3];
+  get_args(env, info, args, 3);
+  const struct COpaqueStruct *node = require_sdk_node(env, args[0]);
+  if (node == NULL) return make_undefined(env);
+  CStringArg asset(env, args[1]);
+  if (!asset.valid) return make_undefined(env);
+  CStringArg txid(env, args[2]);
+  if (!txid.valid) return make_undefined(env);
+  return handle_result_string(env, rln_get_consignment_path(node, asset, txid));
+}
+
 static js_value_t *fn_list_transfers(js_env_t *env, js_callback_info_t *info) {
   js_value_t *args[3];
   get_args(env, info, args, 3);
@@ -940,6 +964,8 @@ rgb_lightning_node_bare_exports(js_env_t *env, js_value_t *exports) {
   EXPORT("assetLinkCreate", asset_link_create);
   EXPORT("assetMetadata", asset_metadata);
   EXPORT("importRgbContract", import_rgb_contract);
+  EXPORT("getConsignment", get_consignment);
+  EXPORT("getConsignmentPath", get_consignment_path);
   EXPORT("importRgbTransferConsignment", import_rgb_transfer_consignment);
   EXPORT("listTransfers", list_transfers);
   EXPORT("listTransfersByTxid", list_transfers_by_txid);

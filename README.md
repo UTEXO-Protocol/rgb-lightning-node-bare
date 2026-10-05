@@ -1,19 +1,29 @@
 # @utexo/rgb-lightning-node-bare
 
-Release-based Bare bindings for RLN **0.13.0-beta.3**. Candidate **0.2.0-beta.1**;
-not approved for migration or production rollout. See [UPGRADE-TRACKER.md](./UPGRADE-TRACKER.md).
+Release-based Bare bindings for RLN **0.15.0-beta.3**. Candidate **0.2.0-beta.2**;
+not approved for production rollout. See [RELEASE-0.15-TRACKER.md](./RELEASE-0.15-TRACKER.md).
 
 ## Installation Contract
 
-Installation builds native artifacts from the exact source, submodule and adapter
-identities in `package.json`. This is **not a no-Rust prebuilt installation**.
-Requires Node 20+, Git, Rust 1.94.0, CMake 3.25+, a C/C++ toolchain, Xcode for Apple
+Installation first verifies packed prebuilds against source, submodule, adapter,
+wrapper and artifact hashes. Matching prebuilds need no Rust toolchain. Otherwise
+it builds the exact source identities in `package.json`; no stale binary is
+substituted. Publication requires all seven release prebuilds. This candidate is
+not published and is not fully qualified.
+
+Source builds need access to three private upstream BFA repositories even when
+BFA is unused. Authorized CI uses `ORG_READ_TOKEN` through
+`node scripts/with-source-access.js npm run prepare-native`; credentials are
+restricted to those repositories and are not embedded in artifacts. Anonymous
+clean installs and redistribution approval remain publication gates.
+
+Source building requires Node 20+, Git, Rust 1.94.0, CMake 3.25+, a C/C++ toolchain, Xcode for Apple
 targets and Android NDK 27.1.12297006 for Android. Header package 1.30.0 is locked;
 desktop canaries run Bare 1.30.3. Header equality, required symbols, source graph,
 wrapper fingerprint and artifact checksums are verified.
 
 ```sh
-npm install @utexo/rgb-lightning-node-bare@0.2.0-beta.1
+npm install @utexo/rgb-lightning-node-bare@0.2.0-beta.2
 # Explicit desktop qualification:
 RLN_BARE_TARGETS=darwin-arm64 npm run prepare-native
 # Select a mobile family:
@@ -33,11 +43,10 @@ provenance identity. Candidate artifact workflows never publish or mutate tags.
 Keep Cargo target caches separate from Node and other source checkouts. A reused
 Node target caused Rust type/trait mismatches; the identical source passed with
 an isolated Bare target. Prefer the default source-local target directory.
-The complete WDK dependency graph separately requires Bare >=1.32.0; its packed
-desktop canary passed on 1.32.0. The separately tested Expo 56 / RN 0.85.3 /
-Bare Kit 0.14.5 bundle reports embedded Bare 1.29.4; it passed iOS arm64 simulator
-and Android arm64 4-KiB emulator checks. This does not lower the standalone CLI
-floor or qualify physical devices.
+The complete WDK dependency graph requires Bare >=1.33.0 with current dependency
+resolution. RLN 0.15 funded WDK tests run on Bare 1.33.0. Earlier simulator and
+emulator results in `UPGRADE-TRACKER.md` used RLN 0.13; they do not qualify these
+new native artifacts or physical devices.
 
 ## Runtime
 
@@ -71,9 +80,14 @@ native calls. Full-range u64 request inputs are not supported.
 
 ## Excluded Capabilities and Migration
 
-Contract and transfer-consignment metadata imports use the approved, release-rebased
-RLN PR #128. They grant no balance and do not bypass native receive/settlement.
-The exact import revision is part of the native runtime identity; see `patches/README.md`.
+Contract and transfer-consignment metadata imports are released in RLN 0.15
+(PR #128). They grant no balance and do not bypass native receive/settlement.
+There is no import backport; see `patches/README.md`.
+
+`getConsignment(assetId, txid)` returns `{ bytes_hex }` from a locally saved
+transfer, and `getConsignmentPath(assetId, txid)` returns `{ path }`. Missing
+assets/transfers propagate native errors. Do not expose sandbox paths to dApps.
+WDK exposes `Uint8Array` bytes instead and no filesystem path API.
 
 Snapshot/sync overlays, prepared-send/UTXO plans, native operation
 control and VSS namespace deletion are unavailable. Existing named stubs throw
@@ -85,10 +99,10 @@ only and promises no legacy migration compatibility. Do not delete/recreate stat
 to bypass refusal or restore stale channel backups after new activity.
 
 Real local transfers and diagnostic Lightning/APay flows are recorded in
-`UPGRADE-TRACKER.md`. Strict outgoing signing and same-process reopen remain
-blockers. VSS is excluded from this qualification. Historical artifacts for all declared targets built; the new import patch requires
-its own target requalification (see the current tracker).
-mobile runtime and adverse recovery qualification remain separate. Android 64-bit
+`RELEASE-0.15-TRACKER.md`. Strict outgoing signing and same-process reopen remain
+blockers. VSS is excluded from this qualification. Historical artifacts for all
+declared targets do not qualify this release. Mobile runtime and adverse recovery
+qualification remain separate. Android 64-bit
 artifacts are checked for 16 KiB LOAD/RELRO alignment. The input check alone is
 insufficient: bare-link 3.3.0 with bare-lief 0.2.5 or 0.2.8 shifts the linked
 Android library's RELRO end by 4 KiB. A 16-KiB arm64 emulator crashes at native

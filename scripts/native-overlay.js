@@ -31,6 +31,8 @@ const LIBRARY_SYMBOLS = Object.freeze([
   'rln_free_string',
   'rln_get_asset_media',
   'rln_get_channel_id',
+  'rln_get_consignment',
+  'rln_get_consignment_path',
   'rln_get_payment',
   'rln_get_swap',
   'rln_inflate',
@@ -217,7 +219,6 @@ function overlayIdentity (config) {
     repository: config.repository,
     ref: config.ref,
     commit: config.commit,
-    importCommit: config.importCommit,
     lightningCommit: config.lightningCommit,
     patchSha256: config.patchSha256,
     cffiLockSha256: config.cffiLockSha256,
@@ -552,6 +553,20 @@ function verifyArtifacts (root, targets, symbolReader = inspectSymbols, config) 
   if (config) verifyArtifactManifest(root, config, targets)
 }
 
+// Packed consumers need only the addon and its provenance, not a Rust toolchain,
+// NDK, static archives or credentials for private build dependencies.
+function verifyPackedPrebuilds (root, config, targets) {
+  const manifest = readManifest(root)
+  if (!manifestMatchesIdentity(manifest, config)) fail('packed prebuild identity does not match')
+  for (const target of targets) {
+    const prebuild = artifactPaths(root, target).prebuild
+    if (!fs.existsSync(prebuild) || fs.statSync(prebuild).size === 0 ||
+        manifest.artifacts?.[target]?.prebuildSha256 !== sha256(prebuild)) {
+      fail(`packed prebuild hash does not match for ${target}`)
+    }
+  }
+}
+
 function copyArtifacts (sourceRoot, packageRoot, config, targets) {
   verifyArtifacts(sourceRoot, targets, inspectSymbols, config)
   for (const target of targets) {
@@ -678,6 +693,15 @@ function ensureOverlayArtifacts (
   environment = process.env
 ) {
   const requestedTargets = validateRequestedTargets(config, [...targets])
+  if (fs.existsSync(artifactManifestPath(packageRoot))) {
+    try {
+      verifyPackedPrebuilds(packageRoot, config, requestedTargets)
+      console.log(`[rgb-lightning-node-bare] Verified packed prebuilds: ${requestedTargets.join(', ')}`)
+      return
+    } catch (error) {
+      console.log(`[rgb-lightning-node-bare] Packed prebuilds unavailable: ${error.message}`)
+    }
+  }
   try {
     verifyArtifacts(packageRoot, requestedTargets, inspectSymbols, config)
     console.log(
@@ -736,5 +760,6 @@ module.exports = {
   resolveInstallTargets,
   validatedNmOutput,
   writeArtifactManifest,
-  verifyArtifacts
+  verifyArtifacts,
+  verifyPackedPrebuilds
 }
