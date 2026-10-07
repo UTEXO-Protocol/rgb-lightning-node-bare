@@ -1,6 +1,7 @@
 # @utexo/rgb-lightning-node-bare
 
-Release-based Bare bindings for RLN **0.15.0-beta.3**. Candidate **0.2.0-beta.2**;
+Release-based Bare bindings for RLN **0.15.0-beta.3 plus merged PR #192**,
+commit `a17b685615750536f0320db1cd3f3ba68a8f1c57`. Candidate **0.2.0-beta.3**;
 not approved for production rollout. See [RELEASE-0.15-TRACKER.md](./RELEASE-0.15-TRACKER.md).
 
 ## Installation Contract
@@ -23,7 +24,7 @@ desktop canaries run Bare 1.30.3. Header equality, required symbols, source grap
 wrapper fingerprint and artifact checksums are verified.
 
 ```sh
-npm install @utexo/rgb-lightning-node-bare@0.2.0-beta.2
+npm install @utexo/rgb-lightning-node-bare@0.2.0-beta.3
 # Explicit desktop qualification:
 RLN_BARE_TARGETS=darwin-arm64 npm run prepare-native
 # Select a mobile family:
@@ -68,6 +69,11 @@ or `{ mode: 'BlockSync', config: { bitcoind_rpc_username,
 bitcoind_rpc_password, bitcoind_rpc_host, bitcoind_rpc_port } }`.
 The top-level `indexer_url` is independently available for RGB. External-signer
 unlock does not accept password or gossip configuration.
+Both external-signer unlock entrypoints accept optional `eth_rpc_url` for BFA
+bridge-event validation. Use the Ethereum RPC for the asset's bridge chain;
+omitted/null preserve non-BFA behavior. The source installer fetches the exact
+merge commit, not a floating branch or the older release binary. The runtime
+advertises `external-signer-eth-rpc-v1`. External-signer burn remains unsupported.
 
 `refreshTransfers({ skip_sync })` returns per-batch status/failure details.
 `listTransfers(assetId?, txid?)` supports asset-less and combined queries.

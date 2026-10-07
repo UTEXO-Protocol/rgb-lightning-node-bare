@@ -12,6 +12,7 @@ const {
   PREBUILD_SYMBOLS,
   assertSupportedBuildHost,
   artifactPaths,
+  cloneSource,
   nativeArtifactInstallMode,
   normalizedSymbols,
   readOverlayConfig,
@@ -26,6 +27,30 @@ const {
 function fixtureRoot () {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'utexo-native-overlay-test-'))
 }
+
+test('source checkout fetches the exact commit without requiring a tag', context => {
+  const calls = []
+  const config = readOverlayConfig(path.resolve(__dirname, '..'))
+  const checkout = cloneSource(config, (...args) => calls.push(args))
+  context.after(() => fs.rmSync(checkout.temporaryRoot, { recursive: true, force: true }))
+  const at = ['-C', checkout.sourceRoot]
+  assert.deepEqual(calls, [
+    ['git', ['init', checkout.sourceRoot]],
+    ['git', [...at, 'remote', 'add', 'origin', config.repository]],
+    ['git', [...at, 'fetch', '--no-recurse-submodules', '--depth', '1', 'origin', config.commit]],
+    ['git', [...at, 'checkout', '--detach', config.commit]],
+    ['git', [...at, 'submodule', 'update', '--init', '--recursive', '--depth', '1']]
+  ])
+})
+
+test('failed source checkout removes its temporary directory', () => {
+  let temporaryRoot
+  assert.throws(() => cloneSource({}, (_command, args) => {
+    temporaryRoot = path.dirname(args[1])
+    throw new Error('fetch failed')
+  }), /fetch failed/)
+  assert.equal(fs.existsSync(temporaryRoot), false)
+})
 
 test('packed prebuild verification needs no archives or platform toolchain', context => {
   const root = fixtureRoot()
@@ -59,8 +84,8 @@ test('package overlay metadata is exact and checksum-pinned', () => {
   const packageRoot = path.resolve(__dirname, '..')
   const config = readOverlayConfig(packageRoot)
 
-  assert.equal(config.commit, 'e2b39d5ae8da74525eafb58bc39b9a614c756a73')
-  assert.equal(config.patchSha256, '1e73269080a7a4e62026b72358175be15c1d7f31b1e3004cc09b7e3062da06b7')
+  assert.equal(config.commit, 'a17b685615750536f0320db1cd3f3ba68a8f1c57')
+  assert.equal(config.patchSha256, '93d62bb91c0ab90a7ccc4a1382a9da84498e38506170ce74d3863292f0c9f2f4')
   assert.equal(config.rustToolchain, '1.94.0')
   assert.equal(config.iosDeploymentTarget, '16.0')
   assert.equal(config.androidNdkVersion, '27.1.12297006')

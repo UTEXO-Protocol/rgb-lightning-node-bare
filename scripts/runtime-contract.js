@@ -9,7 +9,7 @@ const WRAPPER_FILES = ['index.js', 'index.d.ts', 'json-boundary.js', 'binding.js
 function runtimeIdentity (root, config) {
   return {
     abi_version: 1,
-    rln_version: config.ref.slice(1),
+    rln_version: config.rlnVersion,
     rln_commit: config.commit,
     lightning_commit: config.lightningCommit,
     adapter_sha256: config.patchSha256,

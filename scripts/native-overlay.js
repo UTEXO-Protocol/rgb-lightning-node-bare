@@ -292,8 +292,8 @@ function readOverlayConfig (packageRoot) {
   if (!/^https:\/\/github\.com\/UTEXO-Protocol\/rgb-lightning-node\.git$/.test(config.repository)) {
     fail('utexoNativeOverlay.repository is not approved')
   }
-  if (!/^v[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$/.test(config.ref)) {
-    fail('utexoNativeOverlay.ref must be an exact beta tag')
+  if (!/^v[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$/.test(config.ref) && config.ref !== config.commit) {
+    fail('utexoNativeOverlay.ref must be an exact beta tag or the pinned commit')
   }
   if (!/^[0-9a-f]{40}$/.test(config.commit)) {
     fail('utexoNativeOverlay.commit must be a full Git commit')
@@ -588,19 +588,22 @@ function applyOverlay (sourceRoot, config) {
   releaseContract.prepareSource(sourceRoot, config)
 }
 
-function cloneSource (config) {
+function cloneSource (config, execute = run) {
   const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'utexo-rln-source-'))
   const sourceRoot = path.join(temporaryRoot, 'rgb-lightning-node')
-  run('git', [
-    'clone',
-    '--recurse-submodules',
-    '--shallow-submodules',
-    '--depth', '1',
-    '--branch', config.ref,
-    config.repository,
-    sourceRoot
-  ])
-  return Object.freeze({ sourceRoot, temporaryRoot })
+  try {
+    // Source candidates need not have a release tag. Fetch the approved commit,
+    // not a mutable branch and not `clone --branch <sha>` (which Git rejects).
+    execute('git', ['init', sourceRoot])
+    execute('git', ['-C', sourceRoot, 'remote', 'add', 'origin', config.repository])
+    execute('git', ['-C', sourceRoot, 'fetch', '--no-recurse-submodules', '--depth', '1', 'origin', config.commit])
+    execute('git', ['-C', sourceRoot, 'checkout', '--detach', config.commit])
+    execute('git', ['-C', sourceRoot, 'submodule', 'update', '--init', '--recursive', '--depth', '1'])
+    return Object.freeze({ sourceRoot, temporaryRoot })
+  } catch (error) {
+    fs.rmSync(temporaryRoot, { force: true, recursive: true })
+    throw error
+  }
 }
 
 function ensureCargoTool (command, args, packageName, expectedVersion) {
@@ -752,6 +755,7 @@ module.exports = {
   TARGETS_ENV,
   assertSupportedBuildHost,
   artifactPaths,
+  cloneSource,
   ensureOverlayArtifacts,
   nativeArtifactInstallMode,
   normalizedSymbols,

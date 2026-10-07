@@ -35,6 +35,28 @@ test('compiled identity is checked before Bare handles are created', () => {
   assert.ok(Object.isFrozen(facade().getRuntimeInfo()))
 })
 
+test('both external unlock entrypoints preserve optional Ethereum RPC and native errors', () => {
+  for (const method of ['unlockWithNativeExternalSigner', 'unlockWithAttachedExternalSigner']) {
+    const bindingMethod = method === 'unlockWithNativeExternalSigner'
+      ? 'sdkNodeUnlockWithNativeExternalSigner' : 'sdkNodeUnlockWithAttachedExternalSigner'
+    const requests = []
+    const error = new Error('Rln(InvalidIndexer): Ethereum RPC unavailable')
+    let fail = false
+    const node = new (facade({ [bindingMethod]: (...args) => {
+      if (fail) throw error
+      requests.push(JSON.parse(args.at(-1)))
+    } }).SdkNode)({})
+    const invoke = request => method === 'unlockWithNativeExternalSigner'
+      ? node[method]({ _handle: {} }, request) : node[method](request)
+    for (const request of [{}, { eth_rpc_url: null }, { eth_rpc_url: 'http://127.0.0.1:29545' }]) {
+      invoke(request)
+      assert.deepEqual(requests.at(-1), request)
+    }
+    fail = true
+    assert.throws(() => invoke({ eth_rpc_url: 'http://127.0.0.1:29545' }), error)
+  }
+})
+
 test('local export preserves hex bytes, native paths and errors', () => {
   const calls = []
   const error = new Error('Rln(UnknownTransfer): missing consignment')
