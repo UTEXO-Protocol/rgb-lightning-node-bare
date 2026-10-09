@@ -26,6 +26,7 @@ jobs:
         with:
           toolchain: '1.94.0'
           rustflags: ''
+          cache: false
       - run: npm ci --ignore-scripts
       - run: npm run check:types
       - run: npm run test:installer
@@ -40,6 +41,7 @@ jobs:
         if: matrix.platform == 'darwin-arm64'
         run: node node_modules/bare-runtime/bin/bare test.js
       - name: Validate Android ELF after production packaging
+        id: android-packaging
         if: matrix.platform == 'android-arm64' || matrix.platform == 'android-x64'
         env:
           TARGET: ${{ matrix.platform }}
@@ -62,3 +64,14 @@ jobs:
             prebuilds/${{ matrix.platform }}/utexo__rgb-lightning-node-bare.bare
           if-no-files-found: error
           include-hidden-files: true
+      - name: Retain rejected Android packaging for diagnosis
+        if: failure() && steps.android-packaging.outcome == 'failure'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: unqualified-android-${{ matrix.platform }}-${{ github.sha }}
+          path: |
+            .utexo-native-overlay.json
+            prebuilds/${{ matrix.platform }}/utexo__rgb-lightning-node-bare.bare
+            ${{ runner.temp }}/linked-android/
+          include-hidden-files: true
+          if-no-files-found: error

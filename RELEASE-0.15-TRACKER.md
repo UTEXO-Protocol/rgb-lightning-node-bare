@@ -17,6 +17,45 @@ Current BFA results, RN comparison and remaining gates are maintained in the
 The qualification below records the previous candidate, not a retest of every
 platform or failure mode against this new source.
 
+## October 9 Artifact Qualification
+
+All seven current-source Bare prebuilds pass the local release-artifact gate:
+Darwin arm64, iOS device arm64, iOS simulator arm64/x64, and Android
+arm64/armv7/x64. This verifies exact source/adapter identity, release profile,
+checksums and target-specific artifact requirements, not execution on every
+target. No native dependency or adapter revision changed for these builds.
+
+Iris's final three-ABI Release APK/AAB and generated APK splits pass native
+payload/provenance, signature and alignment checks. Each ABI contains 72 native
+libraries; the final 64-bit Android outputs pass 16-KiB checks using Iris's
+byte-preserving staging. This is not a pass for the generic bare-link rewrite.
+The artifacts use local test signing and an explicit Signet configuration;
+they have not been store-signed or interactively qualified as Release builds.
+Local evidence is retained in
+`/tmp/iris-android-release-signet-verification-20261009.json` and
+`/tmp/iris-android-split-verification-20261009.json`.
+
+The arm64 16-KiB Android Debug app passed the recorded BTC send/receive and
+settled RGB-receive flows. RGB send remains unexecuted. Funded same-process
+reopen still fails with a signer database lock, and the incoming RGB pending
+display still double-counts before settlement. Artifact checks do not resolve
+those runtime failures or replace physical-device qualification.
+
+`ORG_READ_TOKEN` is now configured. Attempt 2 of
+[contract CI](https://github.com/UTEXO-Protocol/rgb-lightning-node-bare/actions/runs/37629619939)
+passed the host debug build, native tests and package checks.
+
+The optimized [seven-target candidate run](https://github.com/UTEXO-Protocol/rgb-lightning-node-bare/actions/runs/37925315347)
+completed with five passing jobs (Darwin arm64, all three iOS targets, Android
+armv7). Android arm64 and x64 compiled but failed the production post-link check.
+The arm64 failure is reproduced locally with `bare-link@3.3.2` and
+`bare-lief@0.2.9`: RELRO shifts by 4096 bytes and the dynamic table moves into a
+separate writable LOAD outside RELRO. Increasing alignment or ignoring the
+raw end would not establish equivalent protection. The linked-ELF gate now
+also checks DYNAMIC/GOT coverage and excludes mutable data from RELRO; the
+45-test installer/wrapper suite passes. Both original 64-bit prebuilds pass the
+stronger checks. No ELF protection was weakened and no native source changed.
+
 ## Previous Candidate Qualification
 
 - Pin RLN `e2b39d5ae8da74525eafb58bc39b9a614c756a73`, LDK
@@ -35,17 +74,16 @@ platform or failure mode against this new source.
 
 ## Open gates
 
-Both native repositories need an `ORG_READ_TOKEN` Actions secret with read
-access to the three private BFA repositories. No applicable secret was available
-when checked. The scoped credential helper is implemented; no personal token
-was copied to GitHub. Complete release builds, anonymous packed installs and
-license/notices review remain publication gates.
+Private-source authentication is resolved. Generic Android post-link safety,
+anonymous target-runtime qualification and license/notices review remain
+publication gates. Local original-artifact availability is complete, but the
+two failing Android CI jobs intentionally do not publish qualified artifacts.
 
 Host debug and optimized builds, native canaries and fresh packed-consumer
 installs pass. Both optimized runtimes also pass the funded four-schema/export
-matrix. Fresh Android arm64 input checks pass, but bare-link 3.3.2/bare-lief
-0.2.9 output fails 16-KiB RELRO alignment. Remaining 0.15 platform/runtime
-qualification is open; historical 0.13 results are not reused as passes.
+matrix. Iris's app-owned staging avoids the rewrite, but does not fix the
+generic linker or qualify another application's packaging. Remaining runtime qualification is open;
+historical 0.13 results are not reused as passes.
 
 Fresh native failures include unlocked same-process signer reopen, strict
 outbound Lightning and mature BTC force-close sweeping. Node crash tests also
@@ -66,6 +104,9 @@ outside this change. UPGRADE-TRACKER.md is historical 0.13 evidence.
 Draft reviews: [WDK #45](https://github.com/UTEXO-Protocol/wdk-rgb-lightning/pull/45),
 [Node #24](https://github.com/UTEXO-Protocol/rgb-lightning-node-nodejs/pull/24),
 [Bare #22](https://github.com/UTEXO-Protocol/rgb-lightning-node-bare/pull/22).
-WDK CI passes. Native CI logs confirm missing ORG_READ_TOKEN, not successful
-cross-platform builds. Both complete-artifact publication gates reject the
-currently incomplete matrices. No registry package or release tag was created.
+WDK CI passes. Native source access now works; the hosted seven-target result
+and remaining Android failures are recorded above. No registry package or
+release tag was created. Burn support merged upstream in RLN #194 at
+`f1105c207f4750a4258ae7b0df45d7e4caa04b4f`; this candidate still pins #192.
+Enabling burn requires a deliberate source update, binding/API work, durable
+operation recovery and a fresh qualification cycle, not only changing a flag.

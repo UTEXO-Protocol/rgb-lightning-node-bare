@@ -26,6 +26,7 @@ jobs:
         with:
           toolchain: '1.94.0'
           rustflags: ''
+          cache: false
       - run: npm ci --ignore-scripts
       - run: npm run check:types
       - run: npm run test:installer

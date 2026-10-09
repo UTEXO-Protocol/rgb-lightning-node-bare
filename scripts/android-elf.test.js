@@ -5,7 +5,7 @@ const test = require('node:test')
 const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
-const { validateAndroidElf, validateAndroidLifetime } = require('./android-elf')
+const { validateAndroidElf, validateAndroidLifetime, validateAndroidProtection } = require('./android-elf')
 
 function fixture (arch = 'aarch64') {
   return [{
@@ -63,6 +63,39 @@ test('linked validator rejects invalid targets and missing files before launchin
   assert.throws(() => checkLinked('android-arm', 'unused', '/nonexistent'), /Usage/)
   assert.throws(() => checkLinked('android-arm64', '', '/nonexistent'), /Usage/)
   assert.throws(() => checkLinked('android-arm64', '/nonexistent', '/nonexistent'), /ENOENT/)
+})
+
+test('aligned RELRO cannot hide relocated DYNAMIC/GOT or protect mutable data', () => {
+  const make = () => [{
+    ProgramHeaders: [
+      { ProgramHeader: { Type: { Name: 'PT_LOAD' }, VirtualAddress: 16384, MemSize: 16384 } },
+      { ProgramHeader: { Type: { Name: 'PT_GNU_RELRO' }, VirtualAddress: 16384, MemSize: 16384 } },
+      { ProgramHeader: { Type: { Name: 'PT_DYNAMIC' }, VirtualAddress: 16384, MemSize: 128 } }
+    ],
+    Sections: [
+      { Section: { Name: { Name: '.dynamic' }, Address: 16384, Size: 128, Flags: { Value: 3 } } },
+      { Section: { Name: { Name: '.got' }, Address: 16512, Size: 128, Flags: { Value: 3 } } },
+      { Section: { Name: { Name: '.data' }, Address: 32768, Size: 128, Flags: { Value: 3 } } }
+    ]
+  }]
+  const verify = value => validateAndroidProtection(JSON.stringify(value))
+  assert.doesNotThrow(() => verify(make()))
+  const dynamic = make()
+  dynamic[0].ProgramHeaders[2].ProgramHeader.VirtualAddress = 49152
+  assert.throws(() => verify(dynamic), /DYNAMIC escaped/)
+  const got = make()
+  got[0].Sections[1].Section.Address = 49152
+  assert.throws(() => verify(got), /got escaped/)
+  const mutable = make()
+  mutable[0].Sections[2].Section.Address = 32760
+  assert.throws(() => verify(mutable), /protects mutable/)
+  const outside = make()
+  outside[0].ProgramHeaders[0].ProgramHeader.MemSize = 128
+  assert.throws(() => verify(outside), /outside LOAD/)
+  for (const invalid of [null, [], [{}]]) assert.throws(() => verify(invalid))
+  const overflow = make()
+  overflow[0].Sections[1].Section.Size = 2 ** 64
+  assert.throws(() => verify(overflow), /bounds/)
 })
 
 test('Android addons retain Rust TLS destructor code for 32-bit and 64-bit worklets', (context) => {

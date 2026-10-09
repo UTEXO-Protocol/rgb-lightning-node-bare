@@ -74,4 +74,40 @@ function validateAndroidLifetime (output, file) {
   throw new Error('Android ELF dynamic segment lacks DT_NULL')
 }
 
-module.exports = { validateAndroidElf, validateAndroidLifetime }
+function validateAndroidProtection (output) {
+  const files = JSON.parse(output)
+  if (!Array.isArray(files) || files.length !== 1) throw new Error('Invalid Android ELF metadata')
+  const headers = files[0]?.ProgramHeaders?.map(entry => entry.ProgramHeader)
+  const sections = files[0]?.Sections?.map(entry => entry.Section)
+  if (!Array.isArray(headers) || !Array.isArray(sections)) throw new Error('Missing Android ELF sections or headers')
+  const relros = headers.filter(header => header?.Type?.Name === 'PT_GNU_RELRO')
+  const dynamics = headers.filter(header => header?.Type?.Name === 'PT_DYNAMIC')
+  const loads = headers.filter(header => header?.Type?.Name === 'PT_LOAD')
+  const integer = value => Number.isSafeInteger(value) && value >= 0
+  const valid = (address, size) => integer(address) && integer(size) && size > 0 && integer(address + size)
+  if (relros.length !== 1 || dynamics.length !== 1) throw new Error('Expected one Android RELRO and DYNAMIC segment')
+  const r = relros[0]
+  if (!valid(r.VirtualAddress, r.MemSize)) throw new Error('Invalid Android RELRO bounds')
+  const contains = (address, size) => valid(address, size) && address >= r.VirtualAddress && address + size <= r.VirtualAddress + r.MemSize
+  if (!loads.some(load => valid(load.VirtualAddress, load.MemSize) &&
+      r.VirtualAddress >= load.VirtualAddress && r.VirtualAddress + r.MemSize <= load.VirtualAddress + load.MemSize)) {
+    throw new Error('Android RELRO is outside LOAD')
+  }
+  if (!contains(dynamics[0].VirtualAddress, dynamics[0].MemSize)) throw new Error('Android DYNAMIC escaped RELRO')
+  if (!sections.some(section => section?.Name?.Name === '.dynamic') ||
+      !sections.some(section => section?.Name?.Name === '.got')) throw new Error('Missing protected Android ELF sections')
+  const start = Math.floor(r.VirtualAddress / 16384) * 16384
+  const end = r.VirtualAddress + r.MemSize
+  for (const section of sections) {
+    if (!integer(section?.Address) || !integer(section?.Size) || !integer(section.Address + section.Size) ||
+        !integer(section?.Flags?.Value)) throw new Error('Invalid Android ELF section bounds')
+    if (!section.Size || !(section.Flags.Value & 2)) continue
+    const protectedSection = /^(\.dynamic|\.got(?:\.plt)?|\.data\.rel\.ro(?:\..*)?|\.init_array|\.fini_array|\.relro_padding)$/.test(section.Name?.Name)
+    if (protectedSection && !contains(section.Address, section.Size)) throw new Error(`${section.Name.Name} escaped RELRO`)
+    if (!protectedSection && (section.Flags.Value & 1) && section.Address < end && section.Address + section.Size > start) {
+      throw new Error(`Android RELRO protects mutable ${section.Name?.Name}`)
+    }
+  }
+}
+
+module.exports = { validateAndroidElf, validateAndroidLifetime, validateAndroidProtection }
