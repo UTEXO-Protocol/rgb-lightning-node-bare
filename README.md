@@ -111,7 +111,8 @@ declared targets do not qualify this release. Mobile runtime and adverse recover
 qualification remain separate. Android 64-bit
 artifacts are checked for 16 KiB LOAD/RELRO alignment. The input check alone is
 insufficient: bare-link 3.3.0 with bare-lief 0.2.5 or 0.2.8 shifts the linked
-Android library's RELRO end by 4 KiB. A 16-KiB arm64 emulator crashes at native
+Android library's RELRO end by 4 KiB. This remains reproducible with 3.3.2/0.2.9;
+the rewrite also places DYNAMIC outside RELRO. A 16-KiB arm64 emulator crashes at native
 import; the 4-KiB emulator passes. Android 16-KiB release remains blocked.
 
 Validate the final linked library as well as the prebuild, with NDK
@@ -125,5 +126,7 @@ Use `android-x64` for x86_64. Run this after Bare Kit linking and check extracte
 APK libraries too; `zipalign -c -P 16` alone cannot detect this ELF defect. The
 candidate-artifact workflow now fails closed on the post-link check. Do not
 disable RELRO, weaken validation, or describe a compile-only artifact as a mobile
-runtime pass. See the linked WDK qualification report for exact reproduction.
+runtime pass. Iris's byte-preserving staging passes final-artifact checks but is
+an app-owned integration, not a generic bare-link fix. See the release tracker
+for the five passing CI targets and two failing Android packaging jobs.
 The current overlay-dependent app must not be repinned blindly.

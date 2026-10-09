@@ -56,6 +56,16 @@ also checks DYNAMIC/GOT coverage and excludes mutable data from RELRO; the
 45-test installer/wrapper suite passes. Both original 64-bit prebuilds pass the
 stronger checks. No ELF protection was weakened and no native source changed.
 
+The CI-built macOS addon passes fresh packed WDK consumer checks, all 12
+external-unlock cases, four-schema funded receive/send/balance/history/export,
+and ten BFA normal-path/invalid-mint steps. BTC cold-copy recovery and confirmed
+spend pass all six recorded steps. The new pending witness-balance acceptance
+test fails: WDK and native both report future 200000 for one 100000-unit receipt;
+after confirmation all balances correctly read 100000. Unlocked same-process
+reopen also still fails. These failures are retained, not converted into passing
+expected-failure checks. Current decisions and evidence are in the
+[production gates](https://github.com/UTEXO-Protocol/wdk-rgb-lightning/blob/release/rln-0.15.0-beta.3/PRODUCTION-GATES.md).
+
 ## Previous Candidate Qualification
 
 - Pin RLN `e2b39d5ae8da74525eafb58bc39b9a614c756a73`, LDK
