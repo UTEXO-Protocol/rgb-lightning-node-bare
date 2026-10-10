@@ -108,12 +108,18 @@ Real local transfers and diagnostic Lightning/APay flows are recorded in
 `RELEASE-0.15-TRACKER.md`. Strict outgoing signing and same-process reopen remain
 blockers. VSS is excluded from this qualification. Historical artifacts for all
 declared targets do not qualify this release. Mobile runtime and adverse recovery
-qualification remain separate. Android 64-bit
-artifacts are checked for 16 KiB LOAD/RELRO alignment. The input check alone is
-insufficient: bare-link 3.3.0 with bare-lief 0.2.5 or 0.2.8 shifts the linked
-Android library's RELRO end by 4 KiB. This remains reproducible with 3.3.2/0.2.9;
-the rewrite also places DYNAMIC outside RELRO. A 16-KiB arm64 emulator crashes at native
-import; the 4-KiB emulator passes. Android 16-KiB release remains blocked.
+qualification remain separate.
+
+Android consumers must use the public [Android staging integration](./android/README.md)
+with `react-native-bare-kit@0.15.5` and NDK `27.1.12297006`. Its Gradle hook
+verifies and packages the original RLN addon byte-for-byte after `bare-link`,
+preserving RELRO/DYNAMIC/GOT protection and 16-KiB layout. Installing the npm
+package alone does not apply the hook. It supports ARM64, ARMv7 and x86-64,
+with one JS-loaded RLN version and no incoming native RLN dependency.
+
+The generic `bare-link@3.3.2` / `bare-lief@0.2.9` or `0.2.10` rewrite still
+misaligns RELRO and moves DYNAMIC outside it. The staging integration avoids
+that rewrite for RLN; it does not fix the upstream linker or relax its checks.
 
 Validate the final linked library as well as the prebuild, with NDK
 `llvm-readobj` on PATH or supplied via `LLVM_READOBJ`:
@@ -124,9 +130,9 @@ node scripts/check-android-linked.js android-arm64 /absolute/path/to/linked.so
 
 Use `android-x64` for x86_64. Run this after Bare Kit linking and check extracted
 APK libraries too; `zipalign -c -P 16` alone cannot detect this ELF defect. The
-candidate-artifact workflow now fails closed on the post-link check. Do not
-disable RELRO, weaken validation, or describe a compile-only artifact as a mobile
-runtime pass. Iris's byte-preserving staging passes final-artifact checks but is
-an app-owned integration, not a generic bare-link fix. See the release tracker
-for the five passing CI targets and two failing Android packaging jobs.
+candidate-artifact workflow uses the same verified staging path and fails closed.
+Do not disable RELRO, weaken validation, or describe a compile-only artifact as
+a mobile runtime pass. Apps with their own staging must replace that hook when
+adopting this one, not apply both. See the [release tracker](./RELEASE-0.15-TRACKER.md)
+for current evidence and historical raw-link CI failures.
 The current overlay-dependent app must not be repinned blindly.

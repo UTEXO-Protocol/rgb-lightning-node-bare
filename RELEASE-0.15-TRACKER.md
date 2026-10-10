@@ -17,6 +17,53 @@ Current BFA results, RN comparison and remaining gates are maintained in the
 The qualification below records the previous candidate, not a retest of every
 platform or failure mode against this new source.
 
+## October 10 Android Packaging
+
+The package now owns a public, opt-in [Android staging integration](./android/README.md).
+After `bare-link`, it verifies the release prebuild and copies it byte-for-byte
+under the expected linked filename. It retains the original SONAME and accepts
+only a single JS-loaded RLN version, the reviewed BareKit 0.15.5 runtime and
+NDK 27.1.12297006. It rejects incoming native RLN dependencies, unreviewed
+imports, stale artifacts, conflicting SONAMEs and unsafe output replacement.
+The root Gradle hook preserves BareKit runtime/JAR inputs and orders staging
+before JNI merges. Consumers must apply it explicitly; no installed upstream
+package is patched. The native source, adapter, wrapper and recipe are unchanged.
+
+Verified locally:
+
+- All three Android ABIs pass staging provenance, identity, import resolution,
+  RELRO/DYNAMIC/GOT protection and Rust TLS lifetime checks. Both 64-bit outputs
+  retain 16-KiB layout. Raw 3.3.2/0.2.10 linker output still fails; no ELF check
+  has been relaxed.
+- The standalone packed package executes staging successfully without source
+  archives or a Rust build. The Gradle 9.3.1 graph regression passes; it is a
+  task/source-directory contract test, not a complete React Native app build.
+- One three-ABI, test-signed APK passes signature, 16-KiB ZIP alignment and
+  exact staged-payload hash checks. SHA-256:
+  `91a9f9281712f13bf124ff6a6091e1d6f66fde2f35888a2d440672026ab1131a`.
+- That APK passes on API-36 ARM64 emulators with 4096-byte and 16384-byte pages.
+  Each run uses three successive real BareKit worklets, the public JS wrapper,
+  strict persistent signer create/bootstrap/destroy, private storage permissions
+  and native dependencies. `/proc/self/maps` confirms RELRO and DYNAMIC are
+  read-only and non-executable, with one loaded RLN module.
+- 54 wrapper/installer/ELF tests, declaration checks and the host native canary
+  pass. The candidate workflow now verifies staging for every Android ABI and
+  uploads staged outputs separately, preserving existing native artifact paths.
+
+Evidence: `/tmp/rln-android-link-20261010/`, including `public-staging.json`,
+`packed-staging.json`, `gradle-contract-final.log`, `apk-final/package-evidence.json`,
+`runtime-final-4k.log` and `runtime-final-16k.log`. The instrumentation fixture
+is in `tests/android/`; no wallet data, private credentials or APKs are committed. Disposable test
+AVDs were removed after completion. A fixture-only bundle-base error was fixed
+before both final passes; its failed trace remains with the local evidence.
+
+This closes the RELRO/DYNAMIC packaging defect for the documented integration,
+on either network. It does not fix generic `bare-link`/`bare-lief`, qualify
+ARMv7/x86-64 runtime execution, or establish funded wallet behavior, TLS,
+unlocked-wallet reopen, recovery, physical devices or store signing. Hosted
+candidate rebuilding is separate from these local results. The historical
+failed CI run below remains a failure, not retroactively a pass.
+
 ## October 9 Artifact Qualification
 
 All seven current-source Bare prebuilds pass the local release-artifact gate:
@@ -84,15 +131,16 @@ expected-failure checks. Current decisions and evidence are in the
 
 ## Open gates
 
-Private-source authentication is resolved. Generic Android post-link safety,
-anonymous target-runtime qualification and license/notices review remain
-publication gates. Local original-artifact availability is complete, but the
-two failing Android CI jobs intentionally do not publish qualified artifacts.
+Private-source authentication is resolved. Android packaging now has the
+verified public integration above; raw linker output remains unsupported.
+Target-runtime qualification and license/notices review remain publication
+gates. The prior two failing Android CI jobs intentionally did not publish
+qualified artifacts; final hosted artifacts must pass the new staging workflow.
 
 Host debug and optimized builds, native canaries and fresh packed-consumer
 installs pass. Both optimized runtimes also pass the funded four-schema/export
-matrix. Iris's app-owned staging avoids the rewrite, but does not fix the
-generic linker or qualify another application's packaging. Remaining runtime qualification is open;
+matrix. Consumers must adopt the public staging hook and verify their final
+app artifacts; the generic linker remains unchanged. Remaining runtime qualification is open;
 historical 0.13 results are not reused as passes.
 
 Fresh native failures include unlocked same-process signer reopen, strict
@@ -115,7 +163,7 @@ Draft reviews: [WDK #45](https://github.com/UTEXO-Protocol/wdk-rgb-lightning/pul
 [Node #24](https://github.com/UTEXO-Protocol/rgb-lightning-node-nodejs/pull/24),
 [Bare #22](https://github.com/UTEXO-Protocol/rgb-lightning-node-bare/pull/22).
 WDK CI passes. Native source access now works; the hosted seven-target result
-and remaining Android failures are recorded above. No registry package or
+and historical Android failures are recorded above. No registry package or
 release tag was created. Burn support merged upstream in RLN #194 at
 `f1105c207f4750a4258ae7b0df45d7e4caa04b4f`; this candidate still pins #192.
 Enabling burn requires a deliberate source update, binding/API work, durable

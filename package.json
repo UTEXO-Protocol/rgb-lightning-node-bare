@@ -54,7 +54,8 @@
     "UPGRADE-TRACKER.md",
     "RELEASE-0.15-TRACKER.md",
     "patches/",
-    "scripts/"
+    "scripts/",
+    "android/"
   ],
   "scripts": {
     "prepublishOnly": "node scripts/verify-release-artifacts.js",
@@ -78,6 +79,7 @@
     "require-addon": "^1.2.0"
   },
   "devDependencies": {
+    "bare-pack": "2.2.4",
     "bare-runtime": "1.30.3",
     "typescript": "^6.0.3"
   }

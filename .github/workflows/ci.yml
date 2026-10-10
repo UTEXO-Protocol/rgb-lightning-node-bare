@@ -9,6 +9,16 @@ permissions:
   contents: read
 
 jobs:
+  android-staging-contract:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
+        with:
+          gradle-version: '9.3.1'
+      - run: gradle -p tests/android-gradle --offline --no-daemon :app:mergeReleaseNativeLibs
+
   contract:
     runs-on: macos-15
     timeout-minutes: 90

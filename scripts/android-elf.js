@@ -74,7 +74,8 @@ function validateAndroidLifetime (output, file) {
   throw new Error('Android ELF dynamic segment lacks DT_NULL')
 }
 
-function validateAndroidProtection (output) {
+function validateAndroidProtection (output, pageSize = 16384) {
+  if (![4096, 16384].includes(pageSize)) throw new Error('Unsupported Android page size')
   const files = JSON.parse(output)
   if (!Array.isArray(files) || files.length !== 1) throw new Error('Invalid Android ELF metadata')
   const headers = files[0]?.ProgramHeaders?.map(entry => entry.ProgramHeader)
@@ -96,7 +97,7 @@ function validateAndroidProtection (output) {
   if (!contains(dynamics[0].VirtualAddress, dynamics[0].MemSize)) throw new Error('Android DYNAMIC escaped RELRO')
   if (!sections.some(section => section?.Name?.Name === '.dynamic') ||
       !sections.some(section => section?.Name?.Name === '.got')) throw new Error('Missing protected Android ELF sections')
-  const start = Math.floor(r.VirtualAddress / 16384) * 16384
+  const start = Math.floor(r.VirtualAddress / pageSize) * pageSize
   const end = r.VirtualAddress + r.MemSize
   for (const section of sections) {
     if (!integer(section?.Address) || !integer(section?.Size) || !integer(section.Address + section.Size) ||
