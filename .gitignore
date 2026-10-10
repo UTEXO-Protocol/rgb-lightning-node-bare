@@ -21,3 +21,4 @@ target/
 
 # Temp / canary outputs
 *.log
+.gradle/

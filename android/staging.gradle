@@ -1,0 +1,52 @@
+// Apply from the root Android build after setting ext.utexoBarePackageDir.
+def packageRoot = rootProject.findProperty('utexoBarePackageDir')
+if (packageRoot == null) {
+    throw new GradleException('Set ext.utexoBarePackageDir to the installed @utexo/rgb-lightning-node-bare directory')
+}
+packageRoot = rootProject.file(packageRoot).canonicalFile
+def kit = rootProject.findProject(':react-native-bare-kit')
+if (kit == null) {
+    throw new GradleException('Android staging requires :react-native-bare-kit')
+}
+def stageScript = new File(packageRoot, 'scripts/stage-android-addons.js')
+if (!stageScript.isFile()) {
+    throw new GradleException('The installed Bare package does not contain Android staging')
+}
+def output = rootProject.layout.buildDirectory.dir('generated/utexo-bare-addons')
+def abis = providers.gradleProperty('reactNativeArchitectures').orElse('arm64-v8a,armeabi-v7a,x86_64')
+def node = providers.gradleProperty('utexoBareNodeBinary').orElse('node')
+def stage = rootProject.tasks.register('stageUtexoBareAddons', Exec) {
+    dependsOn ':react-native-bare-kit:link'
+    workingDir rootProject.projectDir
+    commandLine node.get(), stageScript.absolutePath,
+        '--bare-kit', kit.projectDir.parentFile.absolutePath,
+        '--linked-dir', new File(kit.projectDir, 'src/main/addons').absolutePath,
+        '--out', output.get().asFile.absolutePath, '--abis', abis.get()
+    // bare-link is an upstream Exec task: revalidate after every invocation,
+    // including changes not represented by Gradle input metadata.
+    outputs.upToDateWhen { false }
+}
+
+def configureKit = {
+    def android = kit.extensions.findByName('android')
+    if (android == null || kit.tasks.findByName('link') == null) {
+        throw new GradleException('Unreviewed BareKit Android build structure')
+    }
+    def main = android.sourceSets.getByName('main')
+    def linked = new File(kit.projectDir, 'src/main/addons').canonicalFile
+    def dirs = main.jniLibs.srcDirs.collect { it.canonicalFile }
+    if (!dirs.contains(linked)) {
+        throw new GradleException('BareKit JNI sources changed or another staging hook is already installed')
+    }
+    main.jniLibs.setSrcDirs(dirs.findAll { it != linked } + [output.get().asFile])
+}
+if (kit.state.executed) configureKit()
+else kit.afterEvaluate { configureKit() }
+
+// Merge tasks consume the staged tree. Do not create a stage -> link -> stage
+// cycle by attaching staging to link or preBuild.
+rootProject.allprojects { nativeProject ->
+    nativeProject.tasks.configureEach { task ->
+        if (task.name ==~ /merge.*(?:NativeLibs|JniLibFolders)/) task.dependsOn stage
+    }
+}

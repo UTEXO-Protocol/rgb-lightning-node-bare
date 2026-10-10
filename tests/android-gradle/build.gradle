@@ -1,0 +1,35 @@
+project(':react-native-bare-kit') {
+    def sources = new Expando(srcDirs: [file('src/main/addons'), file('libs/bare-kit/jni')])
+    sources.setSrcDirs = { dirs -> sources.srcDirs = dirs }
+    extensions.add('android', new Expando(sourceSets: new Expando(
+        getByName: { name -> new Expando(jniLibs: sources) }
+    )))
+    tasks.register('link')
+    tasks.register('preBuild') { dependsOn 'link' }
+    tasks.register('mergeReleaseJniLibFolders') { dependsOn 'preBuild' }
+    tasks.register('mergeReleaseNativeLibs') { dependsOn 'mergeReleaseJniLibFolders' }
+}
+project(':app') {
+    tasks.register('mergeReleaseJniLibFolders')
+    tasks.register('mergeReleaseNativeLibs') {
+        dependsOn 'mergeReleaseJniLibFolders', ':react-native-bare-kit:mergeReleaseNativeLibs'
+    }
+}
+ext.utexoBarePackageDir = file('../..')
+apply from: new File(utexoBarePackageDir, 'android/staging.gradle')
+gradle.taskGraph.whenReady { graph ->
+    def paths = graph.allTasks.collect { it.path }
+    def link = paths.indexOf(':react-native-bare-kit:link')
+    def stage = paths.indexOf(':stageUtexoBareAddons')
+    assert link >= 0 && stage > link
+    graph.allTasks.findAll { it.name.startsWith('merge') }.each { task -> assert paths.indexOf(task.path) > stage }
+    def kit = project(':react-native-bare-kit')
+    assert !kit.tasks.getByName('link').taskDependencies.getDependencies(kit.tasks.getByName('link')).any { it.name == 'stageUtexoBareAddons' }
+    def dirs = kit.extensions.getByName('android').sourceSets.getByName('main').jniLibs.srcDirs
+    assert !dirs.contains(kit.file('src/main/addons').canonicalFile)
+    assert dirs.contains(kit.file('libs/bare-kit/jni').canonicalFile)
+    assert dirs.contains(rootProject.layout.buildDirectory.dir('generated/utexo-bare-addons').get().asFile)
+    // Test the real task graph without pretending to execute an Android build.
+    graph.allTasks.each { it.enabled = false }
+    println 'PASS: link -> stage -> all JNI merge consumers; no reverse dependency; runtime directory preserved'
+}

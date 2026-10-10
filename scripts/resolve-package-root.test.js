@@ -42,3 +42,14 @@ test('rejects invalid resolver inputs', () => {
   assert.throws(() => resolvePackageRoot('', process.cwd()), TypeError)
   assert.throws(() => resolvePackageRoot('cmake-bare', ''), TypeError)
 })
+
+test('resolves the package export when package.json is intentionally hidden', (t) => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'utexo-package-export-'))
+  t.after(() => fs.rmSync(workspace, { force: true, recursive: true }))
+  const dependencyRoot = path.join(workspace, 'node_modules', 'example-export')
+  fs.mkdirSync(dependencyRoot, { recursive: true })
+  fs.writeFileSync(path.join(dependencyRoot, 'package.json'), JSON.stringify({
+    name: 'example-export', version: '1.0.0', exports: { './package': './package.json' }
+  }))
+  assert.equal(fs.realpathSync(resolvePackageRoot('example-export', workspace)), fs.realpathSync(dependencyRoot))
+})

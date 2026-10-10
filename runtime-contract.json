@@ -1,0 +1,9 @@
+{
+  "abi_version": 1,
+  "rln_version": "0.15.0-beta.3",
+  "rln_commit": "a17b685615750536f0320db1cd3f3ba68a8f1c57",
+  "lightning_commit": "6d6d061f840264296e7de2b1c64dac6c0dd7eb26",
+  "adapter_sha256": "93d62bb91c0ab90a7ccc4a1382a9da84498e38506170ce74d3863292f0c9f2f4",
+  "wrapper_sha256": "5fe144e67b3c504d1e4355d5596c12aa9a6ceb6961107856f206f955df1df6fd",
+  "lock_sha256": "38949d8407b0ae4f2964ac02dc22ef4de69d5a863875a82849afa3845d06a576"
+}

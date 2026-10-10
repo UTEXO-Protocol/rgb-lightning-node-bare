@@ -1,0 +1,158 @@
+'use strict'
+
+const assert = require('node:assert/strict')
+const test = require('node:test')
+const fs = require('node:fs')
+const path = require('node:path')
+const vm = require('node:vm')
+const { createRequire } = require('node:module')
+const boundary = require('../json-boundary')
+const identity = require('../runtime-contract.json')
+
+function facade (native = {}, overrides = {}) {
+  const root = path.resolve(__dirname, '..')
+  const binding = { getRuntimeInfo: () => JSON.stringify({ ...identity, capabilities: [], ...overrides }), ...native }
+  const result = {}
+  const localRequire = createRequire(path.join(root, 'index.js'))
+  vm.runInNewContext(fs.readFileSync(path.join(root, 'index.js'), 'utf8'), {
+    exports: result, Buffer,
+    require: (id) => id === './binding' ? binding : localRequire(id)
+  })
+  return result
+}
+
+test('native response integers preserve exact digits beyond the safe range', () => {
+  assert.equal(boundary.parse('{"amount":9007199254740993}').amount, '9007199254740993')
+  assert.equal(boundary.parse('{"channel_asset_max_amount":18446744073709551615}').channel_asset_max_amount, '18446744073709551615')
+  assert.equal(boundary.parse('{"short_channel_id":989560465031299073}').short_channel_id, '989560465031299073')
+  assert.deepEqual(boundary.parse('[-9223372036854775808,0,1.25,1e3]'), ['-9223372036854775808', 0, 1.25, 1000])
+  assert.throws(() => boundary.parse('[1e999]'), { code: 'ERR_RLN_UNSAFE_NUMBER' })
+  assert.throws(() => boundary.stringify({ amount: Infinity }), { code: 'ERR_RLN_UNSAFE_NUMBER' })
+})
+
+test('compiled identity is checked before Bare handles are created', () => {
+  assert.throws(() => facade({}, { rln_commit: 'old' }), /identity mismatch/)
+  assert.ok(Object.isFrozen(facade().getRuntimeInfo()))
+})
+
+test('both external unlock entrypoints preserve optional Ethereum RPC and native errors', () => {
+  for (const method of ['unlockWithNativeExternalSigner', 'unlockWithAttachedExternalSigner']) {
+    const bindingMethod = method === 'unlockWithNativeExternalSigner'
+      ? 'sdkNodeUnlockWithNativeExternalSigner' : 'sdkNodeUnlockWithAttachedExternalSigner'
+    const requests = []
+    const error = new Error('Rln(InvalidIndexer): Ethereum RPC unavailable')
+    let fail = false
+    const node = new (facade({ [bindingMethod]: (...args) => {
+      if (fail) throw error
+      requests.push(JSON.parse(args.at(-1)))
+    } }).SdkNode)({})
+    const invoke = request => method === 'unlockWithNativeExternalSigner'
+      ? node[method]({ _handle: {} }, request) : node[method](request)
+    for (const request of [{}, { eth_rpc_url: null }, { eth_rpc_url: 'http://127.0.0.1:29545' }]) {
+      invoke(request)
+      assert.deepEqual(requests.at(-1), request)
+    }
+    fail = true
+    assert.throws(() => invoke({ eth_rpc_url: 'http://127.0.0.1:29545' }), error)
+  }
+})
+
+test('local export preserves hex bytes, native paths and errors', () => {
+  const calls = []
+  const error = new Error('Rln(UnknownTransfer): missing consignment')
+  const native = {
+    getConsignment: (_node, ...args) => {
+      if (args[1] === 'missing') throw error
+      calls.push(args)
+      return '{"bytes_hex":"00ff80"}'
+    },
+    getConsignmentPath: () => '{"path":"/local/wallet/transfer/consignment.rgb"}'
+  }
+  const node = new (facade(native).SdkNode)({})
+  assert.deepEqual(node.getConsignment('asset', 'txid'), { bytes_hex: '00ff80' })
+  assert.deepEqual(calls, [['asset', 'txid']])
+  assert.equal(node.getConsignmentPath('asset', 'txid').path, '/local/wallet/transfer/consignment.rgb')
+  assert.throws(() => node.getConsignment('asset', 'missing'), error)
+})
+
+test('released mainnet rejection propagates through Bare', () => {
+  const error = new Error('Rln(LightningUnsupportedOnMainnet): Lightning unsupported on mainnet')
+  const node = new (facade({ sendPayment: () => { throw error } }).SdkNode)({})
+  assert.throws(() => node.sendPayment({ invoice: 'invoice' }), error)
+})
+
+test('all excluded Bare methods fail without a native implementation', () => {
+  const { SdkNode, UnsupportedCapabilityError } = facade()
+  const node = new SdkNode({})
+  for (const method of [
+    'startUnlockWithNativeExternalSigner', 'nativeOperationStatus', 'adoptNativeOperation',
+    'cancelNativeOperation', 'vssDeleteAll', 'syncWallet', 'walletSnapshot', 'prepareBtcSend',
+    'commitPreparedBtcSend', 'cancelBtcSendPlan', 'prepareCreateUtxos', 'commitPreparedCreateUtxos',
+    'cancelCreateUtxosPlan', 'listPendingVanillaTransactions', 'listAddressReceipts',
+    'prepareRgbSend',
+    'commitPreparedRgbSend', 'cancelRgbSendPlan', 'listPendingRgbSendPlans'
+  ]) assert.throws(() => node[method]({}), UnsupportedCapabilityError, method)
+})
+
+test('refresh preserves nulls and batch failures', () => {
+  const response = { transfers: { 1: { updated_status: 'WaitingBroadcast', failure: null },
+    2: { updated_status: null, failure: { name: 'Network', message: 'offline' } } } }
+  const node = new (facade({ refreshTransfers: () => JSON.stringify(response) }).SdkNode)({})
+  assert.deepEqual(node.refreshTransfers({}), response)
+})
+
+test('caps and unsafe inputs cannot reach Bare payment submission', () => {
+  let calls = 0
+  const node = new (facade({ sendPayment: () => { calls++; return '{}' } }).SdkNode)({})
+  assert.throws(() => node.sendPayment({ invoice: 'invoice', max_total_routing_fee_msat: 0 }), { code: 'ERR_RLN_UNSUPPORTED_CAPABILITY' })
+  assert.throws(() => node.sendPayment({ invoice: 'invoice', amt_msat: 2 ** 64 }), RangeError)
+  assert.equal(calls, 0)
+})
+
+test('Bare transfer filters retain independent optionality', () => {
+  const calls = []
+  const node = new (facade({ listTransfers: (_node, ...args) => { calls.push(args); return '[]' } }).SdkNode)({})
+  node.listTransfers()
+  node.listTransfers('asset', 'txid')
+  node.listTransfers({ asset_id: 'asset', txid: 'txid' })
+  assert.deepEqual(calls, [[null, null], ['asset', 'txid'], ['asset', 'txid']])
+})
+
+test('Bare shutdown and destroy failures preserve retryable handles', () => {
+  let shutdowns = 0
+  let destroys = 0
+  const handle = {}
+  const node = new (facade({
+    sdkNodeShutdown () { if (++shutdowns === 1) throw new Error('flush failed') },
+    sdkNodeDestroy () { if (++destroys === 1) throw new Error('destroy failed') }
+  }).SdkNode)(handle)
+  assert.throws(() => node.shutdown(), /flush failed/)
+  assert.equal(destroys, 0)
+  assert.equal(node._handle, handle)
+  assert.throws(() => node.shutdown(), /destroy failed/)
+  assert.equal(node._handle, handle)
+  node.shutdown()
+  node.shutdown()
+  assert.equal(node._closed, true)
+  assert.equal(node._handle, null)
+  assert.equal(shutdowns, 3)
+})
+
+test('approved RGB imports preserve payloads, exact metadata and native failures', () => {
+  for (const method of ['importRgbContract', 'importRgbTransferConsignment']) {
+    let received
+    const native = { [method]: (_handle, request) => {
+      received = JSON.parse(request)
+      return '{"asset_id":"rgb:expected","already_imported":false,"metadata":{"max_supply":18446744073709551615}}'
+    } }
+    const node = new (facade(native).SdkNode)({})
+    const request = method === 'importRgbContract'
+      ? { contract_base64: 'YQ==', expected_asset_id: 'rgb:expected' }
+      : { consignment_base64: 'YQ==', offchain_txid: 'a'.repeat(64), expected_asset_id: 'rgb:expected' }
+    assert.equal(node[method](request).metadata.max_supply, '18446744073709551615')
+    assert.deepEqual(received, request)
+    native[method] = () => { throw new Error('invalid contract') }
+    const failed = new (facade(native).SdkNode)({})
+    assert.throws(() => failed[method](request), /invalid contract/)
+  }
+})

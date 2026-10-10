@@ -4,6 +4,22 @@ project(rgb_lightning_node_bare CXX C)
 
 find_package(cmake-bare REQUIRED PATHS node_modules/cmake-bare)
 
+# cmake-bare defaults to downloading latest headers. Use the locked npm dependency.
+function(download_bare_headers result)
+  execute_process(
+    COMMAND node "${CMAKE_CURRENT_SOURCE_DIR}/scripts/resolve-package-root.js" bare-headers "${CMAKE_CURRENT_SOURCE_DIR}"
+    OUTPUT_VARIABLE header_root
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    COMMAND_ERROR_IS_FATAL ANY
+  )
+  file(READ "${header_root}/package.json" header_package)
+  string(JSON header_version GET "${header_package}" version)
+  if(NOT header_version STREQUAL "1.30.0")
+    message(FATAL_ERROR "Expected bare-headers 1.30.0")
+  endif()
+  set(${result} "${header_root}/include" PARENT_SCOPE)
+endfunction()
+
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 bare_target(target)
