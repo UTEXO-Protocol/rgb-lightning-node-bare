@@ -470,6 +470,12 @@ class SdkNode {
   }
   // blocks: u16 (1..=65535)
   estimateFee (blocks) {
+    // The native side truncates with `& 0xFFFF`, so out-of-range values would
+    // silently estimate for the wrong confirmation target (65536 -> 0,
+    // negatives wrap). Reject them here with a clear error instead.
+    if (!Number.isInteger(blocks) || blocks < 1 || blocks > 65535) {
+      throw new RangeError(`estimateFee: blocks must be an integer in 1..=65535, got ${blocks}`)
+    }
     return JSON.parse(binding.estimateFee(this._handle, blocks >>> 0))
   }
 
