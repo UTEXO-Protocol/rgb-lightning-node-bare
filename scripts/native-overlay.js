@@ -16,6 +16,7 @@ const LIBRARY_SYMBOLS = Object.freeze([
   'rln_asset_metadata',
   'rln_binding_build_info',
   'rln_btc_balance',
+  'rln_burn',
   'rln_cancel_hodl_invoice',
   'rln_check_indexer_url',
   'rln_check_proxy_endpoint',

@@ -32,7 +32,7 @@ public final class Runner extends Instrumentation {
                     if (reply == null) throw new AssertionError("Worklet response timeout");
                     JSONObject json = new JSONObject(reply);
                     if (!json.getBoolean("ok")) throw new AssertionError(json.toString());
-                    if (!"a17b685615750536f0320db1cd3f3ba68a8f1c57".equals(json.getJSONObject("runtime").getString("rln_commit"))) {
+                    if (!"8777d71d7781b408fcce89c9c965ae29e8ad2300".equals(json.getJSONObject("runtime").getString("rln_commit"))) {
                         throw new AssertionError("Wrong native source");
                     }
                     String memory = protection();

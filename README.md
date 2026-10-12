@@ -1,7 +1,7 @@
 # @utexo/rgb-lightning-node-bare
 
-Release-based Bare bindings for RLN **0.15.0-beta.3 plus merged PR #192**,
-commit `a17b685615750536f0320db1cd3f3ba68a8f1c57`. Candidate **0.2.0-beta.3**;
+Release-based Bare bindings for RLN **0.15.0-beta.3 plus merged dev through #200**,
+commit `8777d71d7781b408fcce89c9c965ae29e8ad2300`. Candidate **0.2.0-beta.3**;
 not approved for production rollout. See [RELEASE-0.15-TRACKER.md](./RELEASE-0.15-TRACKER.md).
 
 ## Installation Contract
@@ -73,7 +73,15 @@ Both external-signer unlock entrypoints accept optional `eth_rpc_url` for BFA
 bridge-event validation. Use the Ethereum RPC for the asset's bridge chain;
 omitted/null preserve non-BFA behavior. The source installer fetches the exact
 merge commit, not a floating branch or the older release binary. The runtime
-advertises `external-signer-eth-rpc-v1`. External-signer burn remains unsupported.
+advertises `external-signer-eth-rpc-v1` and `external-signer-burn-v1`.
+
+`burn({ asset_id, amount, burn_recipient?, fee_rate, min_confirmations })`
+(also named `burnAsset`) returns `{ txid, batch_transfer_idx }`.
+`burn_recipient` is optional/null for non-BFA assets and required for BFA:
+exactly 32 bytes encoded as 64 hex characters without a `0x` prefix.
+Burn amount and fee rate accept safe integer numbers or exact decimal strings;
+both become native u64 JSON numbers. Confirmation count must fit u8.
+Signing, validation and transaction submission use merged RLN, not an overlay.
 
 `refreshTransfers({ skip_sync })` returns per-batch status/failure details.
 `listTransfers(assetId?, txid?)` supports asset-less and combined queries.
@@ -82,7 +90,8 @@ Unspents expose `utxo.exists`; do not treat missing outputs as spendable.
 Native response integers outside JavaScript's safe range are exact decimal
 strings; safe integers remain numbers. This preserves released node limits and
 64-bit channel IDs. Unsafe numeric inputs, NaN and infinity still fail before
-native calls. Full-range u64 request inputs are not supported.
+native calls. Full-range u64 request inputs are supported only by the typed
+burn boundary; other request methods retain their existing number-only contract.
 
 ## Excluded Capabilities and Migration
 

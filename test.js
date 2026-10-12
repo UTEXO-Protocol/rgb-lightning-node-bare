@@ -24,6 +24,7 @@ assert.equal(info.adapter_sha256, expected.adapter_sha256)
 assert.equal(info.wrapper_sha256, expected.wrapper_sha256)
 assert.equal(info.lock_sha256, expected.lock_sha256)
 assert.ok(info.capabilities.includes('persistent-native-signer'))
+assert.ok(info.capabilities.includes('external-signer-burn-v1'))
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'rln-bare-release-canary-'))
 const signerDir = path.join(root, 'signer')
@@ -46,6 +47,9 @@ try {
     reuse_addresses: true
   })
   assert.throws(() => node.apayNewWithAddress('02'.repeat(33), 'canary', 'example.com'), /NotInitialized/)
+  assert.equal(typeof node.burn, 'function')
+  assert.equal(typeof node.burnAsset, 'function')
+  assert.throws(() => require('./binding').burn(node._handle, '{}'))
   for (const method of ['syncWallet', 'walletSnapshot', 'prepareBtcSend', 'vssDeleteAll']) {
     assert.throws(() => node[method]({}), { code: 'ERR_RLN_UNSUPPORTED_CAPABILITY' })
   }

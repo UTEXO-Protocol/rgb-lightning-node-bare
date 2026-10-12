@@ -26,7 +26,7 @@
  */
 
 const binding = require('./binding')
-const { parse, stringify, paymentRequest, unsupported, UnsupportedCapabilityError } = require('./json-boundary')
+const { parse, stringify, paymentRequest, burnRequest, unsupported, UnsupportedCapabilityError } = require('./json-boundary')
 const expectedRuntime = require('./runtime-contract.json')
 const runtimeInfo = parse(binding.getRuntimeInfo())
 for (const [key, expected] of Object.entries(expectedRuntime)) {
@@ -392,6 +392,12 @@ class SdkNode {
   listPendingRgbSendPlans () { unsupported('listPendingRgbSendPlans') }
   inflate (request) {
     return parse(binding.inflate(this._handle, stringify(request)))
+  }
+  burn (request) {
+    return parse(binding.burn(this._handle, burnRequest(request)))
+  }
+  burnAsset (request) {
+    return this.burn(request)
   }
 
   getAssetMedia (digest) {

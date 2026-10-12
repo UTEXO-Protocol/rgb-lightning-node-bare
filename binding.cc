@@ -782,6 +782,7 @@ FN_NODE_JSON(fail_transfers, rln_fail_transfers)
 FN_NODE_JSON(send_rgb, rln_send_rgb)
 
 FN_NODE_JSON(inflate, rln_inflate)
+FN_NODE_JSON(burn, rln_burn)
 
 // Asset media
 FN_NODE_STR(get_asset_media, rln_get_asset_media)
@@ -973,6 +974,7 @@ rgb_lightning_node_bare_exports(js_env_t *env, js_value_t *exports) {
   EXPORT("failTransfers", fail_transfers);
   EXPORT("sendRgb", send_rgb);
   EXPORT("inflate", inflate);
+  EXPORT("burn", burn);
   EXPORT("getAssetMedia", get_asset_media);
   EXPORT("postAssetMedia", post_asset_media);
 
