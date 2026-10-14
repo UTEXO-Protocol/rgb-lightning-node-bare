@@ -1,7 +1,7 @@
 # @utexo/rgb-lightning-node-bare
 
-Release-based Bare bindings for RLN **0.15.0-beta.3 plus merged dev through #200**,
-commit `8777d71d7781b408fcce89c9c965ae29e8ad2300`. Candidate **0.2.0-beta.3**;
+Release-based Bare bindings for RLN **0.17.0-beta.3**,
+commit `ecc69f20308231400561f6f060fea88acfa40cc4`. Candidate **0.2.0-beta.4**;
 not approved for production rollout. See [RELEASE-0.15-TRACKER.md](./RELEASE-0.15-TRACKER.md).
 
 ## Installation Contract
@@ -24,7 +24,7 @@ desktop canaries run Bare 1.30.3. Header equality, required symbols, source grap
 wrapper fingerprint and artifact checksums are verified.
 
 ```sh
-npm install @utexo/rgb-lightning-node-bare@0.2.0-beta.3
+npm install @utexo/rgb-lightning-node-bare@0.2.0-beta.4
 # Explicit desktop qualification:
 RLN_BARE_TARGETS=darwin-arm64 npm run prepare-native
 # Select a mobile family:

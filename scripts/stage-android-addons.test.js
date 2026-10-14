@@ -16,7 +16,7 @@ function fixture (t) {
   fs.mkdirSync(path.join(linked, 'arm64-v8a'), { recursive: true })
   const source = path.join(root, 'original.bare')
   fs.writeFileSync(source, 'verified native bytes')
-  const filename = `lib${NAME}.0.2.0-beta.3.so`
+  const filename = `lib${NAME}.0.2.0-beta.4.so`
   fs.writeFileSync(path.join(linked, 'arm64-v8a', filename), 'damaged linker bytes')
   const other = path.join(linked, 'arm64-v8a/libother.so')
   fs.writeFileSync(other, 'other addon')
@@ -60,9 +60,9 @@ test('staging replaces only RLN, preserves other addons and never edits linker o
 test('staging rejects stale, absent and symlinked RLN outputs', t => {
   const f = fixture(t)
   const file = path.join(f.linked, 'arm64-v8a', f.verified.filename)
-  fs.renameSync(file, file.replace('beta.3', 'beta.2'))
+  fs.renameSync(file, file.replace('beta.4', 'beta.3'))
   assert.throws(() => planCopies(f.verified, f.linked, f.inspect), /stale\/duplicate/)
-  fs.unlinkSync(file.replace('beta.3', 'beta.2'))
+  fs.unlinkSync(file.replace('beta.4', 'beta.3'))
   assert.throws(() => planCopies(f.verified, f.linked, f.inspect), /did not produce/)
   fs.symlinkSync(f.source, file)
   assert.throws(() => planCopies(f.verified, f.linked, f.inspect), /unexpected linked artifact/)

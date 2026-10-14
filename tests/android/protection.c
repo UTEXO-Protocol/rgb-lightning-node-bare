@@ -13,7 +13,7 @@ struct ranges {
 
 static int find_module(struct dl_phdr_info *info, size_t size, void *data) {
   (void) size;
-  if (!strstr(info->dlpi_name, "libutexo__rgb-lightning-node-bare.0.2.0-beta.3.so")) return 0;
+  if (!strstr(info->dlpi_name, "libutexo__rgb-lightning-node-bare.0.2.0-beta.4.so")) return 0;
   struct ranges *r = data;
   r->found++;
   for (int i = 0; i < info->dlpi_phnum; i++) {
