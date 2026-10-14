@@ -25,8 +25,9 @@ Iris continues to enforce its on-chain-only profile.
 ## Qualification
 
 Both source and locked Git graphs and declarations are verified. Bare's 56 and
-Node's 23 unit checks pass locally. Fresh optimized target matrices and runtime
-canaries are being rebuilt; results will be recorded here after completion.
+Node's 25 unit checks pass locally. The final seven-target Bare matrix passed
+and the complete imported release-artifact gate passes. Final Node optimized
+platform qualification is recorded in the Node candidate report.
 Historical 0.15/0.16 binaries and tests are not evidence for this source.
 
 All seven Bare targets must pass checksum, archive/addon symbol and provenance
@@ -48,3 +49,26 @@ An initial clean host build reproduced Rust's [proc-macro stripping defect](http
 Bare recipe provenance now binds the source-build orchestration and C-FFI/CMake shell scripts rather than only the CMake script. Node sidecars additionally bind `buildRecipeSha256` to its installer/build orchestration. This rejects artifacts built under older build recipes. No previous artifact is restamped as a pass.
 
 Fresh cargo-audit reports ten lockfile vulnerabilities: five Quinn findings, rkyv, rsa and three legacy webpki findings. Quinn/rkyv/rsa are absent from the selected normal/build graph on all targets. Legacy webpki is active through minreq/rustls0.21 and remains a release security gate; no incompatible dependency version is forced into upstream runtime code.
+
+## Final Bare artifact qualification
+
+The [seven-target build-only matrix](https://github.com/UTEXO-Protocol/rgb-lightning-node-bare/actions/runs/38536155379) passed against implementation
+`796632c61d9cb43741ef55c36a3b8f1091ec42f7`. All six mobile archives and addons
+were downloaded, verified and centralized with their original hashes and
+provenance. The original local Darwin arm64 output is preserved; it passed
+actual macOS 27 native canaries. The full seven-target release gate passes.
+Android hosted byte-preserving staging and 64-bit ELF protection gates pass.
+The mobile targets are compiled/packaged qualification, not device execution.
+
+Public source/artifact origin and hash evidence is in the shared workspace's
+`release-evidence/2026-10-14/native-bare-artifact-origins.json`.
+The verified directory is the Bare checkout; consumers can import it with
+`RLN_BARE_ARTIFACTS_DIR` without private source access or a source rebuild.
+Normal source builds require `$HOME/.cargo/bin` on PATH so pinned Cargo helper
+executables can be probed; no caller-specific compiler strip workaround is
+needed. The old unqualified Node final-strip result is not part of this gate.
+
+Current funded same-process signer reopen and pending witness accounting still
+fail on the final Bare host. Fresh burn and independent beta50 validation pass.
+Lifecycle, accounting, crash recovery, native dependency security and physical
+device gates remain open; no npm publication or production approval follows.
