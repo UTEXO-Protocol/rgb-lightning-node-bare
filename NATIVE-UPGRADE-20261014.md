@@ -2,7 +2,7 @@
 
 Candidate `0.2.0-beta.4` targets published RLN SDK `v0.17.0-beta.3`.
 The existing `release/rln-0.15.0-beta.3` branch retains its review history.
-No package, release or artifact is published.
+The candidate has not been merged, tagged or published to npm or a GitHub release.
 
 ## Exact source identity
 
@@ -13,7 +13,8 @@ No package, release or artifact is published.
 - C-FFI lock SHA-256: `5fcdc9ad9179d3230e48973cdfa514a863d13a837752027febf8ea04713bbeb5`
 - Bare wrapper SHA-256: `36ae181f6feb775e93848125334e92dbfad7ddbdc0643667ea1f5e8a0e429651`
 - Bare recipe SHA-256: `bcc14b617ba4ac0818dcf8c496bacc27ca35bdf3c20ca840d04c9d82b57c62b7`
-- Node wrapper SHA-256: `c8b74b9698806b949bff3dd46dd4a5f48545b9f08c695f4e47c03c56d9ac2657`
+- Node wrapper SHA-256: `3647ddc882ff0e04133f69d14123f2dba3c111ca31d47ffc4946a4bf402ef30d`
+- Node recipe SHA-256: `07c989d17d2bf6be5cbb6d9e491937316dd67a68dd09aafa755aa91dc4ec7a84`
 - Node lock SHA-256: `de8eedbec81519cafbdf02c3445654d31ec6fbda8181be42f5926dcaf7911108`
 - Rust: `1.94.0`; Apple deployment targets macOS 13.0/iOS 16.0; Android NDK `27.1.12297006`, API 29
 
@@ -25,9 +26,11 @@ Iris continues to enforce its on-chain-only profile.
 ## Qualification
 
 Both source and locked Git graphs and declarations are verified. Bare's 56 and
-Node's 25 unit checks pass locally. The final seven-target Bare matrix passed
+Node's 29 unit checks pass locally. The final seven-target Bare matrix passed
 and the complete imported release-artifact gate passes. Final Node optimized
-platform qualification is recorded in the Node candidate report.
+platform qualification also passes all five targets and its complete artifact
+gate, against the Node identities above. The Node candidate report records its
+separate source/artifact origins and actual runtime versions.
 Historical 0.15/0.16 binaries and tests are not evidence for this source.
 
 All seven Bare targets must pass checksum, archive/addon symbol and provenance
@@ -68,7 +71,28 @@ Normal source builds require `$HOME/.cargo/bin` on PATH so pinned Cargo helper
 executables can be probed; no caller-specific compiler strip workaround is
 needed. The old unqualified Node final-strip result is not part of this gate.
 
-Current funded same-process signer reopen and pending witness accounting still
-fail on the final Bare host. Fresh burn and independent beta50 validation pass.
-Lifecycle, accounting, crash recovery, native dependency security and physical
-device gates remain open; no npm publication or production approval follows.
+## Current funded Bare boundaries
+
+The stable Bare host artifact (`4f373f0`), wrapper (`36ae181`), recipe (`bcc14b6`)
+and adapter (`bbec56a`) are unchanged across these isolated regtest scenarios.
+Passing cases cover twelve external-unlock controls, fourteen asset checks,
+eleven BFA burn steps, seven address-policy checks, six cold-copy checks, eight
+BTC reorg checks, the three-delay default interruption fixture's eight checks,
+and nine disk-full checks. Independent exact beta50 burn proof validation also
+passes. Passing these scenarios does not establish broader recovery safety.
+
+Five distinct functional gates remain failed: unlocked same-process signer
+reopen (P01), widened crash interruption (P02), RGB reorg recovery (P03), pending
+witness balance double counting (P04), and event ordering (P06).
+The clean seven-delay interruption fixture passes its zero-ms case but at ten
+ms restores zero instead of 2,000,000; it definitively reproduces P02.
+Node's final widened seven-delay pass does not close this Bare failure.
+
+Earlier failed attempts remain diagnostic evidence: a default 100-ms attempt
+overlapped npm peer installation, an initial widened attempt failed a funding
+sync precondition, and the initial burn fixture mismatch failed before burn
+submission. They are preserved rather than relabeled as passes.
+See `release-evidence/2026-10-14/onchain-test-index.json` for original attempts
+and the WDK production gate report for current scenario boundaries.
+The five functional gates, active native TLS advisories and physical-device
+qualification remain open. No publication or production approval follows.
