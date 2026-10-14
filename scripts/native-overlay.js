@@ -346,7 +346,9 @@ function readOverlayConfig (packageRoot) {
   releaseContract.validateAdapter({ ...config, patchPath })
   const runtime = verifyRuntimeContract(packageRoot, config)
   return Object.freeze({ ...config, patchPath, wrapperSha256: runtime.wrapper_sha256,
-    prebuildRecipeSha256: sha256(path.join(packageRoot, 'scripts', 'build-prebuilds.sh')),
+    prebuildRecipeSha256: releaseContract.wrapperSha256(packageRoot, [
+      'scripts/native-overlay.js', 'scripts/build-cffi.sh', 'scripts/build-prebuilds.sh'
+    ]),
     buildProfile: process.env.RLN_BARE_DEBUG === '1' ? 'debug' : 'release', targets: Object.freeze(targets) })
 }
 
