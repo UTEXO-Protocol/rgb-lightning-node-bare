@@ -1,96 +1,339 @@
-name: Build Candidate Artifacts (No Publication)
+name: Publish audited Bare beta.4 artifacts
 
 on:
   workflow_dispatch:
+    inputs:
+      operation:
+        description: Verify only, or publish the already qualified native artifacts
+        type: choice
+        options: [verify, publish]
+        default: verify
+        required: true
+      confirm_version:
+        description: Publishing requires exactly 0.2.0-beta.4; leave blank for verify
+        type: string
+        default: ''
+        required: false
 
 permissions:
   contents: read
+  actions: read
+  id-token: write
+
+concurrency:
+  group: bare-beta4-publication
+  cancel-in-progress: false
 
 jobs:
-  build:
+  candidate:
     runs-on: macos-15
-    timeout-minutes: 150
-    strategy:
-      fail-fast: false
-      matrix:
-        platform: [darwin-arm64, ios-arm64, ios-arm64-simulator, ios-x64-simulator, android-arm64, android-arm, android-x64]
+    timeout-minutes: 90
     env:
-      RLN_BARE_TARGETS: ${{ matrix.platform }}
-      CARGO_BUILD_JOBS: 3
+      PACKAGE_COMMIT: 6bfd8726a644d79fc914929db3de19eec3c57a21
+      ORIGINAL_BUILD_COMMIT: 95e2c844dc2c76e3f83d6f1a0dcf76d74f17fef7
+      ORIGINAL_BUILD_RUN: '38718114135'
+      PACKAGE_VERSION: 0.2.0-beta.4
+      PUBLISHER_BRANCH: ci/publish-native-beta4-20261015
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - name: Checkout publisher definition
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          node-version: '22'
-      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
-        with:
-          toolchain: '1.94.0'
-          rustflags: ''
-          cache: false
-      - run: npm ci --ignore-scripts
-      - run: npm run check:types
-      - run: npm run test:installer
-      - name: Install pinned NDK
-        if: startsWith(matrix.platform, 'android-')
-        run: echo "ANDROID_NDK_HOME=$(bash scripts/install-android-ndk.sh)" >> "$GITHUB_ENV"
-      - name: Build exact release source, verify header and ABI
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          path: automation
+          persist-credentials: false
+
+      - name: Validate publisher context and original-source equivalence
         env:
-          ORG_READ_TOKEN: ${{ secrets.ORG_READ_TOKEN }}
-        run: node scripts/with-source-access.js npm run prepare-native
-      - name: Desktop runtime canary
-        if: matrix.platform == 'darwin-arm64'
-        run: node node_modules/bare-runtime/bin/bare test.js
-      - name: Desktop environment teardown regression
-        if: matrix.platform == 'darwin-arm64'
-        run: npm run test:environment
-      - name: Stage and validate Android production packaging
-        id: android-packaging
-        if: startsWith(matrix.platform, 'android-')
-        env:
-          TARGET: ${{ matrix.platform }}
+          OPERATION: ${{ inputs.operation }}
+          CONFIRM_VERSION: ${{ inputs.confirm_version }}
+        shell: bash
         run: |
-          npm install --prefix "$RUNNER_TEMP/android-link" --ignore-scripts --no-audit --no-fund bare-link@3.3.2 bare-lief@0.2.10
-          node "$RUNNER_TEMP/android-link/node_modules/bare-link/bin.js" . --host "$TARGET" --out "$RUNNER_TEMP/linked-android"
-          case "$TARGET" in android-arm64) ABI=arm64-v8a;; android-arm) ABI=armeabi-v7a;; android-x64) ABI=x86_64;; *) exit 1;; esac
-          mkdir "$RUNNER_TEMP/bare-kit-runtime"
-          npm pack react-native-bare-kit@0.15.5 --ignore-scripts --pack-destination "$RUNNER_TEMP/bare-kit-runtime"
-          tar -xzf "$RUNNER_TEMP/bare-kit-runtime/react-native-bare-kit-0.15.5.tgz" -C "$RUNNER_TEMP/bare-kit-runtime"
-          node scripts/stage-android-addons.js \
-            --bare-kit "$RUNNER_TEMP/bare-kit-runtime/package" \
-            --linked-dir "$RUNNER_TEMP/linked-android" \
-            --out "$RUNNER_TEMP/staged-android" --abis "$ABI"
-          VERSION=$(node -p 'require("./package.json").version')
-          export LLVM_READOBJ="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-readobj"
-          if [ "$TARGET" != android-arm ]; then
-            node scripts/check-android-linked.js "$TARGET" "$RUNNER_TEMP/staged-android/$ABI/libutexo__rgb-lightning-node-bare.$VERSION.so"
-          fi
-      - name: Mobile qualification restriction
-        if: matrix.platform != 'darwin-arm64'
-        run: echo 'Compile-only. Device/emulator runtime qualification remains a release gate.' >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = UTEXO-Protocol/rgb-lightning-node-bare
+          test "$GITHUB_EVENT_NAME" = workflow_dispatch
+          test "$GITHUB_REF" = "refs/heads/$PUBLISHER_BRANCH"
+          case "$OPERATION" in
+            verify) ;;
+            publish) test "$CONFIRM_VERSION" = "$PACKAGE_VERSION" ;;
+            *) exit 1 ;;
+          esac
+          test "$(git -C automation rev-parse HEAD)" = "$GITHUB_SHA"
+          git -C automation fetch --no-tags origin refs/heads/main:refs/remotes/origin/main
+          test "$(git -C automation rev-parse origin/main)" = "$PACKAGE_COMMIT"
+          git -C automation merge-base --is-ancestor "$PACKAGE_COMMIT" "$GITHUB_SHA"
+          test "$(git -C automation diff --name-only "$PACKAGE_COMMIT" "$GITHUB_SHA")" = .github/workflows/release.yml
+          test "$(git -C automation diff --name-only "$ORIGINAL_BUILD_COMMIT" "$PACKAGE_COMMIT")" = "$(printf 'NATIVE-UPGRADE-20261015.md\nSIGNER-LIFECYCLE.md')"
+          test -z "$(git -C automation status --porcelain)"
+          mkdir -p "$RUNNER_TEMP/publication-evidence"
+          python3 - <<'PY'
+          import json, os, pathlib
+          e = os.environ
+          proof = {'packageCommit': e['PACKAGE_COMMIT'], 'originalNativeBuildCommit': e['ORIGINAL_BUILD_COMMIT'], 'originalNativeBuildRun': e['ORIGINAL_BUILD_RUN'], 'builderCommit': e['GITHUB_SHA'], 'builderRef': e['GITHUB_REF'], 'builderWorkflow': e['GITHUB_WORKFLOW_REF'], 'nativeRebuildPerformed': False, 'originalToMainDifference': ['NATIVE-UPGRADE-20261015.md', 'SIGNER-LIFECYCLE.md'], 'publisherToMainDifference': ['.github/workflows/release.yml'], 'scope': 'Assemble and publish unchanged original native CI bytes from the merged-main package source. npm provenance identifies the real assembly workflow commit; registry gitHead identifies package source. These identities are intentionally distinct.'}
+          pathlib.Path(e['RUNNER_TEMP'], 'publication-evidence/source-proof.json').write_text(json.dumps(proof, indent=2) + '\n')
+          PY
+
+      - name: Checkout exact merged-main package source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          name: bare-${{ matrix.platform }}-${{ github.sha }}
+          ref: 6bfd8726a644d79fc914929db3de19eec3c57a21
+          fetch-depth: 1
+          path: package
+          persist-credentials: false
+
+      - name: Setup exact Node and npm registry
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24.18.0
+          registry-url: https://registry.npmjs.org/
+
+      - name: Pin npm and install tooling without lifecycle execution
+        working-directory: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global npm@12.0.1
+          test "$(node --version)" = v24.18.0
+          test "$(npm --version)" = 12.0.1
+          test "$(npm config get ignore-scripts)" = false
+          test "$(npm config get dangerously-allow-all-scripts)" = false
+          npm ci --ignore-scripts --no-audit --no-fund
+          node -e 'const p=require("./package.json"); if(p.name!=="@utexo/rgb-lightning-node-bare" || p.version!==process.env.PACKAGE_VERSION) throw new Error("Unexpected package")'
+          test "$(git rev-parse HEAD)" = "$PACKAGE_COMMIT"
+          test -z "$(git status --porcelain)"
+
+      - name: Download and verify all seven original CI artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64, hashlib, json, os, pathlib, stat, subprocess, zipfile
+          e = os.environ
+          root = pathlib.Path(e['RUNNER_TEMP'], 'original-artifacts')
+          evidence = pathlib.Path(e['RUNNER_TEMP'], 'publication-evidence')
+          root.mkdir()
+          def api(path):
+              return json.loads(subprocess.check_output(['gh', 'api', path]))
+          run = api('repos/UTEXO-Protocol/rgb-lightning-node-bare/actions/runs/' + e['ORIGINAL_BUILD_RUN'])
+          if run['head_sha'] != e['ORIGINAL_BUILD_COMMIT'] or run['conclusion'] != 'success' or run['status'] != 'completed' or run['event'] != 'workflow_dispatch':
+              raise RuntimeError('Unexpected original native build run')
+          pins = {'darwin-arm64': ('8ac532063c8f9b7164201c61a727fc4f205c1c55cff22970c43c483799130e27', 11965050594), 'ios-arm64': ('6d307ae2a4f2f640185b683a5a0fbb2ab63469f6d6a488f630f71b94f0384a93', 11965903493), 'ios-arm64-simulator': ('34af25c582ae68233bed6120b2762c9f10ae7a7675049e2a9890ba1fdb4bbeda', 11965440708), 'ios-x64-simulator': ('7dc553f5b287888908bd570b2dfa3fac4ea2827d06b8448302d44a9877f8e7df', 11965594718), 'android-arm64': ('747c58acccb2b5d6bcf40bd7a7f47092f761f3d1b3af70ee952eb07aca2463bb', 11964821593), 'android-arm': ('0a723dc0e4984159885008c84959c3fd0a6dfa8b809d5f9774ce1c1e00a895fd', 11964544903), 'android-x64': ('d14239b26a89c38cdcbbb101db3c238f26c93922a0cfd1e373c0bca4e839c350', 11966751171)}
+          original_manifest = base64.b64decode('ewogICJzY2hlbWFWZXJzaW9uIjogMiwKICAicmVwb3NpdG9yeSI6ICJodHRwczovL2dpdGh1Yi5jb20vVVRFWE8tUHJvdG9jb2wvcmdiLWxpZ2h0bmluZy1ub2RlLmdpdCIsCiAgInJlZiI6ICJlY2M2OWYyMDMwODIzMTQwMDU2MWY2ZjA2MGZlYTg4YWNmYTQwY2M0IiwKICAiY29tbWl0IjogImVjYzY5ZjIwMzA4MjMxNDAwNTYxZjZmMDYwZmVhODhhY2ZhNDBjYzQiLAogICJsaWdodG5pbmdDb21taXQiOiAiNzliOWViNTE2NjU0NmM2MjY5MmQzYTY3Mjk4NmYzODVjN2ZlMDQ3ZCIsCiAgInBhdGNoU2hhMjU2IjogIjdmODlkYzUxOGY4ZmU2OWRjNmJhZjYyYzRlZTk2ZTlkNWEyNWQ2YjZhZTcwYWI1MjljN2I0YmNjNjU5NzljOTAiLAogICJjZmZpTG9ja1NoYTI1NiI6ICI1ZmNkYzlhZDkxNzlkMzIzMGU0ODk3M2NkZmE1MTRhODYzZDEzYTgzNzc1MjAyN2ZlYmY4ZWEwNDcxM2JiZWI1IiwKICAid3JhcHBlclNoYTI1NiI6ICJjYTNhYzI5MWZiYjRhZjg2ZmMwZDA5MTgwNWY5ZjU0NDAzMTI5OGY2Y2U5NGE2NmI5OWY4ZjFhY2Q3NjNkNGY3IiwKICAicHJlYnVpbGRSZWNpcGVTaGEyNTYiOiAiMGViYmQ3NzNjZGI0NDg0OWQzZGUyODAyMWUxOTNlMDY5NTQ1MjIzNDMxNzg5YjkxNWE2OTc3NDEzODVjMjQ2YiIsCiAgInJ1c3RUb29sY2hhaW4iOiAiMS45NC4wIiwKICAiYnVpbGRQcm9maWxlIjogInJlbGVhc2UiLAogICJpb3NEZXBsb3ltZW50VGFyZ2V0IjogIjE2LjAiLAogICJhbmRyb2lkTmRrVmVyc2lvbiI6ICIyNy4xLjEyMjk3MDA2IiwKICAiYW5kcm9pZEFwaUxldmVsIjogMjksCiAgImNhcmdvTmRrVmVyc2lvbiI6ICI0LjEuMiIsCiAgImJpbmRnZW5DbGlWZXJzaW9uIjogIjAuNzIuMSIsCiAgImJhcmVIZWFkZXJzVmVyc2lvbiI6ICIxLjMwLjAiLAogICJ0YXJnZXRzIjogWwogICAgImRhcndpbi1hcm02NCIsCiAgICAiaW9zLWFybTY0IiwKICAgICJpb3MtYXJtNjQtc2ltdWxhdG9yIiwKICAgICJpb3MteDY0LXNpbXVsYXRvciIsCiAgICAiYW5kcm9pZC1hcm02NCIsCiAgICAiYW5kcm9pZC1hcm0iLAogICAgImFuZHJvaWQteDY0IgogIF0sCiAgImFydGlmYWN0cyI6IHsKICAgICJpb3MtYXJtNjQtc2ltdWxhdG9yIjogewogICAgICAibGlicmFyeVNoYTI1NiI6ICI0MzU2MDk4ZGI2NGJmN2UwMzlkMTQwOWVmODRlY2Q3YTcwOTRjNzhjZTk5YTI0Yzg4MzdmMTI1Yzg4OWM3MjFhIiwKICAgICAgInByZWJ1aWxkU2hhMjU2IjogIjhhNmVmM2Y0OWYxNTgxODEzYzExYThmMTVhNThhZmY3OTFjODA2MWZmNTVlMDRmMDI2YjQ1M2E2ZTBhNjQ5NjYiCiAgICB9LAogICAgImlvcy14NjQtc2ltdWxhdG9yIjogewogICAgICAibGlicmFyeVNoYTI1NiI6ICIyZWRmMzk3YjgwYmRmYmQwZDA2ZjQzNjEwODlhZGI3Y2IyMDc0MzQ4MzQxODM1NzcxYjhmNDNlZDJlZTZjNWVlIiwKICAgICAgInByZWJ1aWxkU2hhMjU2IjogIjVjM2NkYzE0YWI5Mjg1Mzg2NTgxNTgyOTNkMDlkNjQ1YTU2Nzc1NDc3ZTc2YTU5YzZjNTUyMGE1ZDY1ZjJmMjciCiAgICB9LAogICAgImlvcy1hcm02NCI6IHsKICAgICAgImxpYnJhcnlTaGEyNTYiOiAiNzVlYWJjMDViODdjM2FlNzc4MDMzMWRhYTM0ZDYyNzY2OTkyMzJmYWMwOGQzNDdjYzg3OGRkMjg5NTEwNTNkYyIsCiAgICAgICJwcmVidWlsZFNoYTI1NiI6ICJiNmY3MTJlNWUwNGMyOWU4M2FkZWI2NjU2NTdlOGExMzE0ZDQ0OWRhNzk0ZTcxNTJjNDllZjNmNjJjMGY2MGVlIgogICAgfSwKICAgICJkYXJ3aW4tYXJtNjQiOiB7CiAgICAgICJsaWJyYXJ5U2hhMjU2IjogImM2ZWRiYWJkYTQwMjYxMTJhMzMxY2QzYTJkYWJhZjY2NDM1MWRiODAwNWNjN2FkOWU5M2MyNTUxMjc4YTI2MDMiLAogICAgICAicHJlYnVpbGRTaGEyNTYiOiAiNzFlZDI2NDA0Yjc4YzUyYWNlMjk4MjE3OWY5MjVkYTFiMjJkNTAyMDM4M2VhZDVjN2IzNGM4Yjc5NTk5YjUyMCIKICAgIH0sCiAgICAiYW5kcm9pZC14NjQiOiB7CiAgICAgICJsaWJyYXJ5U2hhMjU2IjogImExZDZiMWViZTI1YWFjM2I3MTdiYWNkY2EyNjE1NDZlZGNlNmVjY2U0Y2FlYjZmOTFmOGUzOTdhNWQ2N2YzY2YiLAogICAgICAicHJlYnVpbGRTaGEyNTYiOiAiMzBhMWE0MWE4OGQ2MDZjMmY1MzllNzhhZDc5ZGE3MjE0MWQwZTUxN2IyYjRhZDhiNTFlODdlNGMwNDFjYWY1NSIKICAgIH0sCiAgICAiYW5kcm9pZC1hcm02NCI6IHsKICAgICAgImxpYnJhcnlTaGEyNTYiOiAiMDgyNjBkODU5NmJiMmY2MTI5NDg4Y2QwMjhkM2E4ZWI0NWMxMTQ2Y2JjZmQ4MDYyYTYxZGM4Nzc2MmRhOWY4NCIsCiAgICAgICJwcmVidWlsZFNoYTI1NiI6ICI5ZWI0ODQxZTg3ODgxMGI3YzE0MTJiZDEwNmZiOGM0ZDBhMGUwODYxMzAwZDhiYjc4NjFjZjBmYjA0MjU2MzUxIgogICAgfSwKICAgICJhbmRyb2lkLWFybSI6IHsKICAgICAgImxpYnJhcnlTaGEyNTYiOiAiNDlhYjZiOTY2MDRkOTcwNzhlNWQyNmNiOGE3Yjg5ZTczN2MzZmM1YzZhNjE3YmNlYzU1MTZkOWM0MzhjMDQ2ZCIsCiAgICAgICJwcmVidWlsZFNoYTI1NiI6ICJiZmE5ODhiMTVmYTVjY2RiYTNmNjU4ODc5ZjU3MjJlZGRjY2M5NGZhOTU1YTVkOGQ5OGYzNzhhZWMyMmZmMGY5IgogICAgfQogIH0KfQo=')
+          if hashlib.sha256(original_manifest).hexdigest() != '8455ff12981a06a2a818022e10855b0598904a66c653432c0631d0b64dece726':
+              raise RuntimeError('Embedded original assembled manifest changed')
+          approved = json.loads(original_manifest)
+          catalog = api('repos/UTEXO-Protocol/rgb-lightning-node-bare/actions/runs/' + e['ORIGINAL_BUILD_RUN'] + '/artifacts?per_page=100')['artifacts']
+          receipts = []
+          for target, (digest, artifact_id) in pins.items():
+              name = 'bare-' + target + '-' + e['ORIGINAL_BUILD_COMMIT']
+              matches = [a for a in catalog if a['id'] == artifact_id and a['name'] == name]
+              if len(matches) != 1 or matches[0]['expired'] or matches[0]['digest'] != 'sha256:' + digest:
+                  raise RuntimeError('Original artifact metadata mismatch: ' + target)
+              archive = evidence / (name + '.zip')
+              with archive.open('wb') as f:
+                  subprocess.run(['gh', 'api', 'repos/UTEXO-Protocol/rgb-lightning-node-bare/actions/artifacts/' + str(artifact_id) + '/zip'], stdout=f, check=True)
+              actual = hashlib.sha256(archive.read_bytes()).hexdigest()
+              if actual != digest:
+                  raise RuntimeError('Original artifact ZIP digest mismatch: ' + target)
+              expected_names = {'.utexo-native-overlay.json', 'lib/' + target + '/librlncffi.a', 'prebuilds/' + target + '/utexo__rgb-lightning-node-bare.bare'}
+              with zipfile.ZipFile(archive) as z:
+                  if set(z.namelist()) != expected_names or len(z.infolist()) != len(expected_names):
+                      raise RuntimeError('Unexpected archive members: ' + target)
+                  sidecar = json.loads(z.read('.utexo-native-overlay.json'))
+                  if {k:v for k,v in sidecar.items() if k != 'artifacts'} != {k:v for k,v in approved.items() if k != 'artifacts'} or sidecar['artifacts'] != {target: approved['artifacts'][target]}:
+                      raise RuntimeError('Original provenance mismatch: ' + target)
+                  for rel in expected_names - {'.utexo-native-overlay.json'}:
+                      member = z.getinfo(rel)
+                      if stat.S_ISLNK(member.external_attr >> 16):
+                          raise RuntimeError('Unexpected symlink')
+                      value = z.read(rel)
+                      expected_hash = approved['artifacts'][target]['librarySha256' if rel.endswith('.a') else 'prebuildSha256']
+                      if hashlib.sha256(value).hexdigest() != expected_hash:
+                          raise RuntimeError('Native artifact hash mismatch: ' + rel)
+                      destination = root / rel
+                      destination.parent.mkdir(parents=True, exist_ok=True)
+                      destination.write_bytes(value)
+              receipts.append({'id': artifact_id, 'name': name, 'zipSha256': digest, 'target': target, 'originalBuildCommit': e['ORIGINAL_BUILD_COMMIT']})
+          (root / '.utexo-native-overlay.json').write_bytes(original_manifest)
+          (evidence / 'original-native-manifest.json').write_bytes(original_manifest)
+          (evidence / 'original-artifact-receipts.json').write_text(json.dumps(receipts, indent=2) + '\n')
+          PY
+
+      - name: Install pinned NDK for Android artifact verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          task_ndk_path="$(bash package/scripts/install-android-ndk.sh)"
+          test -d "$task_ndk_path"
+          echo "ANDROID_NDK_HOME=$task_ndk_path" >> "$GITHUB_ENV"
+
+      - name: Admit unchanged release artifacts through standard installer
+        working-directory: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          RLN_BARE_ARTIFACTS_DIR="$RUNNER_TEMP/original-artifacts" npm run prepare-native -- --platform all
+          python3 - <<'PY'
+          import json, os, pathlib
+          original = pathlib.Path(os.environ['RUNNER_TEMP'], 'original-artifacts/.utexo-native-overlay.json').read_bytes()
+          installed = pathlib.Path('.utexo-native-overlay.json').read_bytes()
+          if json.loads(installed) != json.loads(original):
+              raise RuntimeError('Installer changed provenance values')
+          # The official importer orders target keys; retain exact admitted original bytes.
+          pathlib.Path('.utexo-native-overlay.json').write_bytes(original)
+          PY
+          npm run check:types
+          npm test
+          npm run prepublishOnly
+          test "$(git rev-parse HEAD)" = "$PACKAGE_COMMIT"
+          test -z "$(git status --porcelain)"
+
+      - name: Save exact package receipt before any publication
+        working-directory: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm pack --json --ignore-scripts --pack-destination "$RUNNER_TEMP/publication-evidence" > "$RUNNER_TEMP/publication-evidence/pack.json"
+          python3 - <<'PY'
+          import base64, hashlib, json, os, pathlib, subprocess, tarfile
+          evidence = pathlib.Path(os.environ['RUNNER_TEMP'], 'publication-evidence')
+          raw = json.loads((evidence / 'pack.json').read_text())
+          if not isinstance(raw, (list, dict)):
+              raise RuntimeError('Unexpected npm pack JSON shape')
+          pack = raw if isinstance(raw, list) else list(raw.values())
+          if len(pack) != 1:
+              raise RuntimeError('Unexpected package count')
+          p = pack[0]
+          archive = evidence / p['filename']
+          data = archive.read_bytes()
+          integrity = 'sha512-' + base64.b64encode(hashlib.sha512(data).digest()).decode()
+          if integrity != p['integrity'] or hashlib.sha1(data).hexdigest() != p['shasum']:
+              raise RuntimeError('npm pack receipt mismatch')
+          manifest = json.loads(pathlib.Path('.utexo-native-overlay.json').read_text())
+          with tarfile.open(archive, 'r:gz') as t:
+              if json.load(t.extractfile('package/package.json')) != json.loads(pathlib.Path('package.json').read_text()):
+                  raise RuntimeError('Package metadata changed')
+              if t.extractfile('package/.utexo-native-overlay.json').read() != pathlib.Path('.utexo-native-overlay.json').read_bytes():
+                  raise RuntimeError('Packed provenance changed')
+              for target in manifest['targets']:
+                  value = t.extractfile('package/prebuilds/' + target + '/utexo__rgb-lightning-node-bare.bare').read()
+                  if hashlib.sha256(value).hexdigest() != manifest['artifacts'][target]['prebuildSha256']:
+                      raise RuntimeError('Packed native artifact changed')
+          receipt = {'name': p['name'], 'version': p['version'], 'integrity': integrity, 'sha256': hashlib.sha256(data).hexdigest(), 'packageGitHead': os.environ['PACKAGE_COMMIT'], 'builderCommit': os.environ['GITHUB_SHA'], 'originalNativeBuildCommit': os.environ['ORIGINAL_BUILD_COMMIT'], 'nativeRebuildPerformed': False, 'node': subprocess.check_output(['node','--version'], text=True).strip(), 'npm': subprocess.check_output(['npm','--version'], text=True).strip(), 'publicationPerformed': False}
+          (evidence / 'publication-plan.json').write_text(json.dumps(receipt, indent=2) + '\n')
+          PY
+          npm run prepublishOnly
+          test -z "$(git status --porcelain)"
+
+      - name: Verify version is absent and main pin has not moved
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C package ls-remote origin refs/heads/main | cut -f1)" = "$PACKAGE_COMMIT"
+          node --input-type=module - <<'JS'
+          import fs from 'node:fs'
+          const response = await fetch('https://registry.npmjs.org/@utexo%2Frgb-lightning-node-bare/0.2.0-beta.4', { signal: AbortSignal.timeout(30000) })
+          if (response.status !== 404) throw new Error('Expected unpublished beta.4; registry status ' + response.status)
+          fs.writeFileSync(process.env.RUNNER_TEMP + '/publication-evidence/registry-absence.json', JSON.stringify({ name: '@utexo/rgb-lightning-node-bare', version: '0.2.0-beta.4', status: response.status, checkedAt: new Date().toISOString() }, null, 2) + '\n')
+          JS
+
+      - name: Verify publisher identity using existing repository token
+        working-directory: package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${NODE_AUTH_TOKEN:-}"
+          npm whoami --registry=https://registry.npmjs.org/ > "$RUNNER_TEMP/publication-evidence/npm-publisher.txt"
+          echo 'Authenticated npm publisher identity verified.'
+
+      - name: Retain verified candidate and evidence before publication
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: bare-beta4-prepublication-${{ github.run_id }}-${{ inputs.operation }}
           path: |
-            lib/${{ matrix.platform }}/librlncffi.a
-            .utexo-native-overlay.json
-            prebuilds/${{ matrix.platform }}/utexo__rgb-lightning-node-bare.bare
+            ${{ runner.temp }}/publication-evidence/*.json
+            ${{ runner.temp }}/publication-evidence/*.txt
+            ${{ runner.temp }}/publication-evidence/*.tgz
           if-no-files-found: error
-          include-hidden-files: true
-      - name: Retain verified Android staging separately
-        if: startsWith(matrix.platform, 'android-')
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+          retention-days: 90
+
+      - name: Publish confirmed beta.4 with real assembly provenance
+        if: inputs.operation == 'publish'
+        working-directory: package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          CONFIRM_VERSION: ${{ inputs.confirm_version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$CONFIRM_VERSION" = "$PACKAGE_VERSION"
+          test "$(git rev-parse HEAD)" = "$PACKAGE_COMMIT"
+          test -z "$(git status --porcelain)"
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$PACKAGE_COMMIT"
+          node --input-type=module - <<'JS'
+          const response = await fetch('https://registry.npmjs.org/@utexo%2Frgb-lightning-node-bare/0.2.0-beta.4', { signal: AbortSignal.timeout(30000) })
+          if (response.status !== 404) throw new Error('Publication refused: beta.4 is not absent')
+          JS
+          npm publish . --provenance --access public --tag beta --registry=https://registry.npmjs.org/ --json > "$RUNNER_TEMP/publication-evidence/publish.log"
+
+      - name: Verify published registry identity and exact package integrity
+        if: inputs.operation == 'publish'
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module - <<'JS'
+          import fs from 'node:fs'
+          const evidence = process.env.RUNNER_TEMP + '/publication-evidence/'
+          const plan = JSON.parse(fs.readFileSync(evidence + 'publication-plan.json', 'utf8'))
+          let metadata
+          for (let attempt = 0; attempt < 20; attempt++) {
+            const response = await fetch('https://registry.npmjs.org/@utexo%2Frgb-lightning-node-bare/0.2.0-beta.4', { signal: AbortSignal.timeout(30000) })
+            if (response.status === 404 && attempt < 19) {
+              await new Promise(resolve => setTimeout(resolve, 3000))
+              continue
+            }
+            if (!response.ok) throw new Error('Published version unavailable: ' + response.status)
+            const value = await response.json()
+            if (value.name !== plan.name || value.version !== plan.version || value.gitHead !== process.env.PACKAGE_COMMIT || value.dist?.integrity !== plan.integrity) throw new Error('Published package identity or integrity mismatch')
+            if (!value.dist?.attestations?.provenance) {
+              if (attempt === 19) throw new Error('Published npm provenance is unavailable')
+              await new Promise(resolve => setTimeout(resolve, 3000))
+              continue
+            }
+            metadata = value
+            break
+          }
+          fs.writeFileSync(evidence + 'published-registry-metadata.json', JSON.stringify(metadata, null, 2) + '\n')
+          JS
+
+      - name: Retain final evidence including any publication failure
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: bare-staged-${{ matrix.platform }}-${{ github.sha }}
-          path: ${{ runner.temp }}/staged-android/
-          if-no-files-found: error
-      - name: Retain rejected Android packaging for diagnosis
-        if: failure() && steps.android-packaging.outcome == 'failure'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: unqualified-android-${{ matrix.platform }}-${{ github.sha }}
+          name: bare-beta4-final-${{ github.run_id }}-${{ inputs.operation }}
           path: |
-            .utexo-native-overlay.json
-            prebuilds/${{ matrix.platform }}/utexo__rgb-lightning-node-bare.bare
-            ${{ runner.temp }}/linked-android/
-          include-hidden-files: true
-          if-no-files-found: error
+            ${{ runner.temp }}/publication-evidence/*.json
+            ${{ runner.temp }}/publication-evidence/*.txt
+            ${{ runner.temp }}/publication-evidence/*.tgz
+            ${{ runner.temp }}/publication-evidence/*.log
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Explain source and provenance scope
+        if: success()
+        env:
+          OPERATION: ${{ inputs.operation }}
+        shell: bash
+        run: |
+          {
+            echo "Bare beta.4 operation: $OPERATION"
+            echo "Package source/gitHead: $PACKAGE_COMMIT"
+            echo "Real assembly builder commit: $GITHUB_SHA"
+            echo "Original native build: $ORIGINAL_BUILD_COMMIT, run $ORIGINAL_BUILD_RUN"
+            echo 'Original native bytes and provenance retained; this workflow does not rebuild native code.'
+            echo 'No WDK merge or publication is performed.'
+          } >> "$GITHUB_STEP_SUMMARY"
