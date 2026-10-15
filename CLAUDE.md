@@ -27,7 +27,8 @@ The package mirrors `@utexo/rgb-lib-bare` in build philosophy: a pre-compiled Ru
 
 ```sh
 npm ci
-# postinstall verifies matching packed artifacts or builds the pinned source graph
+# Packed postinstall hydrates the required iOS data dependency and verifies all seven targets.
+# Missing or inconsistent distributed artifacts fail without a source-build fallback.
 # To skip native artifacts for JS-only CI:
 RLN_BARE_JS_ONLY_INSTALL=1 npm ci
 ```
@@ -36,6 +37,8 @@ RLN_BARE_JS_ONLY_INSTALL=1 npm ci
 
 ```sh
 # Set the normal Rust/Cargo bin path and full Xcode environment first.
+# Bootstrap this source checkout and its local iOS workspace without lifecycle execution.
+npm ci --ignore-scripts
 # The public manifest selects the exact source, locked graph and adapter.
 # Private upstream BFA dependencies require scoped source-read access.
 RLN_BARE_TARGETS=darwin-arm64 npm run prepare-native
@@ -49,6 +52,7 @@ RLN_BARE_TARGETS=android-arm64 npm run prepare-native
 ```sh
 npm run check:types          # tsc --noEmit --strict --skipLibCheck index.d.ts
 npm run test:installer       # unit tests for installer scripts (Node.js)
+python3 -B scripts/test-distribution-archives.py # archive admission rejection tests
 npm test                     # installer tests + bare-runtime smoke test
 ```
 
@@ -65,7 +69,9 @@ test.js             Canary smoke test (run with bare-runtime)
 package.json        utexoNativeOverlay config: upstream commit, patch SHA-256, toolchain, targets
 patches/            Git-format patch series applied over upstream RLN (one per tag)
 scripts/
-  install-native-artifacts.js    postinstall entry point
+  install-native-artifacts.js    source/import and legacy manual preparation entry point
+  install-distribution.js       packed postinstall and explicit hydrate-native entry point
+  native-distribution.js        verify required iOS payload and restore canonical prebuild paths
   native-overlay.js              overlay build/verify: patch check, symbol verification, provenance
   native-overlay.test.js         unit tests for overlay logic
   build-cffi.sh                  Cargo-based C-FFI static lib builder
