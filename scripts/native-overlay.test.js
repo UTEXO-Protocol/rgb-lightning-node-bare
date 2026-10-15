@@ -170,8 +170,8 @@ test('Bare node handles shut down exactly once and are destroyed during teardown
   const packageRoot = path.resolve(__dirname, '..')
   const binding = fs.readFileSync(path.join(packageRoot, 'binding.cc'), 'utf8')
 
-  assert.match(binding, /js_add_teardown_callback\(env, sdk_node_teardown, ref\)/)
-  assert.match(binding, /js_remove_teardown_callback\(env, sdk_node_teardown, ref\)/)
+  assert.match(binding, /js_add_teardown_callback\(env, sdk_node_teardown, id\)/)
+  assert.match(binding, /js_remove_teardown_callback\(env, sdk_node_teardown, \(void \*\)ref->handle.id\)/)
   assert.match(binding, /shutdown_and_free_sdk_node\(ref\)/)
   assert.match(binding, /bool shutdown_attempted;/)
   assert.match(binding, /if \(!ref->shutdown_attempted\)/)

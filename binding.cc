@@ -13,6 +13,7 @@
 #include <stdint.h>
 #include <math.h>
 #include <mutex>
+#include <stdio.h>
 
 extern "C" {
 #include "rln.h"
@@ -26,17 +27,41 @@ enum class HandleKind { Node, Signer };
 struct HandleEntry {
   js_env_t *env;
   HandleKind kind;
+  uintptr_t id;
   HandleEntry *next;
 };
 static std::mutex handles_mutex;
 static HandleEntry *handles = NULL;
+static uintptr_t next_handle_id = 1;
 
-static void register_handle(HandleEntry *entry, js_env_t *env, HandleKind kind) {
+static bool register_handle(HandleEntry *entry, js_env_t *env, HandleKind kind) {
   std::lock_guard<std::mutex> guard(handles_mutex);
+  // Never reuse an identity, including on 32-bit Android after wraparound.
+  if (next_handle_id == 0) return false;
+  entry->id = next_handle_id++;
   entry->env = env;
   entry->kind = kind;
   entry->next = handles;
   handles = entry;
+  return true;
+}
+
+// Finalizers may arrive after terminal environment cleanup freed the wrapper.
+// Validate both its address and generation before dereferencing a raw pointer.
+static HandleEntry *find_finalizer_handle(js_env_t *env, void *data, void *hint, HandleKind kind) {
+  std::lock_guard<std::mutex> guard(handles_mutex);
+  for (HandleEntry *entry = handles; entry != NULL; entry = entry->next) {
+    if ((void *)entry == data && entry->id == (uintptr_t)hint && entry->env == env && entry->kind == kind) return entry;
+  }
+  return NULL;
+}
+
+static HandleEntry *find_teardown_handle(void *id, HandleKind kind) {
+  std::lock_guard<std::mutex> guard(handles_mutex);
+  for (HandleEntry *entry = handles; entry != NULL; entry = entry->next) {
+    if (entry->id == (uintptr_t)id && entry->kind == kind) return entry;
+  }
+  return NULL;
 }
 
 static bool owns_handle(js_env_t *env, void *data, HandleKind kind) {
@@ -174,20 +199,30 @@ static void shutdown_and_free_sdk_node(SdkNodeRef *ref) {
   }
 }
 
-static void sdk_node_teardown(void *data) {
-  SdkNodeRef *ref = (SdkNodeRef *)data;
+static void sdk_node_teardown(void *id) {
+  SdkNodeRef *ref = (SdkNodeRef *)find_teardown_handle(id, HandleKind::Node);
+  if (ref == NULL) return;
   ref->teardown_registered = false;
   shutdown_and_free_sdk_node(ref);
+  if (!ref->freed) {
+    fputs("rgb-lightning-node-bare: environment node shutdown failed; ownership retained\n", stderr);
+    return;
+  }
+  unregister_handle(&ref->handle);
+  free(ref);
 }
 
 static void sdk_node_destructor(js_env_t *env, void *data, void *hint) {
-  SdkNodeRef *ref = (SdkNodeRef *)data;
-  unregister_handle(&ref->handle);
+  SdkNodeRef *ref = (SdkNodeRef *)find_finalizer_handle(env, data, hint, HandleKind::Node);
+  if (ref == NULL) return;
+  shutdown_and_free_sdk_node(ref);
+  // A failed GC shutdown must keep the terminal hook available for retry.
+  if (!ref->freed) return;
   if (ref->teardown_registered) {
-    js_remove_teardown_callback(env, sdk_node_teardown, ref);
+    js_remove_teardown_callback(env, sdk_node_teardown, (void *)ref->handle.id);
     ref->teardown_registered = false;
   }
-  shutdown_and_free_sdk_node(ref);
+  unregister_handle(&ref->handle);
   free(ref);
 }
 
@@ -202,9 +237,16 @@ static js_value_t *wrap_sdk_node(js_env_t *env, struct COpaqueStruct opaque) {
   ref->freed = false;
   ref->shutdown_attempted = false;
   ref->teardown_registered = false;
-
-  int err = js_add_teardown_callback(env, sdk_node_teardown, ref);
+  if (!register_handle(&ref->handle, env, HandleKind::Node)) {
+    shutdown_and_free_sdk_node(ref);
+    free(ref);
+    js_throw_error(env, "ERR_RLN_ALLOCATION", "Native handle identities exhausted");
+    return NULL;
+  }
+  void *id = (void *)ref->handle.id;
+  int err = js_add_teardown_callback(env, sdk_node_teardown, id);
   if (err != 0) {
+    unregister_handle(&ref->handle);
     shutdown_and_free_sdk_node(ref);
     free(ref);
     js_throw_error(env, NULL, "Unable to register rgb-lightning-node teardown");
@@ -213,16 +255,15 @@ static js_value_t *wrap_sdk_node(js_env_t *env, struct COpaqueStruct opaque) {
   ref->teardown_registered = true;
 
   js_value_t *external;
-  err = js_create_external(env, ref, sdk_node_destructor, NULL, &external);
+  err = js_create_external(env, ref, sdk_node_destructor, id, &external);
   if (err != 0) {
-    js_remove_teardown_callback(env, sdk_node_teardown, ref);
-    ref->teardown_registered = false;
+    js_remove_teardown_callback(env, sdk_node_teardown, id);
+    unregister_handle(&ref->handle);
     shutdown_and_free_sdk_node(ref);
     free(ref);
     js_throw_error(env, NULL, "Unable to create rgb-lightning-node handle");
     return NULL;
   }
-  register_handle(&ref->handle, env, HandleKind::Node);
   return external;
 }
 
@@ -247,6 +288,37 @@ static SdkNodeRef *unwrap_sdk_node_ref(js_env_t *env, js_value_t *val) {
   void *data = NULL;
   if (!read_external(env, val, &data) || !owns_handle(env, data, HandleKind::Node)) return NULL;
   return (SdkNodeRef *)data;
+}
+
+// Environment teardown callbacks may run in either handle-creation order. A
+// signer cannot be revoked until every same-env node finishes persistence.
+// Scan IDs without allocation and never hold the registry mutex across native
+// shutdown. The owning JS thread cannot finalize same-env handles concurrently
+// with this callback; unrelated environments have distinct identities.
+static bool shutdown_environment_nodes(js_env_t *env) {
+  bool stopped = true;
+  uintptr_t cursor = 0;
+  for (;;) {
+    uintptr_t id = 0;
+    {
+      std::lock_guard<std::mutex> guard(handles_mutex);
+      for (HandleEntry *entry = handles; entry != NULL; entry = entry->next) {
+        if (entry->env == env && entry->kind == HandleKind::Node && entry->id > cursor &&
+            (id == 0 || entry->id < id)) id = entry->id;
+      }
+    }
+    if (id == 0) break;
+    cursor = id;
+    SdkNodeRef *node = (SdkNodeRef *)find_teardown_handle((void *)id, HandleKind::Node);
+    if (node == NULL) continue;
+    shutdown_and_free_sdk_node(node);
+    if (!node->freed) { stopped = false; continue; }
+    // Do not mutate libjs's callback list while it is executing. A pending
+    // node callback carries only this generation ID and becomes a no-op.
+    unregister_handle(&node->handle);
+    free(node);
+  }
+  return stopped;
 }
 
 static js_value_t *handle_result_node(js_env_t *env, struct CResult res) {
@@ -278,15 +350,48 @@ struct SignerRef {
   HandleEntry handle;
   struct COpaqueStruct opaque;
   bool freed;
+  bool teardown_registered;
 };
 
-static void signer_destructor(js_env_t *env, void *data, void *hint) {
-  SignerRef *ref = (SignerRef *)data;
-  unregister_handle(&ref->handle);
+static void signer_teardown(void *id) {
+  SignerRef *ref = (SignerRef *)find_teardown_handle(id, HandleKind::Signer);
+  if (ref == NULL) return;
+  ref->teardown_registered = false;
+  if (!shutdown_environment_nodes(ref->handle.env)) {
+    // A failed node may still need signing for final persistence. Environment
+    // teardown cannot report a JS exception; retain ownership and fail closed.
+    fputs("rgb-lightning-node-bare: retaining signer after failed environment node shutdown\n", stderr);
+    return;
+  }
   if (!ref->freed) {
+    struct CResultString result = rln_native_external_signer_shutdown(&ref->opaque);
+    if (result.inner != NULL) rln_free_string(result.inner);
+    if (result.result != Ok) {
+      fputs("rgb-lightning-node-bare: terminal environment signer shutdown failed\n", stderr);
+      return;
+    }
     free_native_external_signer(ref->opaque);
+    ref->opaque.ptr = NULL;
     ref->freed = true;
   }
+  unregister_handle(&ref->handle);
+  free(ref);
+}
+
+static void signer_destructor(js_env_t *env, void *data, void *hint) {
+  SignerRef *ref = (SignerRef *)find_finalizer_handle(env, data, hint, HandleKind::Signer);
+  if (ref == NULL) return;
+  if (ref->teardown_registered) {
+    js_remove_teardown_callback(env, signer_teardown, (void *)ref->handle.id);
+    ref->teardown_registered = false;
+  }
+  if (!ref->freed) {
+    // Ordinary GC is ownership-only: an attached live node retains its Arc.
+    free_native_external_signer(ref->opaque);
+    ref->opaque.ptr = NULL;
+    ref->freed = true;
+  }
+  unregister_handle(&ref->handle);
   free(ref);
 }
 
@@ -299,15 +404,32 @@ static js_value_t *wrap_signer(js_env_t *env, struct COpaqueStruct opaque) {
   }
   ref->opaque = opaque;
   ref->freed = false;
+  ref->teardown_registered = false;
+  if (!register_handle(&ref->handle, env, HandleKind::Signer)) {
+    free_native_external_signer(opaque);
+    free(ref);
+    js_throw_error(env, "ERR_RLN_ALLOCATION", "Native handle identities exhausted");
+    return NULL;
+  }
+  void *id = (void *)ref->handle.id;
+  if (js_add_teardown_callback(env, signer_teardown, id) != 0) {
+    unregister_handle(&ref->handle);
+    free_native_external_signer(opaque);
+    free(ref);
+    js_throw_error(env, NULL, "Unable to register native signer teardown");
+    return NULL;
+  }
+  ref->teardown_registered = true;
 
   js_value_t *external;
-  if (js_create_external(env, ref, signer_destructor, NULL, &external) != 0) {
+  if (js_create_external(env, ref, signer_destructor, id, &external) != 0) {
+    js_remove_teardown_callback(env, signer_teardown, id);
+    unregister_handle(&ref->handle);
     free_native_external_signer(opaque);
     free(ref);
     js_throw_error(env, "ERR_RLN_ALLOCATION", "Unable to create signer handle");
     return NULL;
   }
-  register_handle(&ref->handle, env, HandleKind::Signer);
   return external;
 }
 
@@ -511,10 +633,7 @@ static js_value_t *fn_sdk_node_destroy(js_env_t *env, js_callback_info_t *info) 
       return make_undefined(env);
     }
   }
-  if (ref->teardown_registered) {
-    js_remove_teardown_callback(env, sdk_node_teardown, ref);
-    ref->teardown_registered = false;
-  }
+  // Keep the terminal hook until GC or environment teardown owns the wrapper.
   js_value_t *undefined;
   js_get_undefined(env, &undefined);
   return undefined;
@@ -588,6 +707,7 @@ static js_value_t *fn_native_external_signer_destroy(js_env_t *env,
     ref->opaque.ptr = NULL;
     ref->freed = true;
   }
+  // Keep the terminal hook until GC or environment teardown owns the wrapper.
   js_value_t *undefined;
   js_get_undefined(env, &undefined);
   return undefined;

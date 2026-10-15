@@ -70,7 +70,8 @@
     "build-prebuilds": "bash scripts/build-prebuilds.sh",
     "check:types": "tsc --noEmit --strict --skipLibCheck index.d.ts && tsc --noEmit --strict --target es2020 --module node16 scripts/burn-types.ts",
     "test:installer": "node --test scripts/*.test.js",
-    "test": "npm run test:installer && node ./node_modules/bare-runtime/bin/bare ./test.js"
+    "test:environment": "node scripts/test-env-teardown.js",
+    "test": "npm run test:installer && node ./node_modules/bare-runtime/bin/bare ./test.js && npm run test:environment"
   },
   "dependencies": {
     "bare-fs": "^4.7.1",
@@ -83,6 +84,7 @@
     "require-addon": "^1.2.0"
   },
   "devDependencies": {
+    "bare-module-traverse": "2.6.0",
     "bare-pack": "2.2.4",
     "bare-runtime": "1.30.3",
     "typescript": "^6.0.3"

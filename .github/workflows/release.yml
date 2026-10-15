@@ -40,6 +40,9 @@ jobs:
       - name: Desktop runtime canary
         if: matrix.platform == 'darwin-arm64'
         run: node node_modules/bare-runtime/bin/bare test.js
+      - name: Desktop environment teardown regression
+        if: matrix.platform == 'darwin-arm64'
+        run: npm run test:environment
       - name: Stage and validate Android production packaging
         id: android-packaging
         if: startsWith(matrix.platform, 'android-')
