@@ -44,6 +44,9 @@ removes strong gossip-verifier feedback cycles; and drains worker/connection
 resources during teardown. Critical persistence and broadcast completions must
 remain admitted until final background-processor persistence has finished.
 Partial startup also owns and cleans up resources it has already created.
+Terminal shutdown explicitly closes the metadata database pool on its owning
+runtime, so parked SQLx connection-return work cannot retain a SQLite file after
+close. An ordinary REST wallet lock keeps its database available for unlocking.
 
 The compiled capabilities `native-signer-shutdown-v1` and
 `owned-session-cleanup-v1` identify this implementation. Artifact admission must
