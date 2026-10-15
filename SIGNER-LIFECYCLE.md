@@ -54,6 +54,27 @@ reject the older overlay and stale wrapper binaries. Build success alone does
 not establish that cleanup or repeated lock/unlock works: retain actual native
 same-store reopen, operating-system resource and funded mobile evidence.
 
+## Terminal environment follow-up
+
+Bare `95e2c844dc2c76e3f83d6f1a0dcf76d74f17fef7` adds same-environment
+terminal signer ownership cleanup; wrapper SHA-256 is
+`ca3ac291fbb4af86fc0d091805f9f544031298f6ce94a66b99f8f1acd763d4f7`.
+An external-object GC finalizer need not run when a worker terminates. Terminal
+cleanup therefore drains that environment's nodes before revoking/freeing its
+signers; ordinary GC remains ownership-only and other environments remain usable.
+The shared native overlay and upstream dependency graph are unchanged.
+
+The [dated follow-up](NATIVE-UPGRADE-20261015.md#environment-and-erasure-follow-up)
+records 100 local full-node terminations, the new seven-target CI build, and
+Iris's separate cold authorized-journal recovery plus three first-attempt
+erasures. Five actual full Metro reloads on an unfunded wallet also pass in one
+process (`1/2/1` → `0/0/0` → authenticated same-store `1/2/1`), as does fresh
+BTC/BFA receive/send and another full reload before BFA acknowledgment. Three
+funded manual cycles, short/long background, funded cold restart and final
+history/refresh checks also pass.
+Arbitrary crash recovery remains unqualified; worker tests and mobile
+compilation do not substitute for app acceptance.
+
 ## Qualification boundaries
 
 Iris remains on-chain only. This change does not enable Lightning in Iris or
