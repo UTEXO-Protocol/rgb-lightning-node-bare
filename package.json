@@ -41,7 +41,10 @@
     "rlnVersion": "0.17.0-beta.3"
   },
   "files": [
-    "prebuilds/",
+    "prebuilds/darwin-arm64/",
+    "prebuilds/android-arm64/",
+    "prebuilds/android-arm/",
+    "prebuilds/android-x64/",
     ".utexo-native-overlay.json",
     "binding.js",
     "binding.cc",
@@ -62,8 +65,8 @@
     "NATIVE-UPGRADE-20261015.md"
   ],
   "scripts": {
-    "prepublishOnly": "node scripts/verify-release-artifacts.js",
-    "postinstall": "node scripts/install-native-artifacts.js",
+    "prepublishOnly": "node scripts/verify-distribution-artifacts.js",
+    "postinstall": "node scripts/install-distribution.js",
     "prepare-native": "node scripts/install-native-artifacts.js",
     "build": "bash scripts/build-prebuilds.sh",
     "build-cffi": "bash scripts/build-cffi.sh",
@@ -71,7 +74,10 @@
     "check:types": "tsc --noEmit --strict --skipLibCheck index.d.ts && tsc --noEmit --strict --target es2020 --module node16 scripts/burn-types.ts",
     "test:installer": "node --test scripts/*.test.js",
     "test:environment": "node scripts/test-env-teardown.js",
-    "test": "npm run test:installer && node ./node_modules/bare-runtime/bin/bare ./test.js && npm run test:environment"
+    "test": "npm run test:installer && node ./node_modules/bare-runtime/bin/bare ./test.js && npm run test:environment",
+    "hydrate-native": "node scripts/install-distribution.js",
+    "stage:ios-payload": "node scripts/stage-ios-payload.js",
+    "check:distribution": "node scripts/verify-distribution-artifacts.js"
   },
   "dependencies": {
     "bare-fs": "^4.7.1",
@@ -81,12 +87,16 @@
     "cmake-bare": "^1.7.6",
     "cmake-npm": "^1.1.0",
     "lossless-json": "4.3.1",
-    "require-addon": "^1.2.0"
+    "require-addon": "^1.2.0",
+    "@utexo/rgb-lightning-node-bare-ios": "0.2.0-beta.4"
   },
   "devDependencies": {
     "bare-module-traverse": "2.6.0",
     "bare-pack": "2.2.4",
     "bare-runtime": "1.30.3",
     "typescript": "^6.0.3"
-  }
+  },
+  "workspaces": [
+    "native/ios"
+  ]
 }

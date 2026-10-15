@@ -1,7 +1,9 @@
 'use strict'
 
 const path = require('node:path')
+const fs = require('node:fs')
 const { ensureOverlayArtifacts, nativeArtifactInstallMode, readOverlayConfig, resolveInstallTargets } = require('./native-overlay')
+const { hydrateDistribution } = require('./native-distribution')
 const packageRoot = path.resolve(__dirname, '..')
 
 function requestedPlatform (args) {
@@ -17,6 +19,15 @@ try {
     const config = readOverlayConfig(packageRoot)
     if (!config) throw new Error('Missing approved native source manifest; no fallback download is permitted')
     const targets = resolveInstallTargets(config, process.env, process.platform, requestedPlatform(process.argv.slice(2)))
+    // Installed consumers may skip lifecycle scripts before invoking this
+    // existing preparation entry point. Assemble the required data dependency
+    // first; a bad payload must never fall through to a private source build.
+    // Explicit source checkouts/imports retain their original preparation path.
+    if (!fs.existsSync(path.join(packageRoot, '.git')) &&
+        !process.env.RLN_BARE_ARTIFACTS_DIR && !process.env.RLN_BARE_SOURCE_DIR) {
+      const prepared = hydrateDistribution(packageRoot)
+      console.log('[rgb-lightning-node-bare] Verified packed prebuilds: ' + prepared.join(', '))
+    }
     ensureOverlayArtifacts(packageRoot, config, targets, process.env)
   }
 } catch (error) {

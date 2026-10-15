@@ -9,11 +9,31 @@ for historical restrictions.
 
 ## Installation Contract
 
-Installation first verifies packed prebuilds against source, submodule, adapter,
-wrapper and artifact hashes. Matching prebuilds need no Rust toolchain. Otherwise
-it builds the exact source identities in `package.json`; no stale binary is
-substituted. Publication requires all seven release prebuilds. This candidate is
-not published and is not fully qualified.
+The published wrapper includes the Darwin addon and three Android addons. Its
+required exact-version dependency, `@utexo/rgb-lightning-node-bare-ios`, contains
+all three iOS addons. This data package has no lifecycle scripts, executable
+entry point, dependencies or host filters. Splitting the payloads keeps both npm
+uploads below the registry request limit; all seven original native files and
+their provenance remain unchanged.
+
+Postinstall validates both manifests, the runtime contract, dependency identity
+and every native hash before restoring the canonical `prebuilds/ios-*` paths.
+It verifies all seven targets on every host, including installations that omit
+optional dependencies. Missing or inconsistent payloads fail installation without
+a source-build fallback. No Rust toolchain is needed for these packed artifacts.
+
+If lifecycle scripts were skipped, complete assembly explicitly before bundling
+or using the package:
+
+```sh
+npm --prefix node_modules/@utexo/rgb-lightning-node-bare run hydrate-native
+```
+
+`RLN_BARE_JS_ONLY_INSTALL=1` remains an explicit tooling-only opt-out and does not
+provide a qualified wallet runtime. Source builds use the separate, existing
+`prepare-native` command. Publication requires all seven verified release files
+and the matching staged iOS payload; this candidate is not approved for production
+rollout.
 
 Source builds need access to three private upstream BFA repositories even when
 BFA is unused. Authorized CI uses `ORG_READ_TOKEN` through
@@ -148,3 +168,29 @@ a mobile runtime pass. Apps with their own staging must replace that hook when
 adopting this one, not apply both. See the [release tracker](./RELEASE-0.15-TRACKER.md)
 for current evidence and historical raw-link CI failures.
 The current overlay-dependent app must not be repinned blindly.
+
+## Maintaining the split distribution
+
+The repository uses the `native/ios` npm workspace so `npm ci --ignore-scripts`
+can install the source checkout before the companion version exists on npm. Its
+lockfile links the local data workspace; the published wrapper requires the exact
+registry version. No `file:` dependency is published.
+
+After preparing or importing all seven original release artifacts, stage and
+verify the payload, then pack both packages with Node 24.18.0/npm 12.0.1:
+
+```sh
+npm ci --ignore-scripts
+npm run prepare-native -- --platform all
+npm run stage:ios-payload
+npm run check:distribution
+npm pack --workspace native/ios --json --ignore-scripts --pack-destination /tmp/bare-pack
+npm pack --workspaces=false --json --ignore-scripts --pack-destination /tmp/bare-pack
+python3 scripts/verify-distribution-archives.py /tmp/bare-pack/utexo-rgb-lightning-node-bare-0.2.0-beta.4.tgz /tmp/bare-pack/utexo-rgb-lightning-node-bare-ios-0.2.0-beta.4.tgz
+```
+
+The archive gate enforces a 210 MiB limit per tarball, one assignment of each
+original native file, the required dependency, unchanged fingerprints and a
+data-only companion. Publish the companion first from the reviewed main source,
+verify its registry integrity, and only then publish the wrapper. These commands
+do not authorize publication by themselves.

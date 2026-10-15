@@ -44,6 +44,7 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm run check:types
       - run: npm run test:installer
+      - run: python3 -B scripts/test-distribution-archives.py
       - name: Build pinned graph and verify provenance
         env:
           ORG_READ_TOKEN: ${{ secrets.ORG_READ_TOKEN }}
