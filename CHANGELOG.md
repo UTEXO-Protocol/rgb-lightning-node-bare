@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.0-beta.4 (unpublished candidate)
+
+- Pin RLN SDK v0.17.0-beta.3, its released LDK submodule and rgb-lib beta.50-bfa.
+- Rebase the C-FFI-only adapter and enforce new compiled provenance. Existing API behavior and strict native artifact protection gates remain.
+
+
 ## Unreleased
 
 - Persist a local VSS writer identity so abrupt process restarts reclaim their

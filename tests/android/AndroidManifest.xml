@@ -1,0 +1,5 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.utexo.linkqualification">
+    <uses-sdk android:minSdkVersion="29" android:targetSdkVersion="36" />
+    <application android:label="RLN link qualification" android:extractNativeLibs="false" android:debuggable="true" />
+    <instrumentation android:name=".Runner" android:targetPackage="com.utexo.linkqualification" />
+</manifest>

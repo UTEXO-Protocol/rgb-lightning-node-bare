@@ -10,9 +10,13 @@ function resolvePackageRoot (packageName, fromDirectory) {
     throw new TypeError('fromDirectory must be a non-empty string')
   }
 
-  const manifest = require.resolve(`${packageName}/package.json`, {
-    paths: [fromDirectory]
-  })
+  let manifest
+  try {
+    manifest = require.resolve(`${packageName}/package.json`, { paths: [fromDirectory] })
+  } catch (error) {
+    if (error.code !== 'ERR_PACKAGE_PATH_NOT_EXPORTED') throw error
+    manifest = require.resolve(`${packageName}/package`, { paths: [fromDirectory] })
+  }
   return path.dirname(manifest)
 }
 
