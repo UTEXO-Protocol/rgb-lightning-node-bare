@@ -27,7 +27,7 @@ The package mirrors `@utexo/rgb-lib-bare` in build philosophy: a pre-compiled Ru
 
 ```sh
 npm ci
-# Packed postinstall hydrates the required iOS data dependency and verifies all seven targets.
+# Packed postinstall hydrates all three required exact-version data dependencies and verifies all seven targets.
 # Missing or inconsistent distributed artifacts fail without a source-build fallback.
 # To skip native artifacts for JS-only CI:
 RLN_BARE_JS_ONLY_INSTALL=1 npm ci
@@ -37,7 +37,7 @@ RLN_BARE_JS_ONLY_INSTALL=1 npm ci
 
 ```sh
 # Set the normal Rust/Cargo bin path and full Xcode environment first.
-# Bootstrap this source checkout and its local iOS workspace without lifecycle execution.
+# Bootstrap this source checkout and its three local native data workspaces without lifecycle execution.
 npm ci --ignore-scripts
 # The public manifest selects the exact source, locked graph and adapter.
 # Private upstream BFA dependencies require scoped source-read access.
@@ -45,6 +45,9 @@ RLN_BARE_TARGETS=darwin-arm64 npm run prepare-native
 RLN_BARE_TARGETS=ios-arm64 npm run prepare-native
 RLN_BARE_TARGETS=android-arm64 npm run prepare-native
 # Substitute any exact configured target; no group alias or legacy download.
+# After preparing/importing all seven release targets, stage every data workspace:
+npm run stage:payloads
+npm run check:distribution
 ```
 
 ### Type-check and tests
@@ -71,7 +74,7 @@ patches/            Git-format patch series applied over upstream RLN (one per t
 scripts/
   install-native-artifacts.js    source/import and legacy manual preparation entry point
   install-distribution.js       packed postinstall and explicit hydrate-native entry point
-  native-distribution.js        verify required iOS payload and restore canonical prebuild paths
+  native-distribution.js        verify all three required payloads before restoring six mobile prebuild paths
   native-overlay.js              overlay build/verify: patch check, symbol verification, provenance
   native-overlay.test.js         unit tests for overlay logic
   build-cffi.sh                  Cargo-based C-FFI static lib builder
@@ -141,3 +144,16 @@ prebuilds/<target/ (gitignored) compiled .bare addon
 - Android `.bare` addons must be stripped with `llvm-strip --strip-debug` from the pinned NDK toolchain. macOS `strip` corrupts ELF archives.
 - `RLN_BARE_JS_ONLY_INSTALL=1` must bypass all native artifact steps but must not create fake artifact files.
 - `utexoNativeOverlay.ref` and `utexoNativeOverlay.commit` must be updated together when the upstream RLN tag changes.
+
+## Distribution changes
+
+Keep the wrapper Darwin-only and all three companions required at the exact owner
+version, without platform filters or executable metadata. The Android ARM payload
+contains `android-arm` and `android-arm64`; Android x64 is separate. Validate every
+payload and destination before any copy, verify staged bytes before replacement,
+and preserve retry after interrupted assembly. The archive gate checks all four
+packages with 128 MiB budgets for new uploads. The published iOS beta.4 archive is
+immutable (146,197,231 bytes, frozen SRI in the archive verifier) and must never be
+republished or changed. `stage:ios-payload` only stages iOS; release preparation
+uses `stage:payloads`. Package source commits, publication workflow commits and
+original native build provenance are separate evidence.

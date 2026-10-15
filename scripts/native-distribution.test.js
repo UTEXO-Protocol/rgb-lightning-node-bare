@@ -7,7 +7,7 @@ const path = require('node:path')
 const test = require('node:test')
 const { spawnSync } = require('node:child_process')
 const { artifactPaths, readOverlayConfig, writeArtifactManifest } = require('./native-overlay')
-const { IOS_TARGETS, PAYLOAD_NAME, hydrateDistribution, stageIosPayload, verifyDistribution } = require('./native-distribution')
+const { IOS_TARGETS, PAYLOAD_NAME, PAYLOADS, PAYLOAD_TARGETS, hydrateDistribution, stageIosPayload, stagePayloads, verifyDistribution } = require('./native-distribution')
 const source = path.resolve(__dirname, '..')
 let priorDebug
 test.beforeEach(() => { priorDebug = process.env.RLN_BARE_DEBUG; delete process.env.RLN_BARE_DEBUG })
@@ -24,8 +24,11 @@ function fixture (context) {
   fs.mkdirSync(path.join(root, 'scripts'))
   for (const file of ['native-overlay.js', 'build-cffi.sh', 'build-prebuilds.sh', 'release-contract.js', 'runtime-contract.js', 'android-elf.js', 'native-distribution.js', 'verify-release-artifacts.js', 'install-native-artifacts.js']) fs.copyFileSync(path.join(source, 'scripts', file), path.join(root, 'scripts', file))
   const payload = path.join(root, 'native', 'ios')
-  fs.mkdirSync(payload, { recursive: true })
-  fs.copyFileSync(path.join(source, 'native', 'ios', 'package.json'), path.join(payload, 'package.json'))
+  for (const descriptor of PAYLOADS) {
+    const destination = path.join(root, descriptor.directory)
+    fs.mkdirSync(destination, { recursive: true })
+    fs.copyFileSync(path.join(source, descriptor.directory, 'package.json'), path.join(destination, 'package.json'))
+  }
   const config = readOverlayConfig(root)
   for (const target of config.targets) {
     for (const [kind, file] of Object.entries(artifactPaths(root, target))) {
@@ -34,17 +37,17 @@ function fixture (context) {
     }
   }
   writeArtifactManifest(root, config, config.targets)
-  stageIosPayload(root)
+  stagePayloads(root)
   const scope = path.join(root, 'node_modules', '@utexo')
   fs.mkdirSync(scope, { recursive: true })
-  fs.symlinkSync(payload, path.join(scope, 'rgb-lightning-node-bare-ios'), process.platform === 'win32' ? 'junction' : 'dir')
-  for (const target of IOS_TARGETS) fs.rmSync(path.join(root, 'prebuilds', target), { recursive: true })
+  for (const descriptor of PAYLOADS) fs.symlinkSync(path.join(root, descriptor.directory), path.join(scope, descriptor.name.split('/')[1]), process.platform === 'win32' ? 'junction' : 'dir')
+  for (const target of PAYLOAD_TARGETS) fs.rmSync(path.join(root, 'prebuilds', target), { recursive: true })
   return { root, payload, config }
 }
 
-function noIosInstalled (root) {
-  for (const target of IOS_TARGETS) assert.equal(fs.existsSync(artifactPaths(root, target).prebuild), false)
-  assert.equal(fs.readdirSync(path.join(root, 'prebuilds')).some(name => name.startsWith('.ios-install-')), false)
+function noPayloadsInstalled (root) {
+  for (const target of PAYLOAD_TARGETS) assert.equal(fs.existsSync(artifactPaths(root, target).prebuild), false)
+  assert.equal(fs.readdirSync(path.join(root, 'prebuilds')).some(name => name.startsWith('.native-install-')), false)
 }
 
 function mutateJson (file, change) {
@@ -65,8 +68,8 @@ test('distribution hydrates every iOS slice and verifies all seven without build
 test('missing required payload fails before any iOS copy', context => {
   const { root, payload } = fixture(context)
   fs.rmSync(payload, { recursive: true })
-  assert.throws(() => hydrateDistribution(root), /Required iOS prebuild package is missing/)
-  noIosInstalled(root)
+  assert.throws(() => hydrateDistribution(root), /Required native prebuild package is missing/)
+  noPayloadsInstalled(root)
 })
 
 for (const [name, change] of [
@@ -81,8 +84,8 @@ for (const [name, change] of [
   test('rejects ' + name + ' before copying', context => {
     const { root, payload } = fixture(context)
     mutateJson(path.join(payload, 'package.json'), change)
-    assert.throws(() => hydrateDistribution(root), /Unexpected iOS payload|native release graph/)
-    noIosInstalled(root)
+    assert.throws(() => hydrateDistribution(root), /Unexpected native payload|release graph/)
+    noPayloadsInstalled(root)
   })
 }
 
@@ -92,8 +95,8 @@ test('an optional payload declaration cannot substitute for the required depende
     delete metadata.dependencies[PAYLOAD_NAME]
     metadata.optionalDependencies = { [PAYLOAD_NAME]: metadata.version }
   })
-  assert.throws(() => hydrateDistribution(root), /required exact-version dependency/)
-  noIosInstalled(root)
+  assert.throws(() => hydrateDistribution(root), /required exact-version dependenc/)
+  noPayloadsInstalled(root)
 })
 
 test('publication gate rejects debug artifacts rather than weakening the original gate', context => {
@@ -111,7 +114,7 @@ test('corrupt final payload slice does not install the earlier valid slices', co
   const { root, payload } = fixture(context)
   fs.appendFileSync(artifactPaths(payload, IOS_TARGETS[2]).prebuild, 'tampered')
   assert.throws(() => hydrateDistribution(root), /prebuild hash/)
-  noIosInstalled(root)
+  noPayloadsInstalled(root)
 })
 
 test('payload provenance and runtime-contract mismatches fail closed', context => {
@@ -123,14 +126,14 @@ test('payload provenance and runtime-contract mismatches fail closed', context =
   fs.writeFileSync(manifest, before)
   fs.appendFileSync(path.join(payload, 'runtime-contract.json'), ' ')
   assert.throws(() => hydrateDistribution(root), /runtime contract/)
-  noIosInstalled(root)
+  noPayloadsInstalled(root)
 })
 
-test('root Android corruption is caught even when the host would use Darwin', context => {
+test('wrapper Darwin corruption is caught before any payload is installed', context => {
   const { root } = fixture(context)
-  fs.appendFileSync(artifactPaths(root, 'android-arm').prebuild, 'tampered')
+  fs.appendFileSync(artifactPaths(root, 'darwin-arm64').prebuild, 'tampered')
   assert.throws(() => hydrateDistribution(root), /prebuild hash/)
-  noIosInstalled(root)
+  noPayloadsInstalled(root)
 })
 
 test('source and dangling destination symlinks are rejected without outside writes', context => {
@@ -146,7 +149,7 @@ test('source and dangling destination symlinks are rejected without outside writ
   fs.symlinkSync(outside, path.join(root, 'prebuilds', IOS_TARGETS[0]), process.platform === 'win32' ? 'junction' : 'dir')
   assert.throws(() => hydrateDistribution(root), /non-directory/)
   assert.equal(fs.existsSync(outside), false)
-  noIosInstalled(root)
+  noPayloadsInstalled(root)
 })
 
 test('interrupted file installation fails, cleans staging and recovers on explicit rerun', context => {
@@ -155,7 +158,7 @@ test('interrupted file installation fails, cleans staging and recovers on explic
   let count = 0
   fs.renameSync = (...args) => { if (++count === 2) throw new Error('Simulated interrupted rename'); return rename(...args) }
   try { assert.throws(() => hydrateDistribution(root), /Simulated interrupted rename/) } finally { fs.renameSync = rename }
-  assert.equal(fs.readdirSync(path.join(root, 'prebuilds')).some(name => name.startsWith('.ios-install-')), false)
+  assert.equal(fs.readdirSync(path.join(root, 'prebuilds')).some(name => name.startsWith('.native-install-')), false)
   assert.deepEqual(hydrateDistribution(root), config.targets)
   assert.doesNotThrow(() => verifyDistribution(root))
 })
@@ -179,10 +182,50 @@ test('the existing installed preparation entry point hydrates all seven after ig
   assert.equal(prepared.status, 0, prepared.stderr)
   assert.match(prepared.stdout, /Verified packed prebuilds: darwin-arm64, ios-arm64/)
   assert.doesNotThrow(() => verifyDistribution(root))
-  for (const target of IOS_TARGETS) fs.rmSync(path.join(root, 'prebuilds', target), { recursive: true })
+  for (const target of PAYLOAD_TARGETS) fs.rmSync(path.join(root, 'prebuilds', target), { recursive: true })
   fs.appendFileSync(artifactPaths(payload, config.targets[1]).prebuild, 'tampered')
   const rejected = spawnSync(process.execPath, args, { encoding: 'utf8', env })
   assert.notEqual(rejected.status, 0)
   assert.match(rejected.stderr, /prebuild hash/)
-  noIosInstalled(root)
+  noPayloadsInstalled(root)
+})
+
+for (const descriptor of PAYLOADS) {
+  for (const [name, mutate, pattern] of [
+    ['missing payload', (root, payload) => fs.rmSync(payload, { recursive: true }), /Required native prebuild package is missing/],
+    ['wrong version', (root, payload) => mutateJson(path.join(payload, 'package.json'), metadata => { metadata.version = '0.2.0-beta.3' }), /Unexpected native payload/],
+    ['wrong graph', (root, payload) => mutateJson(path.join(payload, 'package.json'), metadata => { metadata.utexoNativeOverlay.commit = '0'.repeat(40) }), /release graph/],
+    ['unreviewed hook', (root, payload) => mutateJson(path.join(payload, 'package.json'), metadata => { metadata.scripts = { postinstall: 'unreviewed' } }), /execution policy/],
+    ['corrupt native bytes', (root, payload) => fs.appendFileSync(artifactPaths(payload, descriptor.targets.at(-1)).prebuild, 'tampered'), /prebuild hash/],
+    ['native symlink', (root, payload) => { const file = artifactPaths(payload, descriptor.targets[0]).prebuild; fs.unlinkSync(file); fs.symlinkSync(path.join(payload, 'runtime-contract.json'), file) }, /non-regular file/]
+  ]) {
+    test(descriptor.name + ' rejects ' + name + ' before any companion is installed', context => {
+      const { root } = fixture(context)
+      const payload = path.join(root, descriptor.directory)
+      mutate(root, payload)
+      assert.throws(() => hydrateDistribution(root), pattern)
+      noPayloadsInstalled(root)
+    })
+  }
+}
+
+test('a corrupted final staged Android copy cannot install earlier valid iOS or ARM slices', context => {
+  const { root } = fixture(context)
+  const copy = fs.copyFileSync
+  fs.copyFileSync = (...args) => {
+    const result = copy(...args)
+    if (String(args[1]).includes('.native-install-') && String(args[1]).includes('android-x64')) fs.appendFileSync(args[1], 'injected interrupted copy')
+    return result
+  }
+  try { assert.throws(() => hydrateDistribution(root), /prebuild hash/) } finally { fs.copyFileSync = copy }
+  noPayloadsInstalled(root)
+})
+
+test('the legacy iOS-only staging command preserves its scope and published workspace metadata', context => {
+  const { root } = fixture(context)
+  hydrateDistribution(root)
+  const json = fs.readFileSync(path.join(root, PAYLOADS[0].directory, 'package.json'))
+  assert.equal(stageIosPayload(root), path.join(root, 'native', 'ios'))
+  assert.deepEqual(fs.readFileSync(path.join(root, 'native', 'ios', 'package.json')), json)
+  assert.doesNotThrow(() => verifyDistribution(root))
 })
