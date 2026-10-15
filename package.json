@@ -42,9 +42,6 @@
   },
   "files": [
     "prebuilds/darwin-arm64/",
-    "prebuilds/android-arm64/",
-    "prebuilds/android-arm/",
-    "prebuilds/android-x64/",
     ".utexo-native-overlay.json",
     "binding.js",
     "binding.cc",
@@ -77,7 +74,8 @@
     "test": "npm run test:installer && node ./node_modules/bare-runtime/bin/bare ./test.js && npm run test:environment",
     "hydrate-native": "node scripts/install-distribution.js",
     "stage:ios-payload": "node scripts/stage-ios-payload.js",
-    "check:distribution": "node scripts/verify-distribution-artifacts.js"
+    "check:distribution": "node scripts/verify-distribution-artifacts.js",
+    "stage:payloads": "node scripts/stage-native-payloads.js"
   },
   "dependencies": {
     "bare-fs": "^4.7.1",
@@ -88,7 +86,9 @@
     "cmake-npm": "^1.1.0",
     "lossless-json": "4.3.1",
     "require-addon": "^1.2.0",
-    "@utexo/rgb-lightning-node-bare-ios": "0.2.0-beta.4"
+    "@utexo/rgb-lightning-node-bare-ios": "0.2.0-beta.4",
+    "@utexo/rgb-lightning-node-bare-android-arm": "0.2.0-beta.4",
+    "@utexo/rgb-lightning-node-bare-android-x64": "0.2.0-beta.4"
   },
   "devDependencies": {
     "bare-module-traverse": "2.6.0",
@@ -97,6 +97,8 @@
     "typescript": "^6.0.3"
   },
   "workspaces": [
-    "native/ios"
+    "native/ios",
+    "native/android-arm",
+    "native/android-x64"
   ]
 }

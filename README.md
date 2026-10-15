@@ -9,19 +9,26 @@ for historical restrictions.
 
 ## Installation Contract
 
-The published wrapper includes the Darwin addon and three Android addons. Its
-required exact-version dependency, `@utexo/rgb-lightning-node-bare-ios`, contains
-all three iOS addons. This data package has no lifecycle scripts, executable
-entry point, dependencies or host filters. Splitting the payloads keeps both npm
-uploads below the registry request limit; all seven original native files and
-their provenance remain unchanged.
+The published wrapper contains the Darwin addon and requires three exact-version
+`0.2.0-beta.4` data packages on every host:
 
-Postinstall validates both manifests, the runtime contract, dependency identity
-and every native hash before restoring the canonical `prebuilds/ios-*` paths.
-It verifies all seven targets on every host, including installations that omit
-optional dependencies. Missing or inconsistent payloads fail installation without
-a source-build fallback. No Rust toolchain is needed for these packed artifacts.
+| Required package | Native targets |
+| --- | --- |
+| `@utexo/rgb-lightning-node-bare-ios` | `ios-arm64`, `ios-arm64-simulator`, `ios-x64-simulator` |
+| `@utexo/rgb-lightning-node-bare-android-arm` | `android-arm`, `android-arm64` |
+| `@utexo/rgb-lightning-node-bare-android-x64` | `android-x64` |
 
+The data packages have no lifecycle scripts, executable entry points, dependencies
+or host filters. This partition reduces each new upload below 128 MiB. The
+already-published iOS package remains byte-for-byte identical; all seven original
+native files, compiled fingerprints and build provenance remain unchanged.
+
+Postinstall validates every package identity, manifest, runtime contract and native
+hash before copying any payload. It restores the six canonical mobile
+`prebuilds/<target>` paths and verifies all seven targets on every host, including
+installations that omit optional dependencies. Missing or inconsistent payloads
+fail installation without a source-build fallback. No Rust toolchain is needed
+for these packed artifacts.
 If lifecycle scripts were skipped, complete assembly explicitly before bundling
 or using the package:
 
@@ -32,7 +39,7 @@ npm --prefix node_modules/@utexo/rgb-lightning-node-bare run hydrate-native
 `RLN_BARE_JS_ONLY_INSTALL=1` remains an explicit tooling-only opt-out and does not
 provide a qualified wallet runtime. Source builds use the separate, existing
 `prepare-native` command. Publication requires all seven verified release files
-and the matching staged iOS payload; this candidate is not approved for production
+and all three matching staged data payloads; this candidate is not approved for production
 rollout.
 
 Source builds need access to three private upstream BFA repositories even when
@@ -171,26 +178,40 @@ The current overlay-dependent app must not be repinned blindly.
 
 ## Maintaining the split distribution
 
-The repository uses the `native/ios` npm workspace so `npm ci --ignore-scripts`
-can install the source checkout before the companion version exists on npm. Its
-lockfile links the local data workspace; the published wrapper requires the exact
-registry version. No `file:` dependency is published.
+The repository uses `native/ios`, `native/android-arm` and `native/android-x64`
+npm workspaces so `npm ci --ignore-scripts` installs a source checkout before new
+companion versions exist on npm. The lockfile links these local data workspaces;
+the published wrapper requires the exact registry versions. No `file:` dependency
+is published.
 
 After preparing or importing all seven original release artifacts, stage and
-verify the payload, then pack both packages with Node 24.18.0/npm 12.0.1:
+verify every payload, then pack all four packages with Node 24.18.0/npm 12.0.1:
 
 ```sh
 npm ci --ignore-scripts
 npm run prepare-native -- --platform all
-npm run stage:ios-payload
+npm run stage:payloads
 npm run check:distribution
-npm pack --workspace native/ios --json --ignore-scripts --pack-destination /tmp/bare-pack
+mkdir -p /tmp/bare-pack
+npm pack --workspace native/ios --workspace native/android-arm --workspace native/android-x64 --json --ignore-scripts --pack-destination /tmp/bare-pack
 npm pack --workspaces=false --json --ignore-scripts --pack-destination /tmp/bare-pack
-python3 scripts/verify-distribution-archives.py /tmp/bare-pack/utexo-rgb-lightning-node-bare-0.2.0-beta.4.tgz /tmp/bare-pack/utexo-rgb-lightning-node-bare-ios-0.2.0-beta.4.tgz
+python3 scripts/verify-distribution-archives.py /tmp/bare-pack/utexo-rgb-lightning-node-bare-0.2.0-beta.4.tgz /tmp/bare-pack/utexo-rgb-lightning-node-bare-ios-0.2.0-beta.4.tgz /tmp/bare-pack/utexo-rgb-lightning-node-bare-android-arm-0.2.0-beta.4.tgz /tmp/bare-pack/utexo-rgb-lightning-node-bare-android-x64-0.2.0-beta.4.tgz
 ```
 
-The archive gate enforces a 210 MiB limit per tarball, one assignment of each
-original native file, the required dependency, unchanged fingerprints and a
-data-only companion. Publish the companion first from the reviewed main source,
-verify its registry integrity, and only then publish the wrapper. These commands
-do not authorize publication by themselves.
+`stage:ios-payload` remains an iOS-only compatibility command; it does not prepare
+the Android workspaces. The archive gate enforces a 128 MiB limit for the wrapper
+and new Android packages, exact wrapper/source inventory and permissions, one
+assignment of each original native file, required exact dependencies, unchanged
+fingerprints and data-only companions. The immutable public iOS archive is the
+single size exception: exactly 146,197,231 bytes and
+`sha512-BOfizU4fqvGyl4L2Q0YAikLEYGyOBDYQikYPPR7IgxnmKrddm3T1/Lv0YnQeYt1EsBOf2SGyLNJKOLaWOglrkg==`.
+Its generated manifest has mode `0600`; preserve that mode when reproducing the
+archive. Its package source is `15b0ff68d1b59fa88131cfb9be6fe48c30287e6b`,
+separate from the subsequent wrapper/Android packaging source. All native files
+still originate in the original seven-target build.
+
+Do not republish the existing iOS version. Verify its public integrity, publish
+and independently verify both new Android data packages, then publish the wrapper.
+Each publication needs its own source and builder provenance verification; a
+packaging commit does not claim to rebuild the native files. These preparation
+commands do not authorize publication by themselves.
