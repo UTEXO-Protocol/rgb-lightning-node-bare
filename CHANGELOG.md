@@ -1,9 +1,14 @@
 # Changelog
 
-## 0.2.0-beta.4 (unpublished candidate)
+## 0.2.0-beta.4
 
 - Pin RLN SDK v0.17.0-beta.3, its released LDK submodule and rgb-lib beta.50-bfa.
 - Rebase the C-FFI-only adapter and enforce new compiled provenance. Existing API behavior and strict native artifact protection gates remain.
+- Split the three unchanged iOS prebuilds into the required exact-version
+  `@utexo/rgb-lightning-node-bare-ios` data package to fit npm's upload limit.
+  Packed installation and the existing manual preparation entry point restore
+  all seven verified target paths. Missing or corrupt payloads fail without a
+  source-build fallback; native runtime code and original provenance are unchanged.
 
 
 ## Unreleased
