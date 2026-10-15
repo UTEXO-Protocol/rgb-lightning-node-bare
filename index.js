@@ -487,12 +487,15 @@ exports.SdkNode = SdkNode
  *      `attachNativeExternalSigner` + `unlockWithAttachedExternalSigner`
  *
  * The instance can be dropped (`destroy()` or GC) as soon as RLN has
- * cloned its `Arc` ref via attach/init/unlock.
+ * cloned its `Arc` ref via attach/init/unlock. Retain it until node shutdown
+ * when deterministic signer revocation is required: first shut down every
+ * attached node, then call `signer.shutdown()`, and finally `destroy()`.
  */
 class NativeExternalSigner {
   constructor (handle) {
     this._handle = handle
     this._destroyed = false
+    this._shutdown = false
   }
 
   /**
@@ -553,7 +556,20 @@ class NativeExternalSigner {
     return parse(binding.nativeExternalSignerBootstrap(this._handle))
   }
 
-  // Eager drop. The GC destructor remains as an idempotent fallback.
+  /**
+   * Revoke this signer and every native clone, waiting for in-flight signing
+   * calls before releasing its private state and persistent-store lock.
+   * Terminal and idempotent. All attached nodes must finish shutdown first
+   * so their final persistence operations can still use the signer.
+   */
+  shutdown () {
+    if (this._shutdown) return
+    if (this._destroyed) throw new Error('NativeExternalSigner already destroyed')
+    binding.nativeExternalSignerShutdown(this._handle)
+    this._shutdown = true
+  }
+
+  // Drop only this host handle. Does not revoke a signer retained by RLN.
   destroy () {
     if (this._destroyed) return
     binding.nativeExternalSignerDestroy(this._handle)

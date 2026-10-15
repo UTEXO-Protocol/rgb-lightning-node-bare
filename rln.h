@@ -168,6 +168,14 @@ struct CResultString rln_maker_init(const struct COpaqueStruct *node, const char
 
 struct CResultString rln_native_external_signer_bootstrap(const struct COpaqueStruct *signer);
 
+/**
+ * Permanently revoke every clone of this signer and release its persistent
+ * store. Node shutdown must finish first. This is idempotent and does not free
+ * the host handle; ordinary handle free/GC never revokes an attached signer.
+ * The caller must keep the host handle alive until this call returns.
+ */
+struct CResultString rln_native_external_signer_shutdown(const struct COpaqueStruct *signer);
+
 struct CResult rln_native_external_signer_new(const char *seed_hex,
                                               const char *network,
                                               bool permissive_policy);

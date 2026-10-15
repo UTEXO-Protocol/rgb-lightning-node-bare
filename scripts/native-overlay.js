@@ -59,6 +59,7 @@ const LIBRARY_SYMBOLS = Object.freeze([
   'rln_native_external_signer_bootstrap',
   'rln_native_external_signer_new',
   'rln_native_external_signer_new_with_storage',
+  'rln_native_external_signer_shutdown',
   'rln_network_info',
   'rln_node_info',
   'rln_open_channel',
@@ -685,6 +686,7 @@ function buildArtifacts (packageRoot, sourceRoot, config, targets) {
       env: environment
     })
   }
+  releaseContract.verifyPreparedSource(sourceRoot, config)
   const builtIdentity = verifyRuntimeContract(packageRoot, config)
   if (builtIdentity.wrapper_sha256 !== config.wrapperSha256) {
     fail('wrapper changed during native build; refusing to stamp artifacts')

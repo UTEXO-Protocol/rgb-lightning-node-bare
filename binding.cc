@@ -566,6 +566,14 @@ static js_value_t *fn_native_external_signer_bootstrap(js_env_t *env, js_callbac
   return handle_result_string(env, rln_native_external_signer_bootstrap(signer));
 }
 
+static js_value_t *fn_native_external_signer_shutdown(js_env_t *env, js_callback_info_t *info) {
+  js_value_t *args[1];
+  get_args(env, info, args, 1);
+  const struct COpaqueStruct *signer = require_signer(env, args[0]);
+  if (signer == NULL) return make_undefined(env);
+  return handle_result_string(env, rln_native_external_signer_shutdown(signer));
+}
+
 static js_value_t *fn_native_external_signer_destroy(js_env_t *env,
                                                       js_callback_info_t *info) {
   js_value_t *args[1];
@@ -900,6 +908,7 @@ rgb_lightning_node_bare_exports(js_env_t *env, js_value_t *exports) {
   EXPORT("nativeExternalSignerNew", native_external_signer_new);
   EXPORT("nativeExternalSignerNewWithStorage", native_external_signer_new_with_storage);
   EXPORT("nativeExternalSignerBootstrap", native_external_signer_bootstrap);
+  EXPORT("nativeExternalSignerShutdown", native_external_signer_shutdown);
   EXPORT("nativeExternalSignerDestroy", native_external_signer_destroy);
   EXPORT("sdkNodeInitWithNativeExternalSigner",
          sdk_node_init_with_native_external_signer);

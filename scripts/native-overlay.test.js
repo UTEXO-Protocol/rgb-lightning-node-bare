@@ -85,7 +85,7 @@ test('package overlay metadata is exact and checksum-pinned', () => {
   const config = readOverlayConfig(packageRoot)
 
   assert.equal(config.commit, 'ecc69f20308231400561f6f060fea88acfa40cc4')
-  assert.equal(config.patchSha256, 'bbec56a1ef9c05feb9d50a9edab556837be872f482bf1183493a4f449f45275d')
+  assert.equal(config.patchSha256, '20c7169735fb38c493a36e25aefaa4da0c84d6d6c440713c570b2eaa97bbc8bc')
   assert.equal(config.rustToolchain, '1.94.0')
   assert.equal(config.iosDeploymentTarget, '16.0')
   assert.equal(config.androidNdkVersion, '27.1.12297006')
@@ -119,16 +119,18 @@ test('overlay exposes address-attested APay through the C ABI', () => {
   assert.ok(LIBRARY_SYMBOLS.includes('rln_sdk_node_apay_new_with_address'))
 })
 
-test('imports are released upstream, not a core implementation backport', () => {
+test('imports remain released upstream alongside the explicit lifecycle overlay', () => {
   const patch = fs.readFileSync(readOverlayConfig(path.resolve(__dirname, '..')).patchPath, 'utf8')
   const header = fs.readFileSync(path.join(__dirname, '..', 'rln.h'), 'utf8')
   assert.match(header, /rln_import_rgb_contract/)
   assert.match(header, /rln_import_rgb_transfer_consignment/)
-  assert.doesNotMatch(patch, /diff --git a\/src\//)
   assert.doesNotMatch(patch, /95332c41|rln_prepare_btc_send|vss_delete_all/)
+  assert.match(patch, /diff --git a\/src\/uniffi_api\/native_signer.rs/)
+  assert.match(patch, /native-signer-shutdown-v1/)
+  assert.match(patch, /owned-session-cleanup-v1/)
 })
 
-test('adapter allowlist excludes unrelated upstream runtime changes', () => {
+test('adapter allowlist binds the reviewed C adapter and lifecycle repair exactly', () => {
   const { validateAdapter, ALLOWED_FILES } = require('./release-contract')
   const config = readOverlayConfig(path.resolve(__dirname, '..'))
   validateAdapter(config)

@@ -2,7 +2,8 @@
 
 Release-based Bare bindings for RLN **0.17.0-beta.3**,
 commit `ecc69f20308231400561f6f060fea88acfa40cc4`. Candidate **0.2.0-beta.4**;
-not approved for production rollout. See [NATIVE-UPGRADE-20261014.md](./NATIVE-UPGRADE-20261014.md)
+not approved for production rollout. Includes an explicitly hashed native
+signer/session lifecycle repair. See [NATIVE-UPGRADE-20261015.md](./NATIVE-UPGRADE-20261015.md)
 for current qualification and [RELEASE-0.15-TRACKER.md](./RELEASE-0.15-TRACKER.md)
 for historical restrictions.
 

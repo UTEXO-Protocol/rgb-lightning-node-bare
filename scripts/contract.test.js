@@ -88,6 +88,45 @@ test('compiled identity is checked before Bare handles are created', () => {
   assert.ok(Object.isFrozen(facade().getRuntimeInfo()))
 })
 
+test('signer revocation is explicit, terminal, retryable and separate from host-handle release', () => {
+  const calls = []
+  const handle = {}
+  let fail = true
+  let revoked = false
+  const { NativeExternalSigner } = facade({
+    nativeExternalSignerShutdown (value) {
+      assert.equal(value, handle)
+      calls.push('shutdown')
+      if (fail) throw new Error('revocation failed')
+      revoked = true
+      return '{}'
+    },
+    nativeExternalSignerBootstrap () {
+      if (revoked) throw new Error('signer shut down')
+      return '{"node_id":"fixture"}'
+    },
+    nativeExternalSignerDestroy () { calls.push('free') }
+  })
+  const signer = new NativeExternalSigner(handle)
+  assert.throws(() => signer.shutdown(), /revocation failed/)
+  assert.equal(signer.bootstrap().node_id, 'fixture')
+  assert.equal(signer._shutdown, false)
+  fail = false
+  signer.shutdown()
+  signer.shutdown()
+  assert.throws(() => signer.bootstrap(), /shut down/)
+  signer.destroy()
+  signer.destroy()
+  assert.deepEqual(calls, ['shutdown', 'shutdown', 'free'])
+
+  // Ordinary host-handle disposal must not revoke state still owned by RLN.
+  calls.length = 0
+  const earlyDrop = new NativeExternalSigner(handle)
+  earlyDrop.destroy()
+  assert.deepEqual(calls, ['free'])
+  assert.throws(() => earlyDrop.shutdown(), /destroyed/)
+})
+
 test('both external unlock entrypoints preserve optional Ethereum RPC and native errors', () => {
   for (const method of ['unlockWithNativeExternalSigner', 'unlockWithAttachedExternalSigner']) {
     const bindingMethod = method === 'unlockWithNativeExternalSigner'
