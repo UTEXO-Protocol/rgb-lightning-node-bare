@@ -26,7 +26,7 @@
  */
 
 const binding = require('./binding')
-const { parse, stringify, paymentRequest, burnRequest, unsupported, UnsupportedCapabilityError } = require('./json-boundary')
+const { parse, stringify, bip322Request, paymentRequest, burnRequest, unsupported, UnsupportedCapabilityError } = require('./json-boundary')
 const expectedRuntime = require('./runtime-contract.json')
 const runtimeInfo = parse(binding.getRuntimeInfo())
 for (const [key, expected] of Object.entries(expectedRuntime)) {
@@ -455,6 +455,11 @@ class SdkNode {
   sendOnionMessage (request) {
     return parse(binding.sendOnionMessage(this._handle, stringify(request)))
   }
+  /** Canonical first vanilla BIP86 address; never allocates or rotates an address. */
+  getMessageSigningAddress () { return parse(binding.getMessageSigningAddress(this._handle)) }
+  /** BIP-322 simple P2TR key-path proof, prefixed smp; exact UTF-8, at most 4096 bytes. */
+  signMessageBip322 (message, address) { return parse(binding.signMessageBip322(this._handle, bip322Request({ message, address }))) }
+  verifyMessageBip322 (message, address, signature) { return parse(binding.verifyMessageBip322(this._handle, bip322Request({ message, address, signature }))) }
   signMessage (message) {
     return parse(binding.signMessage(this._handle, message))
   }
@@ -579,3 +584,8 @@ class NativeExternalSigner {
 }
 
 exports.NativeExternalSigner = NativeExternalSigner
+
+/** Pure offline P2TR key-path/P2WPKH simple verification; no wallet or network requests. */
+exports.verifyMessageBip322 = function (message, address, signature, network) {
+  return parse(binding.verifyMessageBip322Offline(bip322Request({ message, address, signature, network })))
+}

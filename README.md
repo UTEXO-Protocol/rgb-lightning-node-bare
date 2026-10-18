@@ -215,3 +215,7 @@ and independently verify both new Android data packages, then publish the wrappe
 Each publication needs its own source and builder provenance verification; a
 packaging commit does not claim to rebuild the native files. These preparation
 commands do not authorize publication by themselves.
+
+## Bitcoin message signing
+
+Use `getMessageSigningAddress()`, `signMessageBip322(message, address)` and the offline `verifyMessageBip322(message, address, signature, network)` for BIP-322 simple address proofs. The first version signs the canonical first vanilla Taproot address with the native external signer; it preserves exact UTF-8 and emits a `smp` prefix. It does not replace the existing Lightning node-identity signing API. See [BIP322.md](./BIP322.md) for supported forms, limits, custody and verification.

@@ -107,6 +107,8 @@ struct CResultString rln_get_consignment_path(const struct COpaqueStruct *node,
                                               const char *asset_id,
                                               const char *txid);
 
+struct CResultString rln_get_message_signing_address(const struct COpaqueStruct *node);
+
 struct CResultString rln_get_payment(const struct COpaqueStruct *node,
                                      const char *payment_hash_hex,
                                      const char *payment_type);
@@ -289,6 +291,9 @@ struct CResultString rln_send_rgb(const struct COpaqueStruct *node, const char *
 
 struct CResultString rln_sign_message(const struct COpaqueStruct *node, const char *message);
 
+struct CResultString rln_sign_message_bip322(const struct COpaqueStruct *node,
+                                             const char *request_json);
+
 struct CResultString rln_sync(const struct COpaqueStruct *node);
 
 struct CResultString rln_taker(const struct COpaqueStruct *node, const char *request_json);
@@ -300,3 +305,8 @@ struct CResultString rln_uniffi_is_initialized(void);
 struct CResultString rln_verify_message(const struct COpaqueStruct *node,
                                         const char *message,
                                         const char *signature);
+
+struct CResultString rln_verify_message_bip322(const struct COpaqueStruct *node,
+                                               const char *request_json);
+
+struct CResultString rln_verify_message_bip322_offline(const char *request_json);
