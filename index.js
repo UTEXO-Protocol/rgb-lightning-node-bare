@@ -33,6 +33,7 @@ for (const [key, expected] of Object.entries(expectedRuntime)) {
   if (runtimeInfo[key] !== expected) throw new Error(`Native artifact identity mismatch: ${key}; rebuild the package`)
 }
 Object.freeze(runtimeInfo.capabilities)
+if (runtimeInfo.vss_policy) Object.freeze(runtimeInfo.vss_policy)
 Object.freeze(runtimeInfo)
 exports.getRuntimeInfo = () => runtimeInfo
 exports.UnsupportedCapabilityError = UnsupportedCapabilityError
@@ -85,30 +86,12 @@ class SdkNode {
     this._closed = true
   }
 
-  /**
-   * Forces takeover of a stale VSS ownership fence after the previous
-   * node died holding it. Throws `Rln(FailedVssInit)` if VSS isn't
-   * configured. Pointing two live nodes at the same VSS store corrupts
-   * state — call only when certain the previous owner is gone.
-   *
-   * @param {{ password: string }} request
-   */
+  /** Unavailable: native policy throws ERR_VSS_UNSAFE_UPSTREAM without remote access. */
   vssClearFence (request) {
     binding.sdkNodeVssClearFence(this._handle, stringify(request))
   }
 
-  /**
-   * Force an immediate VSS backup flush. Returns `{ version }` where
-   * version is the snapshot index just persisted. Throws if VSS isn't
-   * configured (no `vssUrl` at init) or the flush fails (server
-   * unreachable, auth rejected). Useful for app-controlled
-   * checkpoints (e.g. "save state before app suspend") rather than
-   * relying on the implicit on-write flush.
-   *
-   * Backed by the released `vss_backup()` C-FFI method.
-   *
-   * @returns {{version: number}}
-   */
+  /** Unavailable: native policy throws ERR_VSS_UNSAFE_UPSTREAM without remote access. */
   vssBackup () {
     return parse(binding.sdkNodeVssBackup(this._handle))
   }

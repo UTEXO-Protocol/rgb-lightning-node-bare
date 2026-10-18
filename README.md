@@ -7,6 +7,15 @@ signer/session lifecycle repair. See [NATIVE-UPGRADE-20261015.md](./NATIVE-UPGRA
 for current qualification and [RELEASE-0.15-TRACKER.md](./RELEASE-0.15-TRACKER.md)
 for historical restrictions.
 
+## VSS availability
+
+VSS is disabled by the maintained native safety policy. Supplying any `vss_url`
+(including an empty string) rejects node creation before storage or network access.
+Omit it or pass `null` to use the normal local wallet. Backup and fence-clear
+methods remain exported for compatibility and always reject with
+`ERR_VSS_UNSAFE_UPSTREAM`. See [VSS-SAFETY.md](./VSS-SAFETY.md) for scope and the
+compiled capability contract; configuring a server does not enable protection.
+
 ## Installation Contract
 
 The published wrapper contains the Darwin addon and requires three exact-version

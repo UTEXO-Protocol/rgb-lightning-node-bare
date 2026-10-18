@@ -256,24 +256,14 @@ struct CResultString rln_sdk_node_unlock_with_native_external_signer(const struc
                                                                      const char *request_json);
 
 /**
- * Force an immediate VSS backup flush. Returns `{"version": i64}` JSON
- * where version is the snapshot index just persisted. Throws
- * `FailedVssInit` if VSS isn't configured (vssUrl unset at init) or
- * the flush fails (server unreachable, auth rejected, etc).
- *
- * Useful for app-controlled checkpoints (e.g. "save state before app
- * suspend") rather than relying on the implicit on-write flush. The
- * HTTP equivalent is `POST /vssbackup`; the UniFFI equivalent is
- * `SdkNode::vss_backup()` (uniffi_api/mod.rs:346).
+ * Unavailable: native VSS safety policy rejects backup with
+ * `FailedVssInit` and `ERR_VSS_UNSAFE_UPSTREAM`. No remote request is made.
  */
 struct CResultString rln_sdk_node_vss_backup(const struct COpaqueStruct *node);
 
 /**
- * Take over a stale VSS ownership fence after a previous node died holding
- * it. Request JSON: `{"password": "..."}`. Returns empty success or
- * `FailedVssInit` if VSS isn't configured / the takeover fails. Pointing
- * two live nodes at the same VSS store corrupts state — only call this
- * when you're certain the previous owner is gone.
+ * Unavailable: native VSS safety policy rejects fence takeover with
+ * `FailedVssInit` and `ERR_VSS_UNSAFE_UPSTREAM`. No remote request is made.
  */
 struct CResultString rln_sdk_node_vss_clear_fence(const struct COpaqueStruct *node,
                                                   const char *request_json);
