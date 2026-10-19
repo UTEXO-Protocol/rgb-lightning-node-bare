@@ -26,13 +26,14 @@
  */
 
 const binding = require('./binding')
-const { parse, stringify, paymentRequest, burnRequest, unsupported, UnsupportedCapabilityError } = require('./json-boundary')
+const { parse, stringify, bip322Request, paymentRequest, burnRequest, unsupported, UnsupportedCapabilityError } = require('./json-boundary')
 const expectedRuntime = require('./runtime-contract.json')
 const runtimeInfo = parse(binding.getRuntimeInfo())
 for (const [key, expected] of Object.entries(expectedRuntime)) {
   if (runtimeInfo[key] !== expected) throw new Error(`Native artifact identity mismatch: ${key}; rebuild the package`)
 }
 Object.freeze(runtimeInfo.capabilities)
+if (runtimeInfo.vss_policy) Object.freeze(runtimeInfo.vss_policy)
 Object.freeze(runtimeInfo)
 exports.getRuntimeInfo = () => runtimeInfo
 exports.UnsupportedCapabilityError = UnsupportedCapabilityError
@@ -85,30 +86,12 @@ class SdkNode {
     this._closed = true
   }
 
-  /**
-   * Forces takeover of a stale VSS ownership fence after the previous
-   * node died holding it. Throws `Rln(FailedVssInit)` if VSS isn't
-   * configured. Pointing two live nodes at the same VSS store corrupts
-   * state — call only when certain the previous owner is gone.
-   *
-   * @param {{ password: string }} request
-   */
+  /** Unavailable: native policy throws ERR_VSS_UNSAFE_UPSTREAM without remote access. */
   vssClearFence (request) {
     binding.sdkNodeVssClearFence(this._handle, stringify(request))
   }
 
-  /**
-   * Force an immediate VSS backup flush. Returns `{ version }` where
-   * version is the snapshot index just persisted. Throws if VSS isn't
-   * configured (no `vssUrl` at init) or the flush fails (server
-   * unreachable, auth rejected). Useful for app-controlled
-   * checkpoints (e.g. "save state before app suspend") rather than
-   * relying on the implicit on-write flush.
-   *
-   * Backed by the released `vss_backup()` C-FFI method.
-   *
-   * @returns {{version: number}}
-   */
+  /** Unavailable: native policy throws ERR_VSS_UNSAFE_UPSTREAM without remote access. */
   vssBackup () {
     return parse(binding.sdkNodeVssBackup(this._handle))
   }
@@ -455,6 +438,11 @@ class SdkNode {
   sendOnionMessage (request) {
     return parse(binding.sendOnionMessage(this._handle, stringify(request)))
   }
+  /** Canonical first vanilla BIP86 address; never allocates or rotates an address. */
+  getMessageSigningAddress () { return parse(binding.getMessageSigningAddress(this._handle)) }
+  /** BIP-322 simple P2TR key-path proof, prefixed smp; exact UTF-8, at most 4096 bytes. */
+  signMessageBip322 (message, address) { return parse(binding.signMessageBip322(this._handle, bip322Request({ message, address }))) }
+  verifyMessageBip322 (message, address, signature) { return parse(binding.verifyMessageBip322(this._handle, bip322Request({ message, address, signature }))) }
   signMessage (message) {
     return parse(binding.signMessage(this._handle, message))
   }
@@ -579,3 +567,8 @@ class NativeExternalSigner {
 }
 
 exports.NativeExternalSigner = NativeExternalSigner
+
+/** Pure offline P2TR key-path/P2WPKH simple verification; no wallet or network requests. */
+exports.verifyMessageBip322 = function (message, address, signature, network) {
+  return parse(binding.verifyMessageBip322Offline(bip322Request({ message, address, signature, network })))
+}

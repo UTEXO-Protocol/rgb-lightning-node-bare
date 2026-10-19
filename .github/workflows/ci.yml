@@ -44,6 +44,8 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm run check:types
       - run: npm run test:installer
+      - name: BIP-322 exact-overlay crypto vectors
+        run: npm run test:bip322:crypto
       - name: Four-package archive inventory, immutable iOS and refusal controls
         run: python3 -B scripts/test-distribution-archives.py
       - name: Build pinned graph and verify provenance

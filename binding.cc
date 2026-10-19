@@ -974,6 +974,15 @@ static js_value_t *fn_estimate_fee(js_env_t *env, js_callback_info_t *info) {
 
 FN_NODE_JSON(send_onion_message, rln_send_onion_message)
 FN_NODE_STR(sign_message, rln_sign_message)
+FN_NODE(get_message_signing_address, rln_get_message_signing_address)
+FN_NODE_JSON(sign_message_bip322, rln_sign_message_bip322)
+FN_NODE_JSON(verify_message_bip322, rln_verify_message_bip322)
+static js_value_t *fn_verify_message_bip322_offline(js_env_t *env, js_callback_info_t *info) {
+  js_value_t *args[1]; get_args(env, info, args, 1);
+  CStringArg request_json(env, args[0]);
+  if (!request_json.valid) return make_undefined(env);
+  return handle_result_string(env, rln_verify_message_bip322_offline(request_json));
+}
 
 static js_value_t *fn_verify_message(js_env_t *env, js_callback_info_t *info) {
   js_value_t *args[3];
@@ -1119,6 +1128,10 @@ rgb_lightning_node_bare_exports(js_env_t *env, js_value_t *exports) {
   // Onion / signing / diagnostics
   EXPORT("sendOnionMessage", send_onion_message);
   EXPORT("signMessage", sign_message);
+  EXPORT("getMessageSigningAddress", get_message_signing_address);
+  EXPORT("signMessageBip322", sign_message_bip322);
+  EXPORT("verifyMessageBip322", verify_message_bip322);
+  EXPORT("verifyMessageBip322Offline", verify_message_bip322_offline);
   EXPORT("verifyMessage", verify_message);
   EXPORT("checkIndexerUrl", check_indexer_url);
   EXPORT("checkProxyEndpoint", check_proxy_endpoint);
