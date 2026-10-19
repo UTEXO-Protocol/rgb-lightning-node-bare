@@ -597,6 +597,8 @@ static js_value_t *fn_sdk_node_shutdown(js_env_t *env,
 FN_NODE_JSON(sdk_node_vss_clear_fence, rln_sdk_node_vss_clear_fence)
 FN_NODE(sdk_node_vss_backup, rln_sdk_node_vss_backup)
 FN_NODE(sdk_node_vss_backup_info, rln_sdk_node_vss_backup_info)
+FN_NODE(sdk_node_vss_backup_metadata, rln_sdk_node_vss_backup_metadata)
+FN_NODE_JSON(sdk_node_set_vss_automatic_backup_enabled, rln_sdk_node_set_vss_automatic_backup_enabled)
 FN_NODE(sdk_node_prepare_vss_restore, rln_sdk_node_prepare_vss_restore)
 FN_NODE(sdk_node_vss_restore_info, rln_sdk_node_vss_restore_info)
 
@@ -1034,6 +1036,8 @@ rgb_lightning_node_bare_exports(js_env_t *env, js_value_t *exports) {
   EXPORT("sdkNodeVssClearFence", sdk_node_vss_clear_fence);
   EXPORT("sdkNodeVssBackup", sdk_node_vss_backup);
   EXPORT("sdkNodeVssBackupInfo", sdk_node_vss_backup_info);
+  EXPORT("sdkNodeVssBackupMetadata", sdk_node_vss_backup_metadata);
+  EXPORT("sdkNodeSetVssAutomaticBackupEnabled", sdk_node_set_vss_automatic_backup_enabled);
   EXPORT("sdkNodePrepareVssRestore", sdk_node_prepare_vss_restore);
   EXPORT("sdkNodeVssRestoreInfo", sdk_node_vss_restore_info);
   EXPORT("sdkNodeApayNew", sdk_node_apay_new);

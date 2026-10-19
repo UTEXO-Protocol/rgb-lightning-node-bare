@@ -99,6 +99,12 @@ class SdkNode {
   /** Read remote RGB snapshot status; requires an already-unlocked node. */
   vssBackupInfo () { return parse(binding.sdkNodeVssBackupInfo(this._handle)) }
 
+  vssBackupMetadata () { return parse(binding.sdkNodeVssBackupMetadata(this._handle)) }
+  setVssAutomaticBackupEnabled (enabled) {
+    if (typeof enabled !== 'boolean') throw new TypeError('Automatic backup preference must be a boolean')
+    return parse(binding.sdkNodeSetVssAutomaticBackupEnabled(this._handle, stringify({ enabled })))
+  }
+
   prepareVssRestore () { return parse(binding.sdkNodePrepareVssRestore(this._handle)) }
   vssRestoreInfo () { return parse(binding.sdkNodeVssRestoreInfo(this._handle)) }
 

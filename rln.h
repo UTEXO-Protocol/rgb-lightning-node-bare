@@ -248,6 +248,9 @@ struct CResult rln_sdk_node_new(const char *request_json);
  */
 struct CResultString rln_sdk_node_prepare_vss_restore(const struct COpaqueStruct *node);
 
+struct CResultString rln_sdk_node_set_vss_automatic_backup_enabled(const struct COpaqueStruct *node,
+                                                                   const char *request_json);
+
 struct CResultString rln_sdk_node_shutdown(const struct COpaqueStruct *node);
 
 struct CResultString rln_sdk_node_unlock(const struct COpaqueStruct *node,
@@ -269,6 +272,8 @@ struct CResultString rln_sdk_node_vss_backup(const struct COpaqueStruct *node);
  * Read remote RGB snapshot status without uploading, restoring or clearing ownership.
  */
 struct CResultString rln_sdk_node_vss_backup_info(const struct COpaqueStruct *node);
+
+struct CResultString rln_sdk_node_vss_backup_metadata(const struct COpaqueStruct *node);
 
 /**
  * Explicitly clear a stale writer fence on a locked node after stopping its old writer.
