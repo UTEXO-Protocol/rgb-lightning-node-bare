@@ -85,7 +85,7 @@ test('package overlay metadata is exact and checksum-pinned', () => {
   const config = readOverlayConfig(packageRoot)
 
   assert.equal(config.commit, 'ecc69f20308231400561f6f060fea88acfa40cc4')
-  assert.equal(config.patchSha256, '0daf704ef7fdbe807c3f6a9bf86900c7ed2637dbd1e7ebe9a8499c7677b51331')
+  assert.equal(config.patchSha256, '693bed6010a651fa221e70758033ce41b9ce2d76789aeaf44c4c0b4c14dcfe3e')
   assert.equal(config.rustToolchain, '1.94.0')
   assert.equal(config.iosDeploymentTarget, '16.0')
   assert.equal(config.androidNdkVersion, '27.1.12297006')

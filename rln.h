@@ -243,6 +243,11 @@ struct CResultString rln_sdk_node_init_with_native_external_signer(const struct 
 
 struct CResult rln_sdk_node_new(const char *request_json);
 
+/**
+ * Prepare a pre-existing RGB VSS archive before unlock; never creates a cloud backup.
+ */
+struct CResultString rln_sdk_node_prepare_vss_restore(const struct COpaqueStruct *node);
+
 struct CResultString rln_sdk_node_shutdown(const struct COpaqueStruct *node);
 
 struct CResultString rln_sdk_node_unlock(const struct COpaqueStruct *node,
@@ -270,6 +275,11 @@ struct CResultString rln_sdk_node_vss_backup_info(const struct COpaqueStruct *no
  */
 struct CResultString rln_sdk_node_vss_clear_fence(const struct COpaqueStruct *node,
                                                   const char *request_json);
+
+/**
+ * Read bounded locally authenticated restore provenance and current unlock state.
+ */
+struct CResultString rln_sdk_node_vss_restore_info(const struct COpaqueStruct *node);
 
 struct CResultString rln_sdk_shutdown(void);
 

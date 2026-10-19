@@ -82,6 +82,8 @@ const LIBRARY_SYMBOLS = Object.freeze([
   'rln_sdk_node_unlock_with_native_external_signer',
   'rln_sdk_node_vss_backup',
   'rln_sdk_node_vss_backup_info',
+  'rln_sdk_node_prepare_vss_restore',
+  'rln_sdk_node_vss_restore_info',
   'rln_sdk_node_vss_clear_fence',
   'rln_sdk_shutdown',
   'rln_send_btc',

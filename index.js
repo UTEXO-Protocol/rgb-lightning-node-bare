@@ -99,6 +99,9 @@ class SdkNode {
   /** Read remote RGB snapshot status; requires an already-unlocked node. */
   vssBackupInfo () { return parse(binding.sdkNodeVssBackupInfo(this._handle)) }
 
+  prepareVssRestore () { return parse(binding.sdkNodePrepareVssRestore(this._handle)) }
+  vssRestoreInfo () { return parse(binding.sdkNodeVssRestoreInfo(this._handle)) }
+
   vssDeleteAll (request) { unsupported('vssDeleteAll') }
 
   /**
