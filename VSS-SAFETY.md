@@ -163,7 +163,46 @@ manifest version. The DATA counter returned by the SDK is not used as a substitu
 for the MANIFEST counter. Receipt files remain outside the exported wallet archive
 and are bound to the exact endpoint, network and signer. They are not fabricated
 from a status check, current clock, remote version or archive modification time.
+
+At this low-level binding, `vssBackup().version` preserves the public SDK return
+value: the DATA-key counter for a single upload, or the MANIFEST counter for a
+chunked upload. Those counters can differ after upload-format changes. Record or
+compare the canonical archive identity using `vssBackupInfo().version` or
+`vssBackupMetadata().last_backup.version`, which both refer to MANIFEST. WDK
+already normalizes its manual-backup result through the canonical status read.
+
 Historical/restored snapshots without a local confirmed receipt have no known
 completion time. Manual backup continues to update the receipt while automatic
 backup is off. Existing `vssBackupInfo()` retains its four-field contract, with
 `backup_required` also including maintained unsaved/incomplete-upload markers.
+
+
+## Native qualification recorded on 2026-10-19
+
+The Bare runtime candidate is `236926eeb83f6a94394279c99aa72b7a3217a624`,
+with maintained adapter SHA-256
+`dd26955a9a8fdb466a83043dd72f2ace3c0fdededf6bdd1e437e8ffd82840556`.
+`VSS-POLICY-QUALIFICATION-20261019.json` records the seven-target release-profile
+artifact matrix, source pins, unchanged Apple hashes and sanitized wallet evidence.
+All seven owner prebuilds and all three exact matching data-only payloads passed
+the normal staging and complete distribution gates. These builds preserve the
+pinned upstream RLN, rgb-lib and LDK revisions.
+
+Darwin verification passed 102 JavaScript installer tests, type checks, 214 VSS
+configuration admission cases and 18 terminated-environment immediate reopens.
+Three BIP-322 crypto tests compiled the frozen adapter module in an isolated Rust
+harness; the live fixture also signed and verified through the final Bare addon
+with VSS configured. Shared native coverage passed 12 policy, five mutation-guard,
+nine restore-admission, 19 UniFFI, 15 CFFI and five isolated VSS integration tests,
+including canceled-caller backup draining, fence ownership and encrypted
+fresh-device restore.
+
+Live host tests verified default-on and initial-off startup, saved policy across
+cold reopen, pure-read and unchanged-sync stability, manual backup while off,
+catch-up on re-enable, acknowledged completion times and rejected-upload rollback.
+A separate local BFA fixture minted 2 USDT, sent 0.5 USDT and returned 0.25 USDT;
+paused archive versions stayed unchanged, manual/off and resume uploads advanced
+real receipts, and cold reopens preserved settled balances and completion times.
+
+Cross-compilation and host passes do not establish mobile runtime, physical-device
+or full Lightning recovery qualification. No hosted bridge wallet was accessed.
