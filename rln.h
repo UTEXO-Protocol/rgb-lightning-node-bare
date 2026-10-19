@@ -256,14 +256,17 @@ struct CResultString rln_sdk_node_unlock_with_native_external_signer(const struc
                                                                      const char *request_json);
 
 /**
- * Unavailable: native VSS safety policy rejects backup with
- * `FailedVssInit` and `ERR_VSS_UNSAFE_UPSTREAM`. No remote request is made.
+ * Flush configured VSS backup from an unlocked node; returns the snapshot version.
  */
 struct CResultString rln_sdk_node_vss_backup(const struct COpaqueStruct *node);
 
 /**
- * Unavailable: native VSS safety policy rejects fence takeover with
- * `FailedVssInit` and `ERR_VSS_UNSAFE_UPSTREAM`. No remote request is made.
+ * Read remote RGB snapshot status without uploading, restoring or clearing ownership.
+ */
+struct CResultString rln_sdk_node_vss_backup_info(const struct COpaqueStruct *node);
+
+/**
+ * Explicitly clear a stale writer fence on a locked node after stopping its old writer.
  */
 struct CResultString rln_sdk_node_vss_clear_fence(const struct COpaqueStruct *node,
                                                   const char *request_json);

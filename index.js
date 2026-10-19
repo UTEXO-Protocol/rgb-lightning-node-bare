@@ -86,15 +86,18 @@ class SdkNode {
     this._closed = true
   }
 
-  /** Unavailable: native policy throws ERR_VSS_UNSAFE_UPSTREAM without remote access. */
+  /** Explicit stale-writer takeover; the previous writer must already be stopped. */
   vssClearFence (request) {
     binding.sdkNodeVssClearFence(this._handle, stringify(request))
   }
 
-  /** Unavailable: native policy throws ERR_VSS_UNSAFE_UPSTREAM without remote access. */
+  /** Flush configured VSS backup from an unlocked node. */
   vssBackup () {
     return parse(binding.sdkNodeVssBackup(this._handle))
   }
+
+  /** Read remote RGB snapshot status; requires an already-unlocked node. */
+  vssBackupInfo () { return parse(binding.sdkNodeVssBackupInfo(this._handle)) }
 
   vssDeleteAll (request) { unsupported('vssDeleteAll') }
 

@@ -596,6 +596,7 @@ static js_value_t *fn_sdk_node_shutdown(js_env_t *env,
 }
 FN_NODE_JSON(sdk_node_vss_clear_fence, rln_sdk_node_vss_clear_fence)
 FN_NODE(sdk_node_vss_backup, rln_sdk_node_vss_backup)
+FN_NODE(sdk_node_vss_backup_info, rln_sdk_node_vss_backup_info)
 
 FN_NODE_STR(sdk_node_apay_new, rln_sdk_node_apay_new)
 
@@ -1030,6 +1031,7 @@ rgb_lightning_node_bare_exports(js_env_t *env, js_value_t *exports) {
   EXPORT("sdkNodeDestroy", sdk_node_destroy);
   EXPORT("sdkNodeVssClearFence", sdk_node_vss_clear_fence);
   EXPORT("sdkNodeVssBackup", sdk_node_vss_backup);
+  EXPORT("sdkNodeVssBackupInfo", sdk_node_vss_backup_info);
   EXPORT("sdkNodeApayNew", sdk_node_apay_new);
   EXPORT("sdkNodeApayNewWithAddress", sdk_node_apay_new_with_address);
 

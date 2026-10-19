@@ -3,7 +3,7 @@
   "rln_version": "0.17.0-beta.3",
   "rln_commit": "ecc69f20308231400561f6f060fea88acfa40cc4",
   "lightning_commit": "79b9eb5166546c62692d3a672986f385c7fe047d",
-  "adapter_sha256": "d8b5be9809b12acd48fa5958014b4655ff94598c99800a2fafb9e3e81809aebf",
-  "wrapper_sha256": "6c1eda8971508030a318d325517050cab3cf2c61c6ee380b6dd2d2585c4d50f5",
+  "adapter_sha256": "0daf704ef7fdbe807c3f6a9bf86900c7ed2637dbd1e7ebe9a8499c7677b51331",
+  "wrapper_sha256": "e80fe0f93fffeddaceaff29e159039345d0376f164a31758aeb223e670dfeed3",
   "lock_sha256": "5fcdc9ad9179d3230e48973cdfa514a863d13a837752027febf8ea04713bbeb5"
 }
