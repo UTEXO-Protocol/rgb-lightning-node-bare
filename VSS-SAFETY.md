@@ -202,7 +202,12 @@ cold reopen, pure-read and unchanged-sync stability, manual backup while off,
 catch-up on re-enable, acknowledged completion times and rejected-upload rollback.
 A separate local BFA fixture minted 2 USDT, sent 0.5 USDT and returned 0.25 USDT;
 paused archive versions stayed unchanged, manual/off and resume uploads advanced
-real receipts, and cold reopens preserved settled balances and completion times.
+real receipts, and final settled balances were 1.75 USDT and 0.25 USDT. That Bare
+fixture reopened after the confirmed mint before completing the round trip; it
+did not separately reopen both wallets after those final balances. The separate
+policy fixture verified cold reopen while off, preserving policy, archive version
+and completion time. Final two-wallet BFA balance/receipt reopen acceptance was
+performed with the companion Node runtime only.
 
 Cross-compilation and host passes do not establish mobile runtime, physical-device
 or full Lightning recovery qualification. No hosted bridge wallet was accessed.
