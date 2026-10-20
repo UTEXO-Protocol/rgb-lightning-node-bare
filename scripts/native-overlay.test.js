@@ -85,7 +85,7 @@ test('package overlay metadata is exact and checksum-pinned', () => {
   const config = readOverlayConfig(packageRoot)
 
   assert.equal(config.commit, 'c29d1b2dfe43ba95c25ced8984f09e42c789d6af')
-  assert.equal(config.patchSha256, 'cf92a4618b765e7889001c9e630e6e64861ef9bdd295d57551461d3bc3281d4c')
+  assert.equal(config.patchSha256, '26834a8aca4676380abb41c432f7ebbc33153a58b669213cf1f32472d38db275')
   assert.equal(config.lightningCommit, '510189d5700a6d1406229ce7523e181c3838715e')
   assert.equal(config.rgbLibRepository, 'https://github.com/UTEXO-Protocol/rgb-lib-bfa.git')
   assert.equal(config.rgbLibCommit, '962730a211f0f7569d7ad8ae777052f433d87655')
