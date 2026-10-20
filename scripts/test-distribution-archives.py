@@ -5,6 +5,7 @@ import hashlib
 import importlib.util
 import io
 import json
+import os
 import pathlib
 import random
 import subprocess
@@ -92,9 +93,132 @@ class ArchiveTests(unittest.TestCase):
         for archive, content in zip(self.archives, self.contents):
             self.archive(archive, content)
         # Only direct test calls inject a synthetic frozen iOS expectation.
-        # Production CLI has no flag/env override and requires the reviewed version SRI.
+        # Published CLI paths retain reviewed version SRI. Candidate CLI paths
+        # require a separate frozen record, never this direct test injection.
         frozen = {'size': self.archives[1].stat().st_size, 'integrity': frozen_integrity or 'sha512-' + base64.b64encode(GATE.digest_file(self.archives[1], 'sha512').digest()).decode(), 'sourceCommit': 'SYNTHETIC-UNIT-FIXTURE-NOT-A-LIVE-PACKAGE'}
         return GATE.verify_archives(self.root, *self.archives, frozen_ios=frozen, **options)
+
+    def candidate_record(self):
+        # Frozen public non-native fixture only. Production never creates this
+        # expected identity from the archive currently undergoing qualification.
+        for index, base in enumerate([self.root] + [self.root / p['directory'] for p in GATE.PAYLOADS]):
+            metadata = json.loads(self.contents[index]['package/package.json'])
+            metadata['version'] = GATE.CANDIDATE_VERSION
+            if index == 0:
+                metadata['dependencies'] = {p['name']: GATE.CANDIDATE_VERSION for p in GATE.PAYLOADS}
+            data = json.dumps(metadata).encode()
+            self.contents[index]['package/package.json'] = data
+            self.write(base / 'package.json', data)
+        for archive, content in zip(self.archives, self.contents):
+            self.archive(archive, content)
+        record = {'schemaVersion': 1, 'name': GATE.PAYLOAD, 'version': GATE.CANDIDATE_VERSION,
+                  'sourceCommit': 'a' * 40, 'size': self.archives[1].stat().st_size,
+                  'integrity': 'sha512-' + base64.b64encode(GATE.digest_file(self.archives[1], 'sha512').digest()).decode(),
+                  'published': False}
+        file = self.root / 'candidate-ios-identity.json'
+        environment = {GATE.CANDIDATE_IDENTITY_ENV: str(file), GATE.CANDIDATE_IDENTITY_SHA256_ENV: ''}
+        def seal():
+            data = json.dumps(record).encode()
+            file.write_bytes(data)
+            environment[GATE.CANDIDATE_IDENTITY_SHA256_ENV] = hashlib.sha256(data).hexdigest()
+        seal()
+        return record, file, environment, seal
+
+    def test_candidate_frozen_external_record_preserves_all_seven_target_checks_without_publication(self):
+        record, _, environment, _ = self.candidate_record()
+        result = GATE.verify_archives(self.root, *self.archives, environment=environment)
+        self.assertEqual(len(result['originalNativeTargets']), 7)
+        self.assertTrue(result['allSevenAssignedExactlyOnce'])
+        self.assertFalse(result['archives'][1]['immutableExistingPublication'])
+        self.assertFalse(result['publicationPerformed'])
+        self.assertIsNone(result['iosPublicationSourceCommit'])
+        self.assertEqual(result['iosCandidateIdentity'], {**{key: record[key] for key in record if key != 'schemaVersion'},
+                                                         'identityRecordSha256': environment[GATE.CANDIDATE_IDENTITY_SHA256_ENV]})
+        target = GATE.PAYLOADS[2]['targets'][0]
+        del self.contents[3]['package/prebuilds/' + target + '/utexo__rgb-lightning-node-bare.bare']
+        self.archive(self.archives[3], self.contents[3])
+        with self.assertRaisesRegex(ValueError, 'Unexpected payload archive member'):
+            GATE.verify_archives(self.root, *self.archives, environment=environment)
+
+    def test_candidate_has_no_implicit_or_direct_injection_fallback(self):
+        record, _, environment, _ = self.candidate_record()
+        for values in ({}, {GATE.CANDIDATE_IDENTITY_ENV: environment[GATE.CANDIDATE_IDENTITY_ENV]},
+                       {GATE.CANDIDATE_IDENTITY_SHA256_ENV: environment[GATE.CANDIDATE_IDENTITY_SHA256_ENV]}):
+            with self.subTest(environment=values), self.assertRaisesRegex(ValueError, 'independently frozen'):
+                GATE.verify_archives(self.root, *self.archives, environment=values)
+        with self.assertRaisesRegex(ValueError, 'external frozen record'):
+            GATE.verify_archives(self.root, *self.archives, frozen_ios=record, environment=environment)
+
+    def test_candidate_record_cannot_change_published_archive_policy(self):
+        _, _, environment, _ = self.candidate_record()
+        environment[GATE.CANDIDATE_IDENTITY_SHA256_ENV] = 'wrong'
+        self.assertIs(GATE.ios_archive_identity('0.2.0-beta.4', environment), GATE.FROZEN_IOS)
+        self.assertIs(GATE.ios_archive_identity('0.2.0-beta.5', environment), GATE.BETA5_IOS)
+
+    def test_candidate_record_fields_are_exact_and_bounded(self):
+        record, _, environment, seal = self.candidate_record()
+        variants = [
+            ('schemaVersion', True), ('schemaVersion', 2), ('name', GATE.OWNER), ('version', '0.2.0-beta.5'),
+            ('sourceCommit', 'main'), ('sourceCommit', 'a' * 39), ('sourceCommit', '0' * 40),
+            ('size', True), ('size', 0), ('size', -1), ('size', 1.1), ('size', GATE.FROZEN_IOS['size'] + 1),
+            ('published', True), ('published', 0), ('published', 'false'), ('integrity', 'sha512-AAAA'),
+            ('integrity', 'sha512-' + 'A' * 85 + 'B=='), ('unused', 'unreviewed')]
+        for key, value in variants:
+            with self.subTest(field=key, value=value):
+                before = dict(record)
+                record[key] = value
+                seal()
+                with self.assertRaises(ValueError):
+                    GATE.ios_archive_identity(GATE.CANDIDATE_VERSION, environment)
+                record.clear()
+                record.update(before)
+        seal()
+        record['size'] = GATE.FROZEN_IOS['size']
+        seal()
+        self.assertEqual(GATE.ios_archive_identity(GATE.CANDIDATE_VERSION, environment)['size'], GATE.FROZEN_IOS['size'])
+
+    def test_candidate_record_rejects_unpinned_paths_links_duplicate_fields_and_oversized_metadata(self):
+        _, file, environment, _ = self.candidate_record()
+        original = file.read_bytes()
+        for kind in ('wrong-digest', 'relative-path', 'directory', 'symlink', 'fifo', 'oversized', 'duplicate-field'):
+            with self.subTest(kind=kind):
+                values = dict(environment)
+                file.write_bytes(original)
+                if kind == 'wrong-digest':
+                    values[GATE.CANDIDATE_IDENTITY_SHA256_ENV] = '0' * 64
+                if kind == 'relative-path':
+                    values[GATE.CANDIDATE_IDENTITY_ENV] = file.name
+                if kind == 'directory':
+                    values[GATE.CANDIDATE_IDENTITY_ENV] = str(self.root)
+                if kind == 'symlink':
+                    alias = self.root / 'identity-link.json'
+                    alias.symlink_to(file)
+                    values[GATE.CANDIDATE_IDENTITY_ENV] = str(alias)
+                if kind == 'fifo':
+                    fifo = self.root / 'identity-fifo'
+                    os.mkfifo(fifo)
+                    values[GATE.CANDIDATE_IDENTITY_ENV] = str(fifo)
+                if kind in ('oversized', 'duplicate-field'):
+                    data = b' ' * (GATE.CANDIDATE_RECORD_LIMIT + 1) if kind == 'oversized' else original[:-1] + b', "published":false}'
+                    file.write_bytes(data)
+                    values[GATE.CANDIDATE_IDENTITY_SHA256_ENV] = hashlib.sha256(data).hexdigest()
+                with self.assertRaises(ValueError):
+                    GATE.ios_archive_identity(GATE.CANDIDATE_VERSION, values)
+
+    def test_candidate_frozen_bytes_are_not_reblessed_when_archive_changes(self):
+        _, _, environment, _ = self.candidate_record()
+        with self.archives[1].open('ab') as file:
+            file.write(b'\0')
+        with self.assertRaisesRegex(ValueError, 'Reviewed candidate iOS archive bytes changed'):
+            GATE.verify_archives(self.root, *self.archives, environment=environment)
+
+    def test_candidate_ios_archive_cannot_be_a_symlink(self):
+        _, _, environment, _ = self.candidate_record()
+        source = self.archives[1].with_suffix('.original.tgz')
+        self.archives[1].rename(source)
+        self.archives[1].symlink_to(source)
+        with self.assertRaisesRegex(ValueError, 'Reviewed candidate iOS archive bytes changed'):
+            GATE.verify_archives(self.root, *self.archives, environment=environment)
 
     def test_seven_original_targets_once(self):
         result = self.verify()
