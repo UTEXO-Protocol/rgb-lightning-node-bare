@@ -4,7 +4,7 @@
   "rln_commit": "c29d1b2dfe43ba95c25ced8984f09e42c789d6af",
   "lightning_commit": "510189d5700a6d1406229ce7523e181c3838715e",
   "rgb_lib_commit": "962730a211f0f7569d7ad8ae777052f433d87655",
-  "adapter_sha256": "26834a8aca4676380abb41c432f7ebbc33153a58b669213cf1f32472d38db275",
+  "adapter_sha256": "ae0b1f29d2f81b8b5d219b9e749f97238ce1cc86777cb07a9c01d5e7fdfd88f9",
   "wrapper_sha256": "fb9798d6cff64b400e2ddb225f3ed8a4312667a9dce2901fd54e43b8f1ff06d7",
   "lock_sha256": "460728009d9c1db3abf9a2f2ad4d76f777589b55eff96ff7be1f3c4d301dab30"
 }
