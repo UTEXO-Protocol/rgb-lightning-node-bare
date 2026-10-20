@@ -24,6 +24,12 @@ FROZEN_IOS = {
     'integrity': 'sha512-BOfizU4fqvGyl4L2Q0YAikLEYGyOBDYQikYPPR7IgxnmKrddm3T1/Lv0YnQeYt1EsBOf2SGyLNJKOLaWOglrkg==',
     'sourceCommit': '15b0ff68d1b59fa88131cfb9be6fe48c30287e6b',
 }
+BETA5_IOS = {
+    'size': 143638135,
+    'integrity': 'sha512-UdhulayuKoaHKaM/CkpRf2paetb8y4Mhaw58snFO+WALAo4Bgd5OqxbK8Pcae9Llu78xrrrOIs3hlxQoOXBUwA==',
+    'sourceCommit': None,  # Unpublished candidate; compilation provenance is separate.
+    'published': False,
+}
 FINGERPRINT_FILES = ('index.js', 'index.d.ts', 'json-boundary.js', 'binding.js', 'binding.cc', 'rln.h', 'CMakeLists.txt', 'scripts/native-overlay.js', 'scripts/build-cffi.sh', 'scripts/build-prebuilds.sh')
 
 
@@ -84,8 +90,18 @@ def verify_source_member(source, member, label):
         raise ValueError('Unexpected archive member mode: ' + str(source))
 
 
-def verify_archives(root, wrapper_archive, ios_archive, arm_archive, x64_archive, limit=LIMIT, frozen_ios=FROZEN_IOS):
+def ios_archive_identity(version):
+    if version == '0.2.0-beta.4':
+        return FROZEN_IOS
+    if version == '0.2.0-beta.5':
+        return BETA5_IOS
+    raise ValueError('No reviewed iOS archive identity for version: ' + version)
+
+
+def verify_archives(root, wrapper_archive, ios_archive, arm_archive, x64_archive, limit=LIMIT, frozen_ios=None):
     owner = json.loads((root / 'package.json').read_text())
+    if frozen_ios is None:
+        frozen_ios = ios_archive_identity(owner['version'])
     expected_manifest = (root / '.utexo-native-overlay.json').read_bytes()
     expected_runtime = (root / 'runtime-contract.json').read_bytes()
     manifest = json.loads(expected_manifest)
@@ -147,8 +163,9 @@ def verify_archives(root, wrapper_archive, ios_archive, arm_archive, x64_archive
     for index, (archive, package, budget) in enumerate(zip(archives, packages, budgets)):
         integrity = 'sha512-' + base64.b64encode(digest_file(archive, 'sha512').digest()).decode()
         if index == 1 and (archive.stat().st_size != frozen_ios['size'] or integrity != frozen_ios['integrity']):
-            raise ValueError('Immutable published iOS archive bytes changed')
-        receipts.append({'name': package['name'], 'version': package['version'], 'path': str(archive.resolve()), 'bytes': archive.stat().st_size, 'sha256': digest_file(archive).hexdigest(), 'integrity': integrity, 'maximumBytes': budget, 'immutableExistingPublication': index == 1})
+            label = 'Immutable published' if frozen_ios.get('published', True) else 'Reviewed candidate'
+            raise ValueError(label + ' iOS archive bytes changed')
+        receipts.append({'name': package['name'], 'version': package['version'], 'path': str(archive.resolve()), 'bytes': archive.stat().st_size, 'sha256': digest_file(archive).hexdigest(), 'integrity': integrity, 'maximumBytes': budget, 'immutableExistingPublication': index == 1 and frozen_ios.get('published', True)})
     return {'archives': receipts, 'originalNativeTargets': assigned, 'nativeFingerprintsUnchanged': True, 'allSevenAssignedExactlyOnce': True, 'iosPublicationSourceCommit': frozen_ios['sourceCommit'], 'publicationPerformed': False}
 
 

@@ -1,7 +1,7 @@
 # @utexo/rgb-lightning-node-bare
 
 Release-based Bare bindings for RLN **0.17.0-beta.3**,
-commit `ecc69f20308231400561f6f060fea88acfa40cc4`. Candidate **0.2.0-beta.4**;
+commit `ecc69f20308231400561f6f060fea88acfa40cc4`. Candidate **0.2.0-beta.5**;
 not approved for production rollout. Includes an explicitly hashed native
 signer/session lifecycle repair. See [NATIVE-UPGRADE-20261015.md](./NATIVE-UPGRADE-20261015.md)
 for current qualification and [RELEASE-0.15-TRACKER.md](./RELEASE-0.15-TRACKER.md)
@@ -19,7 +19,7 @@ recovery, status semantics and the upstream external-signer credential boundary.
 ## Installation Contract
 
 The published wrapper contains the Darwin addon and requires three exact-version
-`0.2.0-beta.4` data packages on every host:
+`0.2.0-beta.5` data packages on every host:
 
 | Required package | Native targets |
 | --- | --- |
@@ -63,7 +63,7 @@ desktop canaries run Bare 1.30.3. Header equality, required symbols, source grap
 wrapper fingerprint and artifact checksums are verified.
 
 ```sh
-npm install @utexo/rgb-lightning-node-bare@0.2.0-beta.4
+npm install @utexo/rgb-lightning-node-bare@0.2.0-beta.5
 # Explicit desktop qualification:
 RLN_BARE_TARGETS=darwin-arm64 npm run prepare-native
 # Select a mobile family:
@@ -194,9 +194,13 @@ the published wrapper requires the exact registry versions. No `file:` dependenc
 is published.
 
 After preparing or importing all seven original release artifacts, stage and
-verify every payload, then pack all four packages with Node 24.18.0/npm 12.0.1:
+verify every payload, then pack all four packages with Node 22.23.3/npm 12.0.1
+(the qualified beta.5 packing toolchain). Public source and native files use
+their canonical Git/archive modes; keep the generated overlay manifest at its
+recorded mode:
 
 ```sh
+umask 022
 npm ci --ignore-scripts
 npm run prepare-native -- --platform all
 npm run stage:payloads
@@ -204,26 +208,25 @@ npm run check:distribution
 mkdir -p /tmp/bare-pack
 npm pack --workspace native/ios --workspace native/android-arm --workspace native/android-x64 --json --ignore-scripts --pack-destination /tmp/bare-pack
 npm pack --workspaces=false --json --ignore-scripts --pack-destination /tmp/bare-pack
-python3 scripts/verify-distribution-archives.py /tmp/bare-pack/utexo-rgb-lightning-node-bare-0.2.0-beta.4.tgz /tmp/bare-pack/utexo-rgb-lightning-node-bare-ios-0.2.0-beta.4.tgz /tmp/bare-pack/utexo-rgb-lightning-node-bare-android-arm-0.2.0-beta.4.tgz /tmp/bare-pack/utexo-rgb-lightning-node-bare-android-x64-0.2.0-beta.4.tgz
+python3 scripts/verify-distribution-archives.py /tmp/bare-pack/utexo-rgb-lightning-node-bare-0.2.0-beta.5.tgz /tmp/bare-pack/utexo-rgb-lightning-node-bare-ios-0.2.0-beta.5.tgz /tmp/bare-pack/utexo-rgb-lightning-node-bare-android-arm-0.2.0-beta.5.tgz /tmp/bare-pack/utexo-rgb-lightning-node-bare-android-x64-0.2.0-beta.5.tgz
 ```
 
 `stage:ios-payload` remains an iOS-only compatibility command; it does not prepare
-the Android workspaces. The archive gate enforces a 128 MiB limit for the wrapper
-and new Android packages, exact wrapper/source inventory and permissions, one
-assignment of each original native file, required exact dependencies, unchanged
-fingerprints and data-only companions. The immutable public iOS archive is the
-single size exception: exactly 146,197,231 bytes and
-`sha512-BOfizU4fqvGyl4L2Q0YAikLEYGyOBDYQikYPPR7IgxnmKrddm3T1/Lv0YnQeYt1EsBOf2SGyLNJKOLaWOglrkg==`.
-Its generated manifest has mode `0600`; preserve that mode when reproducing the
-archive. Its package source is `15b0ff68d1b59fa88131cfb9be6fe48c30287e6b`,
-separate from the subsequent wrapper/Android packaging source. All native files
-still originate in the original seven-target build.
+the Android workspaces. The archive gate checks exact wrapper/source inventory
+and permissions, required exact dependencies, data-only payloads, unchanged
+native fingerprints and one assignment of each of the seven native targets.
+The wrapper and Android archives remain bounded to 128 MiB. iOS has a separate
+reviewed, version-specific archive checksum and size: beta.5 is 143,638,135 bytes,
+below the previous 146,197,231-byte iOS ceiling. Unknown versions and changed
+archive bytes fail admission.
 
-Do not republish the existing iOS version. Verify its public integrity, publish
-and independently verify both new Android data packages, then publish the wrapper.
-Each publication needs its own source and builder provenance verification; a
-packaging commit does not claim to rebuild the native files. These preparation
-commands do not authorize publication by themselves.
+The immutable published beta.4 iOS archive retains its exact legacy checksum
+and source identity. Beta.5 does not reuse or overwrite that npm version.
+All three beta.5 data companions must be published and independently verified
+before the beta.5 wrapper. Each publication needs separate package-source,
+artifact and builder provenance verification. Native compilation keeps its
+original identity; package versioning is not a native rebuild. Preparation and
+candidate-artifact workflows do not publish or authorize publication.
 
 ## Bitcoin message signing
 

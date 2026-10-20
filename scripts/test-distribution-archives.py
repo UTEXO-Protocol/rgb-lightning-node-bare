@@ -18,6 +18,25 @@ SPEC.loader.exec_module(GATE)
 
 
 class ArchiveTests(unittest.TestCase):
+    def test_published_beta4_ios_identity_is_unchanged(self):
+        identity = GATE.ios_archive_identity('0.2.0-beta.4')
+        self.assertEqual(identity['size'], 146197231)
+        self.assertEqual(identity['integrity'], 'sha512-BOfizU4fqvGyl4L2Q0YAikLEYGyOBDYQikYPPR7IgxnmKrddm3T1/Lv0YnQeYt1EsBOf2SGyLNJKOLaWOglrkg==')
+        self.assertEqual(identity['sourceCommit'], '15b0ff68d1b59fa88131cfb9be6fe48c30287e6b')
+
+    def test_beta5_ios_has_separate_reviewed_identity_without_larger_budget(self):
+        identity = GATE.ios_archive_identity('0.2.0-beta.5')
+        self.assertLessEqual(identity['size'], GATE.FROZEN_IOS['size'])
+        self.assertEqual(identity['size'], 143638135)
+        self.assertEqual(identity['integrity'], 'sha512-UdhulayuKoaHKaM/CkpRf2paetb8y4Mhaw58snFO+WALAo4Bgd5OqxbK8Pcae9Llu78xrrrOIs3hlxQoOXBUwA==')
+        self.assertFalse(identity['published'])
+        self.assertIsNone(identity['sourceCommit'])
+        self.assertNotEqual(identity['integrity'], GATE.FROZEN_IOS['integrity'])
+
+    def test_unreviewed_ios_version_has_no_legacy_fallback(self):
+        with self.assertRaisesRegex(ValueError, 'No reviewed iOS archive identity'):
+            GATE.ios_archive_identity('0.2.0-beta.6')
+
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory(prefix='bare-archive-policy-')
         self.addCleanup(self.directory.cleanup)
@@ -73,7 +92,7 @@ class ArchiveTests(unittest.TestCase):
         for archive, content in zip(self.archives, self.contents):
             self.archive(archive, content)
         # Only direct test calls inject a synthetic frozen iOS expectation.
-        # Production CLI has no flag/env override and always requires public SRI.
+        # Production CLI has no flag/env override and requires the reviewed version SRI.
         frozen = {'size': self.archives[1].stat().st_size, 'integrity': frozen_integrity or 'sha512-' + base64.b64encode(GATE.digest_file(self.archives[1], 'sha512').digest()).decode(), 'sourceCommit': 'SYNTHETIC-UNIT-FIXTURE-NOT-A-LIVE-PACKAGE'}
         return GATE.verify_archives(self.root, *self.archives, frozen_ios=frozen, **options)
 

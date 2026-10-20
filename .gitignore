@@ -22,3 +22,7 @@ target/
 # Temp / canary outputs
 *.log
 .gradle/
+
+# Python archive-verifier caches are not source or npm payloads.
+**/__pycache__/
+*.pyc

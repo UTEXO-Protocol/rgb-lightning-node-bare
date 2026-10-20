@@ -1,6 +1,6 @@
 {
   "name": "@utexo/rgb-lightning-node-bare-android-x64",
-  "version": "0.2.0-beta.4",
+  "version": "0.2.0-beta.5",
   "description": "Original verified android-x64 prebuild payloads for @utexo/rgb-lightning-node-bare",
   "license": "Apache-2.0",
   "repository": {
