@@ -1,96 +1,380 @@
-name: Build Candidate Artifacts (No Publication)
+name: Publish audited Bare beta.5 artifacts
 
 on:
   workflow_dispatch:
+    inputs:
+      operation:
+        description: Verify only, or publish the already qualified native artifacts
+        type: choice
+        options: [verify, publish-data, publish-ios, publish-androids, publish-android-arm, publish-android-x64, publish-wrapper]
+        default: verify
+        required: true
+      confirm_version:
+        description: Publishing requires exactly 0.2.0-beta.5; leave blank for verify
+        type: string
+        default: ''
+        required: false
 
 permissions:
   contents: read
+  actions: read
+  id-token: write
+
+concurrency:
+  group: bare-beta5-publication
+  cancel-in-progress: false
 
 jobs:
-  build:
+  candidate:
     runs-on: macos-15
-    timeout-minutes: 150
-    strategy:
-      fail-fast: false
-      matrix:
-        platform: [darwin-arm64, ios-arm64, ios-arm64-simulator, ios-x64-simulator, android-arm64, android-arm, android-x64]
+    timeout-minutes: 90
     env:
-      RLN_BARE_TARGETS: ${{ matrix.platform }}
-      CARGO_BUILD_JOBS: 3
+      PACKAGE_COMMIT: 54110d5db7f0f67c18c02d2dd188ad2763e95003
+      IOS_PACKAGE_COMMIT: 54110d5db7f0f67c18c02d2dd188ad2763e95003
+      ORIGINAL_BUILD_COMMIT: 78831157b86aea63ef50bbe69f6eeb8c4c0df6fd
+      PACKAGE_VERSION: 0.2.0-beta.5
+      PUBLISHER_BRANCH: ci/publish-native-beta5-20261020
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - name: Checkout publisher definition
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          node-version: '22'
-      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
-        with:
-          toolchain: '1.94.0'
-          rustflags: ''
-          cache: false
-      - run: npm ci --ignore-scripts
-      - run: npm run check:types
-      - run: npm run test:installer
-      - name: Install pinned NDK
-        if: startsWith(matrix.platform, 'android-')
-        run: echo "ANDROID_NDK_HOME=$(bash scripts/install-android-ndk.sh)" >> "$GITHUB_ENV"
-      - name: Build exact release source, verify header and ABI
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          path: automation
+          persist-credentials: false
+
+      - name: Validate publisher context and unchanged native source
         env:
-          ORG_READ_TOKEN: ${{ secrets.ORG_READ_TOKEN }}
-        run: node scripts/with-source-access.js npm run prepare-native
-      - name: Desktop runtime canary
-        if: matrix.platform == 'darwin-arm64'
-        run: node node_modules/bare-runtime/bin/bare test.js
-      - name: Desktop environment teardown regression
-        if: matrix.platform == 'darwin-arm64'
-        run: npm run test:environment
-      - name: Stage and validate Android production packaging
-        id: android-packaging
-        if: startsWith(matrix.platform, 'android-')
-        env:
-          TARGET: ${{ matrix.platform }}
+          OPERATION: ${{ inputs.operation }}
+          CONFIRM_VERSION: ${{ inputs.confirm_version }}
+        shell: bash
         run: |
-          npm install --prefix "$RUNNER_TEMP/android-link" --ignore-scripts --no-audit --no-fund bare-link@3.3.2 bare-lief@0.2.10
-          node "$RUNNER_TEMP/android-link/node_modules/bare-link/bin.js" . --host "$TARGET" --out "$RUNNER_TEMP/linked-android"
-          case "$TARGET" in android-arm64) ABI=arm64-v8a;; android-arm) ABI=armeabi-v7a;; android-x64) ABI=x86_64;; *) exit 1;; esac
-          mkdir "$RUNNER_TEMP/bare-kit-runtime"
-          npm pack react-native-bare-kit@0.15.5 --ignore-scripts --pack-destination "$RUNNER_TEMP/bare-kit-runtime"
-          tar -xzf "$RUNNER_TEMP/bare-kit-runtime/react-native-bare-kit-0.15.5.tgz" -C "$RUNNER_TEMP/bare-kit-runtime"
-          node scripts/stage-android-addons.js \
-            --bare-kit "$RUNNER_TEMP/bare-kit-runtime/package" \
-            --linked-dir "$RUNNER_TEMP/linked-android" \
-            --out "$RUNNER_TEMP/staged-android" --abis "$ABI"
-          VERSION=$(node -p 'require("./package.json").version')
-          export LLVM_READOBJ="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-readobj"
-          if [ "$TARGET" != android-arm ]; then
-            node scripts/check-android-linked.js "$TARGET" "$RUNNER_TEMP/staged-android/$ABI/libutexo__rgb-lightning-node-bare.$VERSION.so"
-          fi
-      - name: Mobile qualification restriction
-        if: matrix.platform != 'darwin-arm64'
-        run: echo 'Compile-only. Device/emulator runtime qualification remains a release gate.' >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = UTEXO-Protocol/rgb-lightning-node-bare
+          test "$GITHUB_EVENT_NAME" = workflow_dispatch
+          test "$GITHUB_REF" = "refs/heads/$PUBLISHER_BRANCH"
+          case "$OPERATION" in
+            verify) ;;
+            publish-data|publish-ios|publish-androids|publish-android-arm|publish-android-x64|publish-wrapper) test "$CONFIRM_VERSION" = "$PACKAGE_VERSION" ;;
+            *) exit 1 ;;
+          esac
+          test "$(git -C automation rev-parse HEAD)" = "$GITHUB_SHA"
+          git -C automation fetch --no-tags origin refs/heads/main:refs/remotes/origin/main
+          test "$(git -C automation rev-parse origin/main)" = "$PACKAGE_COMMIT"
+          git -C automation merge-base --is-ancestor "$PACKAGE_COMMIT" "$GITHUB_SHA"
+          test "$(git -C automation diff --name-only "$PACKAGE_COMMIT" "$GITHUB_SHA")" = .github/workflows/release.yml
+          test -z "$(git -C automation status --porcelain)"
+          mkdir -p "$RUNNER_TEMP/publication-evidence"
+          python3 - <<'PYCODE'
+          import hashlib, json, os, pathlib, subprocess
+          e = os.environ
+          inputs = ['index.js','index.d.ts','json-boundary.js','binding.js','binding.cc','rln.h','CMakeLists.txt','runtime-contract.json','scripts/native-overlay.js','scripts/build-cffi.sh','scripts/build-prebuilds.sh','scripts/release-contract.js','patches/release-adapter-v0.17.0-beta.3.patch']
+          unchanged = {}
+          for file in inputs:
+              def blob(commit):
+                  return subprocess.check_output(['git','-C','automation','show',commit+':'+file])
+              old, new = blob(e['ORIGINAL_BUILD_COMMIT']), blob(e['PACKAGE_COMMIT'])
+              if old != new: raise RuntimeError('Native runtime/build input changed: '+file)
+              unchanged[file] = hashlib.sha256(new).hexdigest()
+          proof = {'packageCommit':e['PACKAGE_COMMIT'],'qualifiedNativeSourceCommit':e['ORIGINAL_BUILD_COMMIT'],'builderCommit':e['GITHUB_SHA'],'builderRef':e['GITHUB_REF'],'builderWorkflow':e['GITHUB_WORKFLOW_REF'],'nativeRebuildPerformed':False,'unchangedNativeSourceSha256':unchanged,'publisherToMainDifference':['.github/workflows/release.yml'],'scope':'Previously qualified local seven-target assembly inputs, exact frozen-source/file/hash validation, original compilation provenance retained. The draft input release is transport, not a claim of seven-target compilation in GitHub Actions. SLSA identifies this real assembly publisher.'}
+          pathlib.Path(e['RUNNER_TEMP'],'publication-evidence/source-proof.json').write_text(json.dumps(proof,indent=2)+'\n')
+          PYCODE
+
+      - name: Checkout exact merged-main package source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          name: bare-${{ matrix.platform }}-${{ github.sha }}
+          ref: 54110d5db7f0f67c18c02d2dd188ad2763e95003
+          fetch-depth: 1
+          path: package
+          persist-credentials: false
+
+      - name: Setup exact Node and npm registry
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22.23.3
+          registry-url: https://registry.npmjs.org/
+
+      - name: Pin npm and install tooling without lifecycle execution
+        working-directory: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global npm@12.0.1
+          test "$(node --version)" = v22.23.3
+          test "$(npm --version)" = 12.0.1
+          test "$(npm config get ignore-scripts)" = false
+          test "$(npm config get dangerously-allow-all-scripts)" = false
+          umask 022
+          npm ci --ignore-scripts --no-audit --no-fund
+          node -e 'const p=require("./package.json"); if(p.name!=="@utexo/rgb-lightning-node-bare" || p.version!==process.env.PACKAGE_VERSION) throw new Error("Unexpected package")'
+          test "$(git rev-parse HEAD)" = "$PACKAGE_COMMIT"
+          test -z "$(git status --porcelain)"
+
+      - name: Download and admit pinned qualified assembly inputs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PYCODE'
+          import hashlib, json, os, pathlib, subprocess, tarfile
+          root = pathlib.Path('package')
+          evidence = pathlib.Path(os.environ['RUNNER_TEMP'], 'publication-evidence')
+          repo = 'UTEXO-Protocol/rgb-lightning-node-bare'
+          def api(endpoint):
+              return json.loads(subprocess.check_output(['gh','api','repos/'+repo+'/'+endpoint]))
+          release = api('releases/418224002')
+          if not release['draft'] or release['tag_name'] != 'beta5-publication-inputs-20261020' or release['target_commitish'] != os.environ['PACKAGE_COMMIT']:
+              raise RuntimeError('Unexpected draft transport/source identity')
+          expected = [{'component': 'wrapper', 'id': 658863790, 'filename': 'utexo-rgb-lightning-node-bare-0.2.0-beta.5.tgz', 'size': 48269573, 'sha256': '65c1b019eba2a7dcbf2b7567149348b3f222430802eb5641ccbd343348b98532'}, {'component': 'ios', 'id': 658863789, 'filename': 'utexo-rgb-lightning-node-bare-ios-0.2.0-beta.5.tgz', 'size': 143638135, 'sha256': '68532267acb066b77063e7ba72e803c6c34304d61858085eafe5491222c07a23'}, {'component': 'android-arm', 'id': 658863791, 'filename': 'utexo-rgb-lightning-node-bare-android-arm-0.2.0-beta.5.tgz', 'size': 105797919, 'sha256': '8ecb09df74851d0f1f9d970ad68ecf03e13f18dd0c1abc718d80e12072cc88eb'}, {'component': 'android-x64', 'id': 658863792, 'filename': 'utexo-rgb-lightning-node-bare-android-x64-0.2.0-beta.5.tgz', 'size': 58109632, 'sha256': '95f2d973b3bbf880bbfe1ce4125d3ef0400339f32313ae73a5b67d896072f542'}]
+          catalog = {item['id']:item for item in api('releases/418224002/assets?per_page=100')}
+          if set(catalog) != {item['id'] for item in expected}: raise RuntimeError('Unexpected input artifact set')
+          targets = {'wrapper':['darwin-arm64'], 'ios':['ios-arm64','ios-arm64-simulator','ios-x64-simulator'], 'android-arm':['android-arm','android-arm64'], 'android-x64':['android-x64']}
+          manifest = None
+          receipts = []
+          for item in expected:
+              metadata = catalog[item['id']]
+              if metadata['name'] != item['filename'] or metadata['size'] != item['size'] or metadata['state'] != 'uploaded' or metadata['digest'] != 'sha256:'+item['sha256']:
+                  raise RuntimeError('Pinned input metadata changed')
+              archive = evidence / item['filename']
+              with archive.open('xb') as stream:
+                  subprocess.run(['gh','api','-H','Accept: application/octet-stream','repos/'+repo+'/releases/assets/'+str(item['id'])],stdout=stream,check=True)
+              if archive.stat().st_size != item['size'] or hashlib.file_digest(archive.open('rb'),'sha256').hexdigest() != item['sha256']:
+                  raise RuntimeError('Downloaded assembly input bytes changed')
+              component = item['component']
+              destination = root if component == 'wrapper' else root / 'native' / component
+              generated = {'.utexo-native-overlay.json'} | {'prebuilds/'+target+'/utexo__rgb-lightning-node-bare.bare' for target in targets[component]}
+              with tarfile.open(archive, 'r:gz') as tar:
+                  members = tar.getmembers()
+                  if len(members) > 1000 or len({m.name for m in members}) != len(members): raise RuntimeError('Unexpected input inventory')
+                  for member in members:
+                      if not member.isfile() or not member.name.startswith('package/') or '..' in pathlib.PurePosixPath(member.name).parts or '\\' in member.name:
+                          raise RuntimeError('Unsafe input member')
+                      relative = member.name.removeprefix('package/')
+                      if relative not in generated:
+                          source = destination / relative
+                          if not source.is_file() or source.is_symlink() or source.read_bytes() != tar.extractfile(member).read():
+                              raise RuntimeError('Packaged source differs from frozen main: '+str(source))
+                      else:
+                          data = tar.extractfile(member).read()
+                          if relative == '.utexo-native-overlay.json':
+                              if hashlib.sha256(data).hexdigest() != '1d5408de32073d5b7003bff98f11d59400e2a05243bcc92f56977a502693ea84': raise RuntimeError('Qualified native provenance changed')
+                              if manifest is not None and manifest != data: raise RuntimeError('Inconsistent input provenance')
+                              manifest = data
+                          target = destination / relative
+                          target.parent.mkdir(parents=True,exist_ok=True)
+                          target.write_bytes(data)
+                          target.chmod(member.mode)
+                          if relative.startswith('prebuilds/') and component != 'wrapper':
+                              canonical = root / relative
+                              canonical.parent.mkdir(parents=True,exist_ok=True)
+                              canonical.write_bytes(data)
+                              canonical.chmod(member.mode)
+              receipts.append(item)
+          if manifest is None: raise RuntimeError('Missing native provenance')
+          (evidence/'original-native-manifest.json').write_bytes(manifest)
+          (evidence/'assembly-input-receipts.json').write_text(json.dumps(receipts,indent=2)+'\n')
+          PYCODE
+
+      - name: Install pinned NDK for Android artifact verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          task_ndk_path="$(bash package/scripts/install-android-ndk.sh)"
+          test -d "$task_ndk_path"
+          echo "ANDROID_NDK_HOME=$task_ndk_path" >> "$GITHUB_ENV"
+
+      - name: Admit all seven native targets and source/distribution controls
+        working-directory: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run check:types
+          npm test
+          python3 -B scripts/test-distribution-archives.py
+          npm run check:distribution
+          npm run prepublishOnly
+          test "$(git rev-parse HEAD)" = "$PACKAGE_COMMIT"
+          test -z "$(git status --porcelain)"
+
+      - name: Pack and verify all four distribution archives before any publication
+        working-directory: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          for task_component in ios android-arm android-x64; do
+            npm pack --workspace "native/$task_component" --json --ignore-scripts --pack-destination "$RUNNER_TEMP/publication-evidence" > "$RUNNER_TEMP/publication-evidence/pack-$task_component.json"
+          done
+          npm pack --workspaces=false --json --ignore-scripts --pack-destination "$RUNNER_TEMP/publication-evidence" > "$RUNNER_TEMP/publication-evidence/pack-wrapper.json"
+          python3 scripts/verify-distribution-archives.py "$RUNNER_TEMP/publication-evidence/utexo-rgb-lightning-node-bare-0.2.0-beta.5.tgz" "$RUNNER_TEMP/publication-evidence/utexo-rgb-lightning-node-bare-ios-0.2.0-beta.5.tgz" "$RUNNER_TEMP/publication-evidence/utexo-rgb-lightning-node-bare-android-arm-0.2.0-beta.5.tgz" "$RUNNER_TEMP/publication-evidence/utexo-rgb-lightning-node-bare-android-x64-0.2.0-beta.5.tgz"
+          python3 - <<'PYCODE'
+          import base64,hashlib,json,os,pathlib,subprocess
+          evidence=pathlib.Path(os.environ['RUNNER_TEMP'],'publication-evidence')
+          packages=[]
+          known_ios={'integrity': 'sha512-UdhulayuKoaHKaM/CkpRf2paetb8y4Mhaw58snFO+WALAo4Bgd5OqxbK8Pcae9Llu78xrrrOIs3hlxQoOXBUwA==', 'shasum': '40ce9f039e40a8835fe2e8103e61a74eb729870c', 'sha256': '68532267acb066b77063e7ba72e803c6c34304d61858085eafe5491222c07a23', 'size': 143638135}
+          for component in ['ios','android-arm','android-x64','wrapper']:
+              raw=json.loads((evidence/('pack-'+component+'.json')).read_text())
+              pack=raw if isinstance(raw,list) else list(raw.values())
+              if len(pack)!=1: raise RuntimeError('Unexpected npm package count')
+              p=pack[0]
+              data=(evidence/p['filename']).read_bytes()
+              integrity='sha512-'+base64.b64encode(hashlib.sha512(data).digest()).decode()
+              hashes={'integrity':integrity,'shasum':hashlib.sha1(data).hexdigest(),'sha256':hashlib.sha256(data).hexdigest(),'size':len(data)}
+              reviewed={'wrapper': '65c1b019eba2a7dcbf2b7567149348b3f222430802eb5641ccbd343348b98532', 'ios': '68532267acb066b77063e7ba72e803c6c34304d61858085eafe5491222c07a23', 'android-arm': '8ecb09df74851d0f1f9d970ad68ecf03e13f18dd0c1abc718d80e12072cc88eb', 'android-x64': '95f2d973b3bbf880bbfe1ce4125d3ef0400339f32313ae73a5b67d896072f542'}
+              if hashes['sha256'] != reviewed[component]: raise RuntimeError('Repacking changed reviewed assembly archive bytes: '+component)
+              if any(p[key]!=hashes[key] for key in ['integrity','shasum','size']): raise RuntimeError('npm pack receipt mismatch')
+              if component=='ios':
+                  if hashes!=known_ios: raise RuntimeError('Reviewed beta.5 iOS archive changed')
+              elif len(data)>128*1024*1024: raise RuntimeError('Conservative project package-size budget exceeded')
+              request_bound=4*((len(data)+2)//3)+2*1024*1024
+              packages.append({'component':component,'name':p['name'],'version':p['version'],**hashes,'filename':p['filename'],'encodedRequestUpperBoundBytes':request_bound,'metadataReserveBytes':2*1024*1024,'requestSizeMethod':'Conservative base64 attachment plus2MiB metadata/provenance reserve; not measured HTTP bytes or an official registry limit','packageGitHead':os.environ['IOS_PACKAGE_COMMIT'] if component=='ios' else os.environ['PACKAGE_COMMIT'],'publicationAllowed':True})
+          plan={'packages':packages,'packageGitHead':os.environ['PACKAGE_COMMIT'],'iosPackageGitHead':os.environ['IOS_PACKAGE_COMMIT'],'builderCommit':os.environ['GITHUB_SHA'],'originalNativeBuildCommit':os.environ['ORIGINAL_BUILD_COMMIT'],'nativeRebuildPerformed':False,'node':subprocess.check_output(['node','--version'],text=True).strip(),'npm':subprocess.check_output(['npm','--version'],text=True).strip()}
+          (evidence/'publication-plan.json').write_text(json.dumps(plan,indent=2)+'\n')
+          PYCODE
+          npm run prepublishOnly
+          test -z "$(git status --porcelain)"
+
+      - name: Check selected version absence and prerequisite registry identity
+        env:
+          OPERATION: ${{ inputs.operation }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C package ls-remote origin refs/heads/main | cut -f1)" = "$PACKAGE_COMMIT"
+          node --input-type=module - <<'JS'
+          import fs from 'node:fs'
+          import {isDeepStrictEqual} from 'node:util'
+          const plan=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+'/publication-evidence/publication-plan.json','utf8'))
+          const op=process.env.OPERATION
+          const selections={verify:[],'publish-data':['ios','android-arm','android-x64'],'publish-ios':['ios'],'publish-androids':['android-arm','android-x64'],'publish-android-arm':['android-arm'],'publish-android-x64':['android-x64'],'publish-wrapper':['wrapper']}
+          const selected=selections[op]
+          if(!selected)throw Error('Unknown operation')
+          const owner=JSON.parse(fs.readFileSync('package/package.json','utf8'))
+          const observations=[]
+          for(const p of plan.packages){
+            const r=await fetch('https://registry.npmjs.org/'+encodeURIComponent(p.name)+'/'+p.version,{signal:AbortSignal.timeout(30000)})
+            if(r.status===404){
+              if(op==='publish-wrapper'&&p.component!=='wrapper')throw Error('Required payload must be published and independently verified first: '+p.name)
+            }else{
+              if(!r.ok)throw Error('Registry read failed '+r.status)
+              const m=await r.json()
+              if(selected.includes(p.component))throw Error('Selected version already exists; never overwrite/retry a publication')
+              if(m.name!==p.name||m.version!==p.version||m.gitHead!==p.packageGitHead||m.dist?.integrity!==p.integrity||m.dist?.shasum!==p.shasum||!m.dist?.attestations?.provenance||!m.dist?.signatures?.length||!isDeepStrictEqual(m.utexoNativeOverlay,owner.utexoNativeOverlay))throw Error('Existing prerequisite registry identity mismatch')
+            }
+            observations.push({name:p.name,status:r.status,selected:selected.includes(p.component),expectedPackageGitHead:p.packageGitHead})
+          }
+          fs.writeFileSync(process.env.RUNNER_TEMP+'/publication-evidence/registry-before-operation.json',JSON.stringify(observations,null,2)+'\n')
+          JS
+
+      - name: Verify publisher identity using existing repository token
+        working-directory: package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${NODE_AUTH_TOKEN:-}"
+          npm whoami --registry=https://registry.npmjs.org/ > "$RUNNER_TEMP/publication-evidence/npm-publisher.txt"
+          echo 'Authenticated npm publisher identity verified.'
+
+      - name: Retain verified candidate and evidence before publication
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: bare-beta5-prepublication-${{ github.run_id }}-${{ inputs.operation }}
           path: |
-            lib/${{ matrix.platform }}/librlncffi.a
-            .utexo-native-overlay.json
-            prebuilds/${{ matrix.platform }}/utexo__rgb-lightning-node-bare.bare
+            ${{ runner.temp }}/publication-evidence/*.json
+            ${{ runner.temp }}/publication-evidence/*.txt
+            ${{ runner.temp }}/publication-evidence/*.tgz
           if-no-files-found: error
-          include-hidden-files: true
-      - name: Retain verified Android staging separately
-        if: startsWith(matrix.platform, 'android-')
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+          retention-days: 90
+
+      - name: Publish only the explicitly selected confirmed beta.5 components
+        if: inputs.operation != 'verify'
+        working-directory: package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          CONFIRM_VERSION: ${{ inputs.confirm_version }}
+          OPERATION: ${{ inputs.operation }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$CONFIRM_VERSION" = "$PACKAGE_VERSION"
+          npm run check:distribution
+          node --input-type=module - <<'JS'
+          import fs from 'node:fs'
+          import {execFileSync} from 'node:child_process'
+          const evidence=process.env.RUNNER_TEMP+'/publication-evidence/'
+          const plan=JSON.parse(fs.readFileSync(evidence+'publication-plan.json','utf8'))
+          const selections={'publish-data':['ios','android-arm','android-x64'],'publish-ios':['ios'],'publish-androids':['android-arm','android-x64'],'publish-android-arm':['android-arm'],'publish-android-x64':['android-x64'],'publish-wrapper':['wrapper']}
+          const selected=selections[process.env.OPERATION]
+          if(!selected)throw Error('Unknown publication selection')
+          for(const component of selected){
+            const p=plan.packages.find(p=>p.component===component)
+            if(!p?.publicationAllowed||p.packageGitHead!==process.env.PACKAGE_COMMIT)throw Error('Immutable or unapproved package selected')
+            if(execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim()!==process.env.PACKAGE_COMMIT||execFileSync('git',['status','--porcelain'],{encoding:'utf8'}).trim())throw Error('Source drift before publication')
+            if(execFileSync('git',['ls-remote','origin','refs/heads/main'],{encoding:'utf8'}).split(/\s+/)[0]!==process.env.PACKAGE_COMMIT)throw Error('Main drift before publication')
+            const r=await fetch('https://registry.npmjs.org/'+encodeURIComponent(p.name)+'/'+p.version,{signal:AbortSignal.timeout(30000)})
+            if(r.status!==404)throw Error('Selected version no longer absent; do not blindly retry')
+            const destination=component==='wrapper'?'.':'./native/'+component
+            const log=fs.openSync(evidence+'publish-'+component+'.log','wx')
+            try{execFileSync('npm',['publish',destination,'--workspaces=false','--provenance','--access','public','--tag','beta','--registry=https://registry.npmjs.org/','--json'],{stdio:['ignore',log,'inherit']})}finally{fs.closeSync(log)}
+          }
+          JS
+
+      - name: Wait for selected npm publication processing and verify exact identities
+        if: inputs.operation != 'verify'
+        env:
+          OPERATION: ${{ inputs.operation }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module - <<'JS'
+          import fs from 'node:fs'
+          const evidence=process.env.RUNNER_TEMP+'/publication-evidence/'
+          const plan=JSON.parse(fs.readFileSync(evidence+'publication-plan.json','utf8'))
+          const selections={'publish-data':['ios','android-arm','android-x64'],'publish-ios':['ios'],'publish-androids':['android-arm','android-x64'],'publish-android-arm':['android-arm'],'publish-android-x64':['android-x64'],'publish-wrapper':['wrapper']}
+          const selected=selections[process.env.OPERATION]
+          if(!selected)throw Error('Unknown publication selection')
+          const pending=new Set(selected)
+          for(let attempt=0;attempt<120&&pending.size;attempt++){
+            for(const component of [...pending]){
+              const p=plan.packages.find(p=>p.component===component)
+              const r=await fetch('https://registry.npmjs.org/'+encodeURIComponent(p.name)+'/'+p.version,{signal:AbortSignal.timeout(30000)})
+              if(r.status===404)continue
+              if(!r.ok)throw Error('Registry read failed '+r.status)
+              const m=await r.json()
+              if(m.name!==p.name||m.version!==p.version||m.gitHead!==p.packageGitHead||m.dist?.integrity!==p.integrity||m.dist?.shasum!==p.shasum)throw Error('Published registry identity/integrity mismatch')
+              if(m.dist?.attestations?.provenance){fs.writeFileSync(evidence+'published-'+component+'-registry-metadata.json',JSON.stringify(m,null,2)+'\n');pending.delete(component)}
+            }
+            if(pending.size)await new Promise(resolve=>setTimeout(resolve,5000))
+          }
+          if(pending.size)throw Error('npm processing not visible within10min; inspect public registry before any explicit remaining-only operation: '+[...pending])
+          JS
+
+      - name: Retain final evidence including any publication failure
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: bare-staged-${{ matrix.platform }}-${{ github.sha }}
-          path: ${{ runner.temp }}/staged-android/
-          if-no-files-found: error
-      - name: Retain rejected Android packaging for diagnosis
-        if: failure() && steps.android-packaging.outcome == 'failure'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: unqualified-android-${{ matrix.platform }}-${{ github.sha }}
+          name: bare-beta5-final-${{ github.run_id }}-${{ inputs.operation }}
           path: |
-            .utexo-native-overlay.json
-            prebuilds/${{ matrix.platform }}/utexo__rgb-lightning-node-bare.bare
-            ${{ runner.temp }}/linked-android/
-          include-hidden-files: true
-          if-no-files-found: error
+            ${{ runner.temp }}/publication-evidence/*.json
+            ${{ runner.temp }}/publication-evidence/*.txt
+            ${{ runner.temp }}/publication-evidence/*.tgz
+            ${{ runner.temp }}/publication-evidence/*.log
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Explain source and provenance scope
+        if: success()
+        env:
+          OPERATION: ${{ inputs.operation }}
+        shell: bash
+        run: |
+          {
+            echo "Bare beta.5 operation: $OPERATION"
+            echo "Package source/gitHead: $PACKAGE_COMMIT"
+            echo "Real assembly builder commit: $GITHUB_SHA"
+            echo "Qualified native source: $ORIGINAL_BUILD_COMMIT; seven-target local assembly inputs preserved"
+            echo 'Original native bytes and provenance retained; this workflow does not rebuild native code.'
+            echo 'No WDK merge or publication is performed.'
+          } >> "$GITHUB_STEP_SUMMARY"
