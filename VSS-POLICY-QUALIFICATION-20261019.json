@@ -1,0 +1,516 @@
+{
+  "schemaVersion": 1,
+  "qualificationDate": "2026-10-19",
+  "scope": "All seven Bare release-profile binaries admitted by source/hash/symbol/ELF gates; Darwin ARM64 wallet runtime qualification; mobile runtime acceptance is separate",
+  "runtimeCodeCommit": "236926eeb83f6a94394279c99aa72b7a3217a624",
+  "adapterSha256": "dd26955a9a8fdb466a83043dd72f2ace3c0fdededf6bdd1e437e8ffd82840556",
+  "nativeArtifact": {
+    "schemaVersion": 2,
+    "repository": "https://github.com/UTEXO-Protocol/rgb-lightning-node.git",
+    "ref": "ecc69f20308231400561f6f060fea88acfa40cc4",
+    "commit": "ecc69f20308231400561f6f060fea88acfa40cc4",
+    "lightningCommit": "79b9eb5166546c62692d3a672986f385c7fe047d",
+    "patchSha256": "dd26955a9a8fdb466a83043dd72f2ace3c0fdededf6bdd1e437e8ffd82840556",
+    "cffiLockSha256": "5fcdc9ad9179d3230e48973cdfa514a863d13a837752027febf8ea04713bbeb5",
+    "wrapperSha256": "5dca0ca23c28cb8e9171646db0f1ef9f1d76744a764653a960076426126fea6d",
+    "prebuildRecipeSha256": "9b8620de9ef63c9f4750a0b5766aac9ffaf9f005077f9a0a5d2a2824584e4bf5",
+    "rustToolchain": "1.94.0",
+    "buildProfile": "release",
+    "iosDeploymentTarget": "16.0",
+    "androidNdkVersion": "27.1.12297006",
+    "androidApiLevel": 29,
+    "cargoNdkVersion": "4.1.2",
+    "bindgenCliVersion": "0.72.1",
+    "bareHeadersVersion": "1.30.0",
+    "targets": [
+      "darwin-arm64",
+      "ios-arm64",
+      "ios-arm64-simulator",
+      "ios-x64-simulator",
+      "android-arm64",
+      "android-arm",
+      "android-x64"
+    ],
+    "artifacts": {
+      "darwin-arm64": {
+        "librarySha256": "0538e0d80f873f319c029d7786f1ae1822dab1a5954d27d1b434013b49a617e1",
+        "prebuildSha256": "7d6432c80e6a6892c11a47b3699718e44027b1b141fe990dc38b708530c9b1d3"
+      },
+      "ios-arm64-simulator": {
+        "librarySha256": "055b5bf891e138e62c44b73b5d6a4b6719e0837399a27743a8240c8cedfeda2a",
+        "prebuildSha256": "635d655fd4a9f96d3f964fba52a8ed3800d5520ac6e68dfb15eaafd9a25a4b33"
+      },
+      "ios-arm64": {
+        "librarySha256": "510b657b09caa5ee2acee65c77d76ba14b8b2a927cb840768f29336070435d79",
+        "prebuildSha256": "dd5a9f823afedc95dfd26220fa9bd203e3bcdac9ee309b4d8566d70360cdc5d4"
+      },
+      "ios-x64-simulator": {
+        "librarySha256": "3bb513f48e974aed68a79e73e5a06fa4f3706299247c0ffb146afdf038419d3d",
+        "prebuildSha256": "d2b6a6b9a2fcacad052320a3737d3e5606b19181fb090cd991ade7e27a5308c6"
+      },
+      "android-arm64": {
+        "librarySha256": "384764a72214b281522de51bf3d6b1bfc666a8de4be88cd01ba765e82afa1c59",
+        "prebuildSha256": "8f44171c4e6ac74d3f288ce30998cc80c96d3969065c8c684f4a7451064ec710"
+      },
+      "android-arm": {
+        "librarySha256": "9cb7c9b18f97fa21de7a4d5160bb5e5b96824d730453ef57112d37f8b84a7ffb",
+        "prebuildSha256": "498e324463b819238efeda444d1b13f9bd03dc2fe7b683bd6c770105405dbcf5"
+      },
+      "android-x64": {
+        "librarySha256": "414b7aece77aad64d92e6465575ba55ac052c8fde56feb567af9859cb2fa6226",
+        "prebuildSha256": "dc8e72e1d97897740b7c7b4171d7ffe716cf5c6963e42d8b1bf2a24604f5954c"
+      }
+    }
+  },
+  "appleBytesUnchanged": {
+    "darwin-arm64": {
+      "before": {
+        "librarySha256": "0538e0d80f873f319c029d7786f1ae1822dab1a5954d27d1b434013b49a617e1",
+        "prebuildSha256": "7d6432c80e6a6892c11a47b3699718e44027b1b141fe990dc38b708530c9b1d3"
+      },
+      "after": {
+        "librarySha256": "0538e0d80f873f319c029d7786f1ae1822dab1a5954d27d1b434013b49a617e1",
+        "prebuildSha256": "7d6432c80e6a6892c11a47b3699718e44027b1b141fe990dc38b708530c9b1d3"
+      }
+    },
+    "ios-arm64-simulator": {
+      "before": {
+        "librarySha256": "055b5bf891e138e62c44b73b5d6a4b6719e0837399a27743a8240c8cedfeda2a",
+        "prebuildSha256": "635d655fd4a9f96d3f964fba52a8ed3800d5520ac6e68dfb15eaafd9a25a4b33"
+      },
+      "after": {
+        "librarySha256": "055b5bf891e138e62c44b73b5d6a4b6719e0837399a27743a8240c8cedfeda2a",
+        "prebuildSha256": "635d655fd4a9f96d3f964fba52a8ed3800d5520ac6e68dfb15eaafd9a25a4b33"
+      }
+    },
+    "ios-arm64": {
+      "before": {
+        "librarySha256": "510b657b09caa5ee2acee65c77d76ba14b8b2a927cb840768f29336070435d79",
+        "prebuildSha256": "dd5a9f823afedc95dfd26220fa9bd203e3bcdac9ee309b4d8566d70360cdc5d4"
+      },
+      "after": {
+        "librarySha256": "510b657b09caa5ee2acee65c77d76ba14b8b2a927cb840768f29336070435d79",
+        "prebuildSha256": "dd5a9f823afedc95dfd26220fa9bd203e3bcdac9ee309b4d8566d70360cdc5d4"
+      }
+    },
+    "ios-x64-simulator": {
+      "before": {
+        "librarySha256": "3bb513f48e974aed68a79e73e5a06fa4f3706299247c0ffb146afdf038419d3d",
+        "prebuildSha256": "d2b6a6b9a2fcacad052320a3737d3e5606b19181fb090cd991ade7e27a5308c6"
+      },
+      "after": {
+        "librarySha256": "3bb513f48e974aed68a79e73e5a06fa4f3706299247c0ffb146afdf038419d3d",
+        "prebuildSha256": "d2b6a6b9a2fcacad052320a3737d3e5606b19181fb090cd991ade7e27a5308c6"
+      }
+    }
+  },
+  "generatedPayloadContracts": [
+    "native/ios/runtime-contract.json",
+    "native/android-arm/runtime-contract.json",
+    "native/android-x64/runtime-contract.json"
+  ],
+  "tests": {
+    "javascriptInstaller": 102,
+    "typeChecks": "pass",
+    "vssConstructorCases": 214,
+    "terminatedEnvironmentImmediateReopens": 18,
+    "bip322ExtractedSourceCrypto": 3,
+    "sharedRust": {
+      "policy": 12,
+      "guards": 5,
+      "restoreAdmission": 9,
+      "uniffi": 19,
+      "cffi": 15,
+      "isolatedVssIntegration": 5
+    },
+    "allSevenSourceAndArtifactAdmission": "pass",
+    "allThreePayloadStage": "pass",
+    "completeDistributionGate": "pass"
+  },
+  "hostReceipts": {
+    "native-vss-policy-qualified-bare-https-host.log": {
+      "sha256": "a49c8e627b952ce35e90283b45c1f2b8bd361237b8e8e2876ab0535734a0a4dc",
+      "receipt": {
+        "vssPolicyQualification": "pass",
+        "runtime": "bare",
+        "network": "regtest",
+        "defaultOn": true,
+        "pureReadsDoNotUpload": true,
+        "offPausesMutations": true,
+        "manualWhileOff": true,
+        "offPersistsAcrossReopen": true,
+        "initialConfigDoesNotOverrideSavedChoice": true,
+        "resumeCatchesUp": true,
+        "realCompletionReceipts": true,
+        "failureRollback": false,
+        "syncingPollVersionIncrease": 0,
+        "timings": [
+          {
+            "name": "initial-open",
+            "milliseconds": 11686
+          },
+          {
+            "name": "btc-balance-sync-1",
+            "milliseconds": 22
+          },
+          {
+            "name": "btc-balance-sync-2",
+            "milliseconds": 23
+          },
+          {
+            "name": "pause",
+            "milliseconds": 8
+          },
+          {
+            "name": "manual-while-off",
+            "milliseconds": 1258
+          },
+          {
+            "name": "reopen-paused",
+            "milliseconds": 5307
+          },
+          {
+            "name": "resume-catch-up",
+            "milliseconds": 1309
+          },
+          {
+            "name": "automatic-address-change",
+            "milliseconds": 1251
+          }
+        ],
+        "funded": false,
+        "bridgeAccessed": false
+      }
+    },
+    "native-vss-policy-qualified-bare-host.log": {
+      "sha256": "95ff9600697d0537e2257fc3bfc9d74bf6b8f5b517e034cc8f6f679cb3c815a3",
+      "receipt": {
+        "vssPolicyQualification": "pass",
+        "runtime": "bare",
+        "network": "regtest",
+        "defaultOn": true,
+        "pureReadsDoNotUpload": true,
+        "offPausesMutations": true,
+        "manualWhileOff": true,
+        "offPersistsAcrossReopen": true,
+        "initialConfigDoesNotOverrideSavedChoice": true,
+        "resumeCatchesUp": true,
+        "realCompletionReceipts": true,
+        "failureRollback": true,
+        "syncingPollVersionIncrease": 0,
+        "timings": [
+          {
+            "name": "initial-open",
+            "milliseconds": 22816
+          },
+          {
+            "name": "btc-balance-sync-1",
+            "milliseconds": 28
+          },
+          {
+            "name": "btc-balance-sync-2",
+            "milliseconds": 18
+          },
+          {
+            "name": "pause",
+            "milliseconds": 16
+          },
+          {
+            "name": "manual-while-off",
+            "milliseconds": 3636
+          },
+          {
+            "name": "reopen-paused",
+            "milliseconds": 14001
+          },
+          {
+            "name": "resume-catch-up",
+            "milliseconds": 4727
+          },
+          {
+            "name": "automatic-address-change",
+            "milliseconds": 3634
+          }
+        ],
+        "funded": false,
+        "bridgeAccessed": false
+      }
+    }
+  },
+  "bfaQualification": {
+    "schemaVersion": 1,
+    "status": "passed",
+    "runtime": "bare",
+    "recordedAt": "2026-10-19T11:49:31.636127+00:00",
+    "scope": "Fresh host external-signer wallets on shared local regtest and local Anvil; no simulator or hosted bridge access",
+    "sharedStand": "e272d71553b32c56",
+    "assetId": "rgb:ne8SojTI-4~YawA4-1nGJnLR-uE4az~P-FdwTvos-2CQAmYY",
+    "assetSchema": "Bfa",
+    "ticker": "USDT",
+    "precision": 6,
+    "contractSha256": "dcd390835caeef3c74e62e310cfec112b8df5ae0278669232de67c39e9b554dd",
+    "runtimeIdentity": {
+      "abi_version": 1,
+      "rln_version": "0.17.0-beta.3",
+      "rln_commit": "ecc69f20308231400561f6f060fea88acfa40cc4",
+      "lightning_commit": "79b9eb5166546c62692d3a672986f385c7fe047d",
+      "adapter_sha256": "dd26955a9a8fdb466a83043dd72f2ace3c0fdededf6bdd1e437e8ffd82840556",
+      "wrapper_sha256": "5dca0ca23c28cb8e9171646db0f1ef9f1d76744a764653a960076426126fea6d",
+      "lock_sha256": "5fcdc9ad9179d3230e48973cdfa514a863d13a837752027febf8ea04713bbeb5",
+      "target": "aarch64-apple-darwin",
+      "capabilities": [
+        "canonical-unlock-v1",
+        "persistent-native-signer",
+        "refresh-transfers-v1",
+        "apay-address",
+        "decoded-invoice-cltv",
+        "tagged-rgb-assignment",
+        "pending-blinded-v1",
+        "rgb-contract-import-v1",
+        "rgb-transfer-metadata-import-v1",
+        "consignment-export-v1",
+        "mainnet-lightning-rejection-v1",
+        "external-signer-eth-rpc-v1",
+        "external-signer-burn-v1",
+        "native-signer-shutdown-v1",
+        "owned-session-cleanup-v1",
+        "bip322-simple-v1",
+        "vss-backup-v1",
+        "vss-backup-info-v1",
+        "vss-restore-v1",
+        "vss-automatic-backup-v1",
+        "vss-backup-metadata-v1"
+      ],
+      "vss_policy": {
+        "supported": true,
+        "code": null,
+        "reason": null
+      }
+    },
+    "nativeArtifact": {
+      "path": "/Users/hardik/Projects/WDK <> Iris/rgb-lightning-node-bare/prebuilds/darwin-arm64/utexo__rgb-lightning-node-bare.bare",
+      "sha256": "7d6432c80e6a6892c11a47b3699718e44027b1b141fe990dc38b708530c9b1d3"
+    },
+    "sourceJournal": {
+      "path": "/Users/hardik/Projects/WDK <> Iris/.artifacts/vss-bfa-20261019/bare-live-03/journal.json",
+      "sha256": "bbc44392e790041581942c247bb2bdeabf12a35f72de622748ab4bd8c8f71d51"
+    },
+    "mint": {
+      "amountAtomic": 2000000,
+      "txid": "0e16f6b1ed39d004158841cef3efaded9ac657194fef94a6281de8200558b698",
+      "confirmed": true,
+      "blockHeight": 18275,
+      "balance": {
+        "settled": 2000000,
+        "future": 2000000,
+        "spendable": 2000000,
+        "offchain_outbound": 0,
+        "offchain_inbound": 0
+      }
+    },
+    "sends": {
+      "alice-to-bob-off": {
+        "amountAtomic": 500000,
+        "txid": "f9e57b74efe2fdcf4bc0e87cd95e01121e6ce64ae098024950992ee42998e2d4",
+        "feeSats": 395,
+        "blockHeight": 18284,
+        "senderBalance": {
+          "settled": 1500000,
+          "future": 1500000,
+          "spendable": 1500000,
+          "offchain_outbound": 0,
+          "offchain_inbound": 0
+        },
+        "receiverBalance": {
+          "settled": 500000,
+          "future": 500000,
+          "spendable": 500000,
+          "offchain_outbound": 0,
+          "offchain_inbound": 0
+        },
+        "bothSidesSettled": true
+      },
+      "bob-to-alice-paused-receive": {
+        "amountAtomic": 250000,
+        "txid": "9f0df675818f8dcfe11d3c3b8c9d81950160b8d474bb3fa976fb94284026f1a1",
+        "feeSats": 511,
+        "blockHeight": 18290,
+        "senderBalance": {
+          "settled": 250000,
+          "future": 250000,
+          "spendable": 250000,
+          "offchain_outbound": 0,
+          "offchain_inbound": 0
+        },
+        "receiverBalance": {
+          "settled": 1750000,
+          "future": 1750000,
+          "spendable": 1750000,
+          "offchain_outbound": 0,
+          "offchain_inbound": 0
+        },
+        "bothSidesSettled": true
+      }
+    },
+    "backupReceipts": {
+      "alice-mint-auto-receipt": {
+        "version": 23,
+        "completedAt": 1792410339997,
+        "automatic": true,
+        "backupRequired": false
+      },
+      "bob-initial-auto-receipt": {
+        "version": 6,
+        "completedAt": 1792410264581,
+        "automatic": true,
+        "backupRequired": false
+      },
+      "alice-manual-off-receipt": {
+        "version": 24,
+        "completedAt": 1792410440654,
+        "automatic": false,
+        "backupRequired": false
+      },
+      "alice-resumed-receipt": {
+        "version": 25,
+        "completedAt": 1792410470104,
+        "automatic": true,
+        "backupRequired": false
+      },
+      "bob-final-auto-receipt": {
+        "version": 13,
+        "completedAt": 1792410459595,
+        "automatic": true,
+        "backupRequired": false
+      }
+    },
+    "assertions": {
+      "newWalletsDefaultOn": true,
+      "automaticReceiptAfterBfaMint": true,
+      "offSendKeepsCloudVersion": true,
+      "offManualBackupAdvancesVersionAndClearsPending": true,
+      "offIncomingBfaKeepsCloudVersion": true,
+      "reenableBacksUpPendingState": true,
+      "lastBackupTimesFromNativeCompletedUploads": true,
+      "successfulPaymentsNotReplayed": true
+    },
+    "finalBalances": {
+      "alice": {
+        "settled": 1750000,
+        "future": 1750000,
+        "spendable": 1750000,
+        "offchain_outbound": 0,
+        "offchain_inbound": 0
+      },
+      "bob": {
+        "settled": 250000,
+        "future": 250000,
+        "spendable": 250000,
+        "offchain_outbound": 0,
+        "offchain_inbound": 0
+      },
+      "aliceBtc": {
+        "vanilla": {
+          "settled": 1749347,
+          "future": 1749347,
+          "spendable": 1749347
+        },
+        "colored": {
+          "settled": 249605,
+          "future": 249605,
+          "spendable": 249605
+        }
+      },
+      "bobBtc": {
+        "vanilla": {
+          "settled": 1749347,
+          "future": 1749347,
+          "spendable": 1749347
+        },
+        "colored": {
+          "settled": 200000,
+          "future": 249489,
+          "spendable": 249489
+        }
+      }
+    },
+    "diagnostics": [
+      {
+        "attempt": "bare-live-01",
+        "failure": "Bare module resolution from outer harness directory; failed before financial actions",
+        "retainedAt": "/Users/hardik/Projects/WDK <> Iris/.artifacts/vss-bfa-20261019/bare-live-01"
+      },
+      {
+        "attempt": "bare-live-02",
+        "failure": "Bitcoin CLI plain transaction-id output parsed as JSON after one 0.02 BTC funding",
+        "reconciled": true,
+        "fundingTxid": "e3c88e05dd980132495081140b6811999d17d883bd095d57b46d10ec5851053f",
+        "financialReplay": false,
+        "retainedAt": "/Users/hardik/Projects/WDK <> Iris/.artifacts/vss-bfa-20261019/bare-live-02"
+      },
+      {
+        "attempt": "bare-live-03-initial",
+        "failure": "Post-mint audit expected old batch_transfer_idx field; actual history uses idx/recipient_id",
+        "mintConfirmedBeforeResume": true,
+        "resumedSameWallets": true,
+        "financialReplay": false,
+        "retainedAt": "/Users/hardik/Projects/WDK <> Iris/.artifacts/vss-bfa-20261019/bare-live-03/journal-before-resume.json"
+      }
+    ]
+  },
+  "limitations": [
+    "Automatic switch pauses RGB wallet snapshots and WDK hooks; independent common/KV/fence VSS traffic remains enabled.",
+    "Marker persistence failure retains unsaved state in memory but process death can lose additional SDK-stock-only dirty signal.",
+    "Host success is not an Android runtime, iOS runtime, physical-device or full Lightning recovery qualification."
+  ],
+  "testExecutions": {
+    "native-vss-policy-qualified-apple-build.log": {
+      "command": "npm run prepare-native with explicit frozen source; four Apple targets",
+      "scope": "Exact dd269 source and all four Apple release-profile binaries",
+      "logSha256": "abfa091306e67123fb1dc30159f28f8ed4558e06f37ea277df0361f7656879ca",
+      "logLastWrittenAt": "2026-10-19T11:48:44.343540+00:00"
+    },
+    "native-vss-policy-qualified-android-build.log": {
+      "command": "npm run prepare-native with explicit frozen source; three Android targets",
+      "scope": "Exact dd269 source, pinned NDK27.1/API29 and no-angle Cargo cache; three Android release-profile binaries",
+      "logSha256": "06f49868e63587b80bd9e79185537e99930b7d121e3f3df9c64e5f25a2e4fd53",
+      "logLastWrittenAt": "2026-10-19T12:25:50.717310+00:00"
+    },
+    "native-vss-policy-qualified-complete-stage.log": {
+      "command": "npm run stage:payloads",
+      "scope": "All seven owner artifacts and three exact matching data-only payloads",
+      "logSha256": "7d24e59821fec1253e682d91b77da3055d5da42437b1bee3185199569ecd567f",
+      "logLastWrittenAt": "2026-10-19T12:26:12.014319+00:00"
+    },
+    "native-vss-policy-qualified-complete-distribution.log": {
+      "command": "npm run check:distribution",
+      "scope": "Full seven-target distribution gate",
+      "logSha256": "cdd8b5d49d55fefea5d7c1f8192e0b5adfc01a51435260fb36d006348718af4f",
+      "logLastWrittenAt": "2026-10-19T12:26:13.481613+00:00"
+    },
+    "native-vss-policy-current-artifact-bare-runtime-tests.log": {
+      "command": "node node_modules/bare-runtime/bin/bare test.js",
+      "scope": "Current final Darwin artifact",
+      "logSha256": "bdd122bd19154ba6e4c8db3fce376f75ac58377571bf033dae39f5e926492f8d",
+      "logLastWrittenAt": "2026-10-19T12:16:28.033945+00:00"
+    },
+    "native-vss-policy-current-artifact-bare-environment-tests.log": {
+      "command": "npm run test:environment",
+      "scope": "Current final Darwin artifact;18 offline environment terminations and immediate signer reopens",
+      "logSha256": "86ee6ac0d6e4001048376b6b89d9c3d184bfd66da0d612da2921c9a106ce5633",
+      "logLastWrittenAt": "2026-10-19T12:16:32.183966+00:00"
+    },
+    "native-vss-policy-current-artifact-bare-admission-tests.log": {
+      "command": "node node_modules/bare-runtime/bin/bare scripts/test-vss-safety-host.js",
+      "scope": "Current final Darwin artifact;214 constructor cases",
+      "logSha256": "eea779869f6ac0967fe4ab5ff7d9738a8f9b73306103e7805d2776b5ecf5ec4c",
+      "logLastWrittenAt": "2026-10-19T12:16:32.517007+00:00"
+    },
+    "native-vss-policy-current-source-bare-bip322-tests.log": {
+      "command": "npm run test:bip322:crypto",
+      "scope": "Three Rust crypto tests extracted from the final dd269 adapter;not additional addon runtime tests",
+      "logSha256": "8fc650c1552b17edb2ff60b1c5653c1605e461ca918e3fcb35296f7ff48b5a73",
+      "logLastWrittenAt": "2026-10-19T12:16:34.111935+00:00"
+    }
+  }
+}

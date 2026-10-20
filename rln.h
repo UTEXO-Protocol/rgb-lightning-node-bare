@@ -243,6 +243,14 @@ struct CResultString rln_sdk_node_init_with_native_external_signer(const struct 
 
 struct CResult rln_sdk_node_new(const char *request_json);
 
+/**
+ * Prepare a pre-existing RGB VSS archive before unlock; never creates a cloud backup.
+ */
+struct CResultString rln_sdk_node_prepare_vss_restore(const struct COpaqueStruct *node);
+
+struct CResultString rln_sdk_node_set_vss_automatic_backup_enabled(const struct COpaqueStruct *node,
+                                                                   const char *request_json);
+
 struct CResultString rln_sdk_node_shutdown(const struct COpaqueStruct *node);
 
 struct CResultString rln_sdk_node_unlock(const struct COpaqueStruct *node,
@@ -256,17 +264,27 @@ struct CResultString rln_sdk_node_unlock_with_native_external_signer(const struc
                                                                      const char *request_json);
 
 /**
- * Unavailable: native VSS safety policy rejects backup with
- * `FailedVssInit` and `ERR_VSS_UNSAFE_UPSTREAM`. No remote request is made.
+ * Flush configured VSS backup from an unlocked node; returns the snapshot version.
  */
 struct CResultString rln_sdk_node_vss_backup(const struct COpaqueStruct *node);
 
 /**
- * Unavailable: native VSS safety policy rejects fence takeover with
- * `FailedVssInit` and `ERR_VSS_UNSAFE_UPSTREAM`. No remote request is made.
+ * Read remote RGB snapshot status without uploading, restoring or clearing ownership.
+ */
+struct CResultString rln_sdk_node_vss_backup_info(const struct COpaqueStruct *node);
+
+struct CResultString rln_sdk_node_vss_backup_metadata(const struct COpaqueStruct *node);
+
+/**
+ * Explicitly clear a stale writer fence on a locked node after stopping its old writer.
  */
 struct CResultString rln_sdk_node_vss_clear_fence(const struct COpaqueStruct *node,
                                                   const char *request_json);
+
+/**
+ * Read bounded locally authenticated restore provenance and current unlock state.
+ */
+struct CResultString rln_sdk_node_vss_restore_info(const struct COpaqueStruct *node);
 
 struct CResultString rln_sdk_shutdown(void);
 

@@ -9,12 +9,12 @@ for historical restrictions.
 
 ## VSS availability
 
-VSS is disabled by the maintained native safety policy. Supplying any `vss_url`
-(including an empty string) rejects node creation before storage or network access.
-Omit it or pass `null` to use the normal local wallet. Backup and fence-clear
-methods remain exported for compatibility and always reject with
-`ERR_VSS_UNSAFE_UPSTREAM`. See [VSS-SAFETY.md](./VSS-SAFETY.md) for scope and the
-compiled capability contract; configuring a server does not enable protection.
+VSS backup is enabled. Set `vss_url` to an HTTPS service such as
+`https://vss-server.utexo.com/vss`, then initialize and unlock the wallet normally.
+Use `vssBackup()` for an explicit checkpoint and `vssBackupInfo()` for actual
+remote snapshot status. Omitting the URL or passing `null` keeps local-only
+operation. See [VSS-SAFETY.md](./VSS-SAFETY.md) for configuration, explicit fence
+recovery, status semantics and the upstream external-signer credential boundary.
 
 ## Installation Contract
 
@@ -154,7 +154,7 @@ to bypass refusal or restore stale channel backups after new activity.
 
 Real local transfers and diagnostic Lightning/APay flows are recorded in
 `RELEASE-0.15-TRACKER.md`. Strict outgoing signing and same-process reopen remain
-blockers. VSS is excluded from this qualification. Historical artifacts for all
+blockers. VSS qualification is recorded separately in `VSS-SAFETY.md`. Historical artifacts for all
 declared targets do not qualify this release. Mobile runtime and adverse recovery
 qualification remain separate.
 

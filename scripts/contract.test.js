@@ -251,10 +251,44 @@ test('approved RGB imports preserve payloads, exact metadata and native failures
 
 
 test('compiled VSS policy metadata is exposed read-only', () => {
-  const policy = { supported: false, code: 'ERR_VSS_UNSAFE_UPSTREAM',
-    reason: 'VSS is unavailable until upstream backup security and recovery defects are fixed.' }
-  const runtime = facade({}, { capabilities: ['vss-safety-policy-v1'], vss_policy: policy }).getRuntimeInfo()
+  const policy = { supported: true, code: null, reason: null }
+  const runtime = facade({}, { capabilities: ['vss-backup-v1'], vss_policy: policy }).getRuntimeInfo()
   assert.deepEqual(runtime.vss_policy, policy)
   assert.ok(Object.isFrozen(runtime.vss_policy))
-  assert.throws(() => { runtime.vss_policy.supported = true }, TypeError)
+  assert.throws(() => { runtime.vss_policy.supported = false }, TypeError)
+})
+
+
+test('VSS checkpoint and read-only info forward exact versions and native errors', () => {
+  const payload = '{"version":9007199254740993}'
+  const info = '{"backup_exists":true,"version":9007199254740993,"backup_required":false,"last_auto_backup_failed":false}'
+  const node = new (facade({ sdkNodeVssBackup: () => payload, sdkNodeVssBackupInfo: () => info }).SdkNode)({})
+  assert.deepEqual(node.vssBackup(), { version: '9007199254740993' })
+  assert.deepEqual(node.vssBackupInfo(), { backup_exists: true, version: '9007199254740993', backup_required: false, last_auto_backup_failed: false })
+})
+
+
+test('restore preparation and local provenance preserve native bounded receipt', () => {
+  const receipt = { restored: true, status: 'restored', network: 'signet', node_id: '02' + '11'.repeat(32), master_fingerprint: 'a1b2c3d4', version: 7 }
+  const node = new (facade({ sdkNodePrepareVssRestore: () => JSON.stringify(receipt), sdkNodeVssRestoreInfo: () => JSON.stringify({ ...receipt, unlocked: false }) }).SdkNode)({})
+  assert.deepEqual(node.prepareVssRestore(), receipt)
+  assert.deepEqual(node.vssRestoreInfo(), { ...receipt, unlocked: false })
+})
+
+
+test('automatic backup policy is boolean-only and completion metadata preserves exact versions', () => {
+ const metadata = '{"schema_version":1,"automatic_backup_enabled":true,"last_backup":{"version":9007199254740993,"completed_at_ms":1792391012345,"network":"signet","vss_url":"https://example.com/vss","node_id":"node"}}'
+ const calls = []
+ let failure = false
+ const set = raw => { calls.push(JSON.parse(raw)); if (failure) throw new Error('native policy failed'); return JSON.stringify({ automatic_backup_enabled: JSON.parse(raw).enabled }) }
+ const node = new (facade({ sdkNodeVssBackupMetadata: () => metadata, sdkNodeSetVssAutomaticBackupEnabled: (_handle, raw) => set(raw) }).SdkNode)({})
+ assert.equal(node.vssBackupMetadata().last_backup.version, '9007199254740993')
+ assert.equal(node.vssBackupMetadata().last_backup.completed_at_ms, 1792391012345)
+ assert.deepEqual(node.setVssAutomaticBackupEnabled(false), { automatic_backup_enabled: false })
+ assert.deepEqual(node.setVssAutomaticBackupEnabled(true), { automatic_backup_enabled: true })
+ assert.deepEqual(calls, [{ enabled: false }, { enabled: true }])
+ for (const value of [null,undefined,0,1,'false','true',{},[]]) assert.throws(() => node.setVssAutomaticBackupEnabled(value), /must be a boolean/)
+ assert.equal(calls.length, 2)
+ failure = true
+ assert.throws(() => node.setVssAutomaticBackupEnabled(false), /native policy failed/)
 })
