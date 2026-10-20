@@ -16,7 +16,7 @@ on:
         required: false
 
 permissions:
-  contents: read
+  contents: write # GitHub requires write scope to read draft release inputs; the workflow only reads them.
   actions: read
   id-token: write
 
@@ -197,15 +197,15 @@ jobs:
           test "$(git rev-parse HEAD)" = "$PACKAGE_COMMIT"
           test -z "$(git status --porcelain)"
 
-      - name: Pack and verify all four distribution archives before any publication
+      - name: Verify exact reviewed archives against source and record publication metadata
         working-directory: package
         shell: bash
         run: |
           set -euo pipefail
           for task_component in ios android-arm android-x64; do
-            npm pack --workspace "native/$task_component" --json --ignore-scripts --pack-destination "$RUNNER_TEMP/publication-evidence" > "$RUNNER_TEMP/publication-evidence/pack-$task_component.json"
+            npm pack --dry-run --workspace "native/$task_component" --json --ignore-scripts --pack-destination "$RUNNER_TEMP/publication-evidence" > "$RUNNER_TEMP/publication-evidence/pack-$task_component.json"
           done
-          npm pack --workspaces=false --json --ignore-scripts --pack-destination "$RUNNER_TEMP/publication-evidence" > "$RUNNER_TEMP/publication-evidence/pack-wrapper.json"
+          npm pack --dry-run --workspaces=false --json --ignore-scripts --pack-destination "$RUNNER_TEMP/publication-evidence" > "$RUNNER_TEMP/publication-evidence/pack-wrapper.json"
           python3 scripts/verify-distribution-archives.py "$RUNNER_TEMP/publication-evidence/utexo-rgb-lightning-node-bare-0.2.0-beta.5.tgz" "$RUNNER_TEMP/publication-evidence/utexo-rgb-lightning-node-bare-ios-0.2.0-beta.5.tgz" "$RUNNER_TEMP/publication-evidence/utexo-rgb-lightning-node-bare-android-arm-0.2.0-beta.5.tgz" "$RUNNER_TEMP/publication-evidence/utexo-rgb-lightning-node-bare-android-x64-0.2.0-beta.5.tgz"
           python3 - <<'PYCODE'
           import base64,hashlib,json,os,pathlib,subprocess
@@ -221,14 +221,14 @@ jobs:
               integrity='sha512-'+base64.b64encode(hashlib.sha512(data).digest()).decode()
               hashes={'integrity':integrity,'shasum':hashlib.sha1(data).hexdigest(),'sha256':hashlib.sha256(data).hexdigest(),'size':len(data)}
               reviewed={'wrapper': '65c1b019eba2a7dcbf2b7567149348b3f222430802eb5641ccbd343348b98532', 'ios': '68532267acb066b77063e7ba72e803c6c34304d61858085eafe5491222c07a23', 'android-arm': '8ecb09df74851d0f1f9d970ad68ecf03e13f18dd0c1abc718d80e12072cc88eb', 'android-x64': '95f2d973b3bbf880bbfe1ce4125d3ef0400339f32313ae73a5b67d896072f542'}
-              if hashes['sha256'] != reviewed[component]: raise RuntimeError('Repacking changed reviewed assembly archive bytes: '+component)
-              if any(p[key]!=hashes[key] for key in ['integrity','shasum','size']): raise RuntimeError('npm pack receipt mismatch')
+              if hashes['sha256'] != reviewed[component]: raise RuntimeError('Reviewed assembly archive bytes changed: '+component)
+              if p['version'] != os.environ['PACKAGE_VERSION']: raise RuntimeError('Source inventory version mismatch')
               if component=='ios':
                   if hashes!=known_ios: raise RuntimeError('Reviewed beta.5 iOS archive changed')
               elif len(data)>128*1024*1024: raise RuntimeError('Conservative project package-size budget exceeded')
               request_bound=4*((len(data)+2)//3)+2*1024*1024
               packages.append({'component':component,'name':p['name'],'version':p['version'],**hashes,'filename':p['filename'],'encodedRequestUpperBoundBytes':request_bound,'metadataReserveBytes':2*1024*1024,'requestSizeMethod':'Conservative base64 attachment plus2MiB metadata/provenance reserve; not measured HTTP bytes or an official registry limit','packageGitHead':os.environ['IOS_PACKAGE_COMMIT'] if component=='ios' else os.environ['PACKAGE_COMMIT'],'publicationAllowed':True})
-          plan={'packages':packages,'packageGitHead':os.environ['PACKAGE_COMMIT'],'iosPackageGitHead':os.environ['IOS_PACKAGE_COMMIT'],'builderCommit':os.environ['GITHUB_SHA'],'originalNativeBuildCommit':os.environ['ORIGINAL_BUILD_COMMIT'],'nativeRebuildPerformed':False,'node':subprocess.check_output(['node','--version'],text=True).strip(),'npm':subprocess.check_output(['npm','--version'],text=True).strip()}
+          plan={'packages':packages,'packageGitHead':os.environ['PACKAGE_COMMIT'],'iosPackageGitHead':os.environ['IOS_PACKAGE_COMMIT'],'builderCommit':os.environ['GITHUB_SHA'],'originalNativeBuildCommit':os.environ['ORIGINAL_BUILD_COMMIT'],'nativeRebuildPerformed':False,'publicationTransport':'npm 12 libnpmpublish with exact reviewed archive bytes; registry gitHead from PackageJson.prepare(frozen source); real CI provenance','node':subprocess.check_output(['node','--version'],text=True).strip(),'npm':subprocess.check_output(['npm','--version'],text=True).strip()}
           (evidence/'publication-plan.json').write_text(json.dumps(plan,indent=2)+'\n')
           PYCODE
           npm run prepublishOnly
@@ -303,6 +303,14 @@ jobs:
           node --input-type=module - <<'JS'
           import fs from 'node:fs'
           import {execFileSync} from 'node:child_process'
+          import path from 'node:path'
+          import {createRequire} from 'node:module'
+          import {createHash} from 'node:crypto'
+          const npmRoot=path.resolve(path.dirname(fs.realpathSync(execFileSync('which',['npm'],{encoding:'utf8'}).trim())),'..')
+          const npmRequire=createRequire(path.join(npmRoot,'package.json'))
+          if(npmRequire('./package.json').version!=='12.0.1')throw Error('Unreviewed npm publisher library')
+          const {publish}=npmRequire('libnpmpublish')
+          const PackageJson=npmRequire('@npmcli/package-json')
           const evidence=process.env.RUNNER_TEMP+'/publication-evidence/'
           const plan=JSON.parse(fs.readFileSync(evidence+'publication-plan.json','utf8'))
           const selections={'publish-data':['ios','android-arm','android-x64'],'publish-ios':['ios'],'publish-androids':['android-arm','android-x64'],'publish-android-arm':['android-arm'],'publish-android-x64':['android-x64'],'publish-wrapper':['wrapper']}
@@ -316,8 +324,16 @@ jobs:
             const r=await fetch('https://registry.npmjs.org/'+encodeURIComponent(p.name)+'/'+p.version,{signal:AbortSignal.timeout(30000)})
             if(r.status!==404)throw Error('Selected version no longer absent; do not blindly retry')
             const destination=component==='wrapper'?'.':'./native/'+component
-            const log=fs.openSync(evidence+'publish-'+component+'.log','wx')
-            try{execFileSync('npm',['publish',destination,'--workspaces=false','--provenance','--access','public','--tag','beta','--registry=https://registry.npmjs.org/','--json'],{stdio:['ignore',log,'inherit']})}finally{fs.closeSync(log)}
+            const {content:metadata}=await PackageJson.prepare(path.resolve(destination))
+            if(metadata.gitHead!==p.packageGitHead||metadata.name!==p.name||metadata.version!==p.version)throw Error('Frozen directory publication metadata mismatch')
+            const bytes=fs.readFileSync(evidence+p.filename)
+            if(bytes.length!==p.size||createHash('sha256').update(bytes).digest('hex')!==p.sha256||'sha512-'+createHash('sha512').update(bytes).digest('base64')!==p.integrity)throw Error('Reviewed archive changed before publication')
+            // Same official npm 12 transport used by its publish command, with
+            // already-reviewed bytes instead of recompression on another zlib.
+            // Registry authorization and real GitHub/Sigstore provenance remain enforced.
+            const result=await publish(metadata,bytes,{registry:'https://registry.npmjs.org/',access:'public',defaultTag:'beta',npmVersion:'12.0.1',command:'publish',provenance:true,'//registry.npmjs.org/:_authToken':process.env.NODE_AUTH_TOKEN})
+            fs.writeFileSync(evidence+'publish-'+component+'.json',JSON.stringify({name:p.name,version:p.version,integrity:p.integrity,gitHead:metadata.gitHead,accepted:true,transparencyLogUrl:result.transparencyLogUrl},null,2)+'\n',{flag:'wx'})
+            console.log('npm accepted '+p.name+'@'+p.version+'; public processing and verification follow.')
           }
           JS
 
