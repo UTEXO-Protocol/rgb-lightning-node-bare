@@ -80,6 +80,9 @@ class ArchiveTests(unittest.TestCase):
     def write(self, file, data):
         file.parent.mkdir(parents=True, exist_ok=True)
         file.write_bytes(data)
+        # Source fixtures model Git checkout modes, independent of a maintainer's
+        # restrictive umask. Permission-corruption tests override this explicitly.
+        file.chmod(0o644)
 
     def archive(self, file, content, extras=()):
         with tarfile.open(file, 'w:gz') as archive:

@@ -26,7 +26,7 @@
  */
 
 const binding = require('./binding')
-const { parse, stringify, bip322Request, paymentRequest, burnRequest, unsupported, UnsupportedCapabilityError } = require('./json-boundary')
+const { parse, stringify, bip322Request, paymentRequest, burnRequest, sendRgbInvoiceRequest, unsupported, UnsupportedCapabilityError } = require('./json-boundary')
 const expectedRuntime = require('./runtime-contract.json')
 const runtimeInfo = parse(binding.getRuntimeInfo())
 for (const [key, expected] of Object.entries(expectedRuntime)) {
@@ -362,6 +362,10 @@ class SdkNode {
 
   sendRgb (request) {
     return parse(binding.sendRgb(this._handle, stringify(request)))
+  }
+
+  sendRgbInvoice (request) {
+    return parse(binding.sendRgbInvoice(this._handle, sendRgbInvoiceRequest(request)))
   }
 
   importRgbTransferConsignment (request) {

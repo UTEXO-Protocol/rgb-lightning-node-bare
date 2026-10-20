@@ -297,6 +297,9 @@ struct CResultString rln_send_payment(const struct COpaqueStruct *node, const ch
 
 struct CResultString rln_send_rgb(const struct COpaqueStruct *node, const char *request_json);
 
+struct CResultString rln_send_rgb_invoice(const struct COpaqueStruct *node,
+                                          const char *request_json);
+
 struct CResultString rln_sign_message(const struct COpaqueStruct *node, const char *message);
 
 struct CResultString rln_sign_message_bip322(const struct COpaqueStruct *node,

@@ -84,8 +84,11 @@ test('package overlay metadata is exact and checksum-pinned', () => {
   const packageRoot = path.resolve(__dirname, '..')
   const config = readOverlayConfig(packageRoot)
 
-  assert.equal(config.commit, 'ecc69f20308231400561f6f060fea88acfa40cc4')
-  assert.equal(config.patchSha256, '6d46717b80ffba8ed8af2de023a536af242aadcacbbb799fb9bb89f8933e4ca5')
+  assert.equal(config.commit, 'cd3be114a6d0e41af8ce3f29719d210e105234dc')
+  assert.equal(config.patchSha256, '3662f1e7d97f5bb540b1e6cb0bce98a2e0b243868417e481bcd0c27e15819702')
+  assert.equal(config.lightningCommit, '510189d5700a6d1406229ce7523e181c3838715e')
+  assert.equal(config.rgbLibRepository, 'https://github.com/UTEXO-Protocol/rgb-lib-bfa.git')
+  assert.equal(config.rgbLibCommit, '962730a211f0f7569d7ad8ae777052f433d87655')
   assert.equal(config.rustToolchain, '1.94.0')
   assert.equal(config.iosDeploymentTarget, '16.0')
   assert.equal(config.androidNdkVersion, '27.1.12297006')
