@@ -12,6 +12,7 @@ function runtimeIdentity (root, config) {
     rln_version: config.rlnVersion,
     rln_commit: config.commit,
     lightning_commit: config.lightningCommit,
+    rgb_lib_commit: config.rgbLibCommit,
     adapter_sha256: config.patchSha256,
     wrapper_sha256: contract.wrapperSha256(root, WRAPPER_FILES),
     lock_sha256: config.cffiLockSha256

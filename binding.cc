@@ -913,6 +913,7 @@ FN_NODE_JSON(refresh_transfers, rln_refresh_transfers)
 FN_NODE_JSON(fail_transfers, rln_fail_transfers)
 
 FN_NODE_JSON(send_rgb, rln_send_rgb)
+FN_NODE_JSON(send_rgb_invoice, rln_send_rgb_invoice)
 
 FN_NODE_JSON(inflate, rln_inflate)
 FN_NODE_JSON(burn, rln_burn)
@@ -1121,6 +1122,7 @@ rgb_lightning_node_bare_exports(js_env_t *env, js_value_t *exports) {
   EXPORT("refreshTransfers", refresh_transfers);
   EXPORT("failTransfers", fail_transfers);
   EXPORT("sendRgb", send_rgb);
+  EXPORT("sendRgbInvoice", send_rgb_invoice);
   EXPORT("inflate", inflate);
   EXPORT("burn", burn);
   EXPORT("getAssetMedia", get_asset_media);

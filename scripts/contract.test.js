@@ -292,3 +292,30 @@ test('automatic backup policy is boolean-only and completion metadata preserves 
  failure = true
  assert.throws(() => node.setVssAutomaticBackupEnabled(false), /native policy failed/)
 })
+
+
+test('invoice-first send forwards full invoice, exact amounts and native failures once', () => {
+  const calls = []
+  const error = new Error('Rln(InvalidRecipient): invoice expired')
+  let fail = false
+  const native = { sendRgbInvoice: (...args) => {
+    calls.push(args.at(-1))
+    if (fail) throw error
+    return '{"txid":"abc","batch_transfer_idx":2147483647}'
+  } }
+  const node = new (facade(native).SdkNode)({})
+  const request = { invoice: 'rgb:contract/recipient?pk=abc&enc=required&expiry=1893456000',
+    asset_id: 'rgb:contract', amount: '18446744073709551615', donation: false,
+    fee_rate: 2, min_confirmations: 6 }
+  assert.deepEqual(node.sendRgbInvoice(request), { txid: 'abc', batch_transfer_idx: 2147483647 })
+  assert.equal(boundary.parse(calls[0]).invoice, request.invoice)
+  assert.match(calls[0], /"amount":18446744073709551615/)
+  for (const invalid of [{ ...request, amount: 9007199254740992 }, { ...request, public_key: 'override' },
+    { ...request, donation: 'false' }, { ...request, witness_data: { amount_sat: -1 } }]) {
+    assert.throws(() => node.sendRgbInvoice(invalid))
+  }
+  assert.equal(calls.length, 1)
+  fail = true
+  assert.throws(() => node.sendRgbInvoice(request), error)
+  assert.equal(calls.length, 2)
+})
