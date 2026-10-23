@@ -35,8 +35,25 @@ class ArchiveTests(unittest.TestCase):
         self.assertNotEqual(identity['integrity'], GATE.FROZEN_IOS['integrity'])
 
     def test_unreviewed_ios_version_has_no_legacy_fallback(self):
-        with self.assertRaisesRegex(ValueError, 'No reviewed iOS archive identity'):
-            GATE.ios_archive_identity('0.2.0-beta.6')
+        for version in ('0.2.0-beta.6', '0.2.0-bfa.0'):
+            with self.subTest(version=version), self.assertRaisesRegex(ValueError, 'No reviewed iOS archive identity'):
+                GATE.ios_archive_identity(version)
+
+    def test_current_candidate_version_matches_package_and_workspace_locks(self):
+        root = pathlib.Path(__file__).resolve().parent.parent
+        owner = json.loads((root / 'package.json').read_text())
+        lock = json.loads((root / 'package-lock.json').read_text())
+        self.assertEqual(owner['version'], GATE.CANDIDATE_VERSION)
+        self.assertEqual(lock['version'], owner['version'])
+        self.assertEqual(lock['packages']['']['version'], owner['version'])
+        for payload in GATE.PAYLOADS:
+            metadata = json.loads((root / payload['directory'] / 'package.json').read_text())
+            self.assertEqual(metadata['version'], owner['version'])
+            self.assertEqual(owner['dependencies'][payload['name']], owner['version'])
+            self.assertEqual(lock['packages']['']['dependencies'][payload['name']], owner['version'])
+            self.assertEqual(lock['packages'][payload['directory']]['version'], owner['version'])
+            self.assertEqual((root / payload['directory'] / 'runtime-contract.json').read_bytes(),
+                             (root / 'runtime-contract.json').read_bytes())
 
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory(prefix='bare-archive-policy-')
@@ -162,6 +179,7 @@ class ArchiveTests(unittest.TestCase):
         record, _, environment, seal = self.candidate_record()
         variants = [
             ('schemaVersion', True), ('schemaVersion', 2), ('name', GATE.OWNER), ('version', '0.2.0-beta.5'),
+            ('version', '0.2.0-bfa.0'),
             ('sourceCommit', 'main'), ('sourceCommit', 'a' * 39), ('sourceCommit', '0' * 40),
             ('size', True), ('size', 0), ('size', -1), ('size', 1.1), ('size', GATE.FROZEN_IOS['size'] + 1),
             ('published', True), ('published', 0), ('published', 'false'), ('integrity', 'sha512-AAAA'),
