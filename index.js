@@ -26,7 +26,7 @@
  */
 
 const binding = require('./binding')
-const { parse, stringify, bip322Request, paymentRequest, burnRequest, sendRgbInvoiceRequest, unsupported, UnsupportedCapabilityError } = require('./json-boundary')
+const { parse, stringify, bip322Request, paymentRequest, burnRequest, sendRgbInvoiceRequest, createUtxosOperationRequest, unsupported, UnsupportedCapabilityError } = require('./json-boundary')
 const expectedRuntime = require('./runtime-contract.json')
 const runtimeInfo = parse(binding.getRuntimeInfo())
 for (const [key, expected] of Object.entries(expectedRuntime)) {
@@ -421,13 +421,29 @@ class SdkNode {
 
   cancelBtcSendPlan (request) { unsupported('cancelBtcSendPlan') }
 
-  prepareCreateUtxos (request) { unsupported('prepareCreateUtxos') }
+  prepareCreateUtxos (request) {
+    return parse(binding.prepareCreateUtxos(this._handle, createUtxosOperationRequest(request, true)))
+  }
 
-  commitPreparedCreateUtxos (request) { unsupported('commitPreparedCreateUtxos') }
+  commitPreparedCreateUtxos (request) {
+    return parse(binding.commitPreparedCreateUtxos(this._handle, createUtxosOperationRequest(request)))
+  }
 
-  cancelCreateUtxosPlan (request) { unsupported('cancelCreateUtxosPlan') }
+  cancelCreateUtxosPlan (request) {
+    return parse(binding.cancelCreateUtxosPlan(this._handle, createUtxosOperationRequest(request)))
+  }
 
-  listPendingVanillaTransactions () { unsupported('listPendingVanillaTransactions') }
+  getCreateUtxosOperation (request) {
+    return parse(binding.getCreateUtxosOperation(this._handle, createUtxosOperationRequest(request)))
+  }
+
+  listCreateUtxosOperations () {
+    return parse(binding.listCreateUtxosOperations(this._handle))
+  }
+
+  listPendingVanillaTransactions () {
+    return parse(binding.listPendingVanillaTransactions(this._handle))
+  }
 
   listAddressReceipts (address) { unsupported('listAddressReceipts') }
 

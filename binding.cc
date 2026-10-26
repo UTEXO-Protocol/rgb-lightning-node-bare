@@ -956,6 +956,12 @@ static js_value_t *fn_list_transactions_by_txid(js_env_t *env, js_callback_info_
 
 FN_NODE_BOOL(list_unspents, rln_list_unspents)
 FN_NODE_JSON(create_utxos, rln_create_utxos)
+FN_NODE_JSON(prepare_create_utxos, rln_prepare_create_utxos)
+FN_NODE_JSON(commit_prepared_create_utxos, rln_commit_prepared_create_utxos)
+FN_NODE_JSON(cancel_create_utxos_plan, rln_cancel_create_utxos_plan)
+FN_NODE_JSON(get_create_utxos_operation, rln_get_create_utxos_operation)
+FN_NODE(list_create_utxos_operations, rln_list_create_utxos_operations)
+FN_NODE(list_pending_vanilla_transactions, rln_list_pending_vanilla_transactions)
 
 static js_value_t *fn_estimate_fee(js_env_t *env, js_callback_info_t *info) {
   js_value_t *args[2];
@@ -1135,6 +1141,12 @@ rgb_lightning_node_bare_exports(js_env_t *env, js_value_t *exports) {
   EXPORT("listTransactionsByTxid", list_transactions_by_txid);
   EXPORT("listUnspents", list_unspents);
   EXPORT("createUtxos", create_utxos);
+  EXPORT("prepareCreateUtxos", prepare_create_utxos);
+  EXPORT("commitPreparedCreateUtxos", commit_prepared_create_utxos);
+  EXPORT("cancelCreateUtxosPlan", cancel_create_utxos_plan);
+  EXPORT("getCreateUtxosOperation", get_create_utxos_operation);
+  EXPORT("listCreateUtxosOperations", list_create_utxos_operations);
+  EXPORT("listPendingVanillaTransactions", list_pending_vanilla_transactions);
   EXPORT("estimateFee", estimate_fee);
 
   // Onion / signing / diagnostics
