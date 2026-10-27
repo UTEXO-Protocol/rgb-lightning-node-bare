@@ -1,9 +1,10 @@
 {
   "abi_version": 1,
   "rln_version": "0.17.0-beta.3",
-  "rln_commit": "ecc69f20308231400561f6f060fea88acfa40cc4",
-  "lightning_commit": "79b9eb5166546c62692d3a672986f385c7fe047d",
-  "adapter_sha256": "6d46717b80ffba8ed8af2de023a536af242aadcacbbb799fb9bb89f8933e4ca5",
-  "wrapper_sha256": "5dca0ca23c28cb8e9171646db0f1ef9f1d76744a764653a960076426126fea6d",
-  "lock_sha256": "5fcdc9ad9179d3230e48973cdfa514a863d13a837752027febf8ea04713bbeb5"
+  "rln_commit": "89ebe9fdb1be94cbba0b2bd722cea9af297399f1",
+  "lightning_commit": "17f2fb56f8d96d0ec512c715d2ebc65f829eb2c2",
+  "rgb_lib_commit": "abd41d3afff6d8fb11461e26e843301650e22df3",
+  "adapter_sha256": "4a730e3036e1197b2d9cd2d2584de722745f35e74dd1707dfe9b08e251b8b12b",
+  "wrapper_sha256": "8b8a6b55592d9cc1187c011a7e0cb7af905fdfb5ecd3c3bc80566e16f2592a34",
+  "lock_sha256": "741bd3d0f81b28c1f40e426b44f5c9ae152d777269934d7c0dc919d74f908da9"
 }

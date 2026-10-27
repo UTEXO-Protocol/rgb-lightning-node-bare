@@ -51,6 +51,9 @@ struct CResultString rln_btc_balance(const struct COpaqueStruct *node, bool skip
 
 struct CResultString rln_burn(const struct COpaqueStruct *node, const char *request_json);
 
+struct CResultString rln_cancel_create_utxos_plan(const struct COpaqueStruct *node,
+                                                  const char *request_json);
+
 struct CResultString rln_cancel_hodl_invoice(const struct COpaqueStruct *node,
                                              const char *request_json);
 
@@ -64,6 +67,9 @@ struct CResultString rln_claim_hodl_invoice(const struct COpaqueStruct *node,
                                             const char *request_json);
 
 struct CResultString rln_close_channel(const struct COpaqueStruct *node, const char *request_json);
+
+struct CResultString rln_commit_prepared_create_utxos(const struct COpaqueStruct *node,
+                                                      const char *request_json);
 
 struct CResultString rln_connect_peer(const struct COpaqueStruct *node,
                                       const char *peer_pubkey_and_addr);
@@ -107,6 +113,9 @@ struct CResultString rln_get_consignment_path(const struct COpaqueStruct *node,
                                               const char *asset_id,
                                               const char *txid);
 
+struct CResultString rln_get_create_utxos_operation(const struct COpaqueStruct *node,
+                                                    const char *request_json);
+
 struct CResultString rln_get_message_signing_address(const struct COpaqueStruct *node);
 
 struct CResultString rln_get_payment(const struct COpaqueStruct *node,
@@ -146,9 +155,13 @@ struct CResultString rln_list_assets(const struct COpaqueStruct *node,
 
 struct CResultString rln_list_channels(const struct COpaqueStruct *node);
 
+struct CResultString rln_list_create_utxos_operations(const struct COpaqueStruct *node);
+
 struct CResultString rln_list_payments(const struct COpaqueStruct *node);
 
 struct CResultString rln_list_peers(const struct COpaqueStruct *node);
+
+struct CResultString rln_list_pending_vanilla_transactions(const struct COpaqueStruct *node);
 
 struct CResultString rln_list_swaps(const struct COpaqueStruct *node);
 
@@ -198,6 +211,9 @@ struct CResultString rln_open_channel(const struct COpaqueStruct *node, const ch
 
 struct CResultString rln_post_asset_media(const struct COpaqueStruct *node,
                                           const char *request_json);
+
+struct CResultString rln_prepare_create_utxos(const struct COpaqueStruct *node,
+                                              const char *request_json);
 
 struct CResultString rln_refresh_transfers(const struct COpaqueStruct *node,
                                            const char *request_json);
@@ -296,6 +312,9 @@ struct CResultString rln_send_onion_message(const struct COpaqueStruct *node,
 struct CResultString rln_send_payment(const struct COpaqueStruct *node, const char *request_json);
 
 struct CResultString rln_send_rgb(const struct COpaqueStruct *node, const char *request_json);
+
+struct CResultString rln_send_rgb_invoice(const struct COpaqueStruct *node,
+                                          const char *request_json);
 
 struct CResultString rln_sign_message(const struct COpaqueStruct *node, const char *message);
 

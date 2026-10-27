@@ -2,6 +2,21 @@ name: Build Candidate Artifacts (No Publication)
 
 on:
   workflow_dispatch:
+    inputs:
+      target:
+        description: Exact candidate target to build; all is reserved for final platform qualification
+        required: true
+        type: choice
+        default: android-arm64
+        options:
+          - android-arm64
+          - android-arm
+          - android-x64
+          - darwin-arm64
+          - ios-arm64
+          - ios-arm64-simulator
+          - ios-x64-simulator
+          - all
 
 permissions:
   contents: read
@@ -13,7 +28,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [darwin-arm64, ios-arm64, ios-arm64-simulator, ios-x64-simulator, android-arm64, android-arm, android-x64]
+        platform: ${{ inputs.target == 'all' && fromJSON('["darwin-arm64","ios-arm64","ios-arm64-simulator","ios-x64-simulator","android-arm64","android-arm","android-x64"]') || fromJSON(format('["{0}"]', inputs.target || 'android-arm64')) }}
     env:
       RLN_BARE_TARGETS: ${{ matrix.platform }}
       CARGO_BUILD_JOBS: 3

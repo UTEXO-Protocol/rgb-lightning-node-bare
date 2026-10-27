@@ -1,4 +1,5 @@
 'use strict'
+// rgb-lib-bfa requires fresh addresses; address reuse is explicitly unsupported.
 // The runner resolves these to immutable absolute paths before packing.
 const fs = require('__BARE_FS__')
 const native = require('__NATIVE_PACKAGE__')
@@ -10,7 +11,7 @@ try {
     storage_dir_path: directory + '/wallet', network: 'regtest',
     daemon_listening_port: 0, ldk_peer_listening_port: 0,
     max_media_upload_size_mb: 5, enable_virtual_channels_v0: false,
-    reuse_addresses: true
+    reuse_addresses: false
   }
   // Public test entropy. No address, invoice, sync or payment is requested.
   if (mode === 'node-first') global.node = native.SdkNode.create(request)
